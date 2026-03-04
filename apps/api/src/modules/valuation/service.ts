@@ -11,6 +11,7 @@ import {
   floorToBucketIso,
   formatDate,
   getBucketSeconds,
+  isTradingDay,
   isTradingTime,
   nowInShanghai,
   secondsStaleness
@@ -101,6 +102,19 @@ function parseFundGzTimeToIso(raw: string | undefined, fallback: Date): string {
   const second = match[6] ?? "00";
 
   return `${year}-${month}-${day}T${hour}:${minute}:${second}+08:00`;
+}
+
+function isSameShanghaiDate(isoTime: string | undefined, shanghaiDate: string): boolean {
+  if (!isoTime) {
+    return false;
+  }
+
+  const date = new Date(isoTime);
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  return formatDate(date) === shanghaiDate;
 }
 
 export class ValuationService {
@@ -231,11 +245,12 @@ export class ValuationService {
 
     const realtime = await this.realtimeEstimateFetcher(fundCode, options.now);
     const today = formatDate(options.now);
-    const hasOfficialNavForToday = latestNav.navDate === today;
-    const hasRealtimeEstimate = Boolean(realtime && Math.abs(realtime.changePct) > 0.000001);
-    const useRealtimeMode = isTradingTime(options.now) && !hasOfficialNavForToday && hasRealtimeEstimate;
+    const tradingDay = isTradingDay(options.now);
+    const realtimeIsToday = Boolean(realtime && isSameShanghaiDate(realtime.quoteTime, today));
+    const useRealtimeMode = tradingDay && realtimeIsToday;
+    const realtimeDuringTradingTime = useRealtimeMode && isTradingTime(options.now);
 
-    const method: ValuationMethod = useRealtimeMode ? "BETA_PROXY" : "INDEX_TRACKING";
+    const method: ValuationMethod = realtimeDuringTradingTime ? "BETA_PROXY" : "INDEX_TRACKING";
     const fitScore = 1;
     const recentError = 0;
     const quoteTime = useRealtimeMode && realtime ? realtime.quoteTime : options.now.toISOString();
@@ -251,10 +266,16 @@ export class ValuationService {
       estimateChangePct = realtime.changePct;
       fundName = realtime.name ?? profile.fundName;
       officialNav = realtime.officialNav ?? latestNav.nav;
-    } else {
-      // 非交易时段或当日净值已更新时，统一使用官方最新净值口径。
+    } else if (tradingDay) {
+      // 交易日必须使用当日实时估值；若接口不可用或非当日数据，盘中估算涨跌统一置 0，避免回退到上一交易日收益。
       estimateNav = latestNav.nav;
-      estimateChangePct = latestNav.dailyReturn;
+      estimateChangePct = 0;
+      fundName = realtime?.name ?? profile.fundName;
+      officialNav = latestNav.nav;
+    } else {
+      // 非交易日盘中估算涨跌固定为 0。
+      estimateNav = latestNav.nav;
+      estimateChangePct = 0;
       fundName = realtime?.name ?? profile.fundName;
       officialNav = latestNav.nav;
     }

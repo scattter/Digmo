@@ -16,13 +16,13 @@ function createMockQuoteClient() {
 }
 
 function createMockRealtimeEstimateFetcher() {
-  return async (fundCode: string) => ({
+  return async (fundCode: string, now: Date) => ({
     fundCode,
     name: `基金${fundCode}`,
     officialNav: 1,
     estimateNav: 1.01,
     changePct: 0.01,
-    quoteTime: new Date("2026-03-02T02:00:00.000Z").toISOString()
+    quoteTime: now.toISOString()
   });
 }
 
@@ -97,7 +97,7 @@ describe("valuation service", () => {
     expect(snapshot.topHoldings.some((holding) => holding.source === "SCRIPT_MIXED")).toBe(true);
   });
 
-  test("falls back to official NAV return when realtime estimate is unavailable", async () => {
+  test("sets intraday estimate to zero on trading day when realtime estimate is unavailable", async () => {
     const service = new ValuationService({
       provider: new McpSeedFundDataProvider(["161725"]),
       repository: new InMemoryRepository(),
@@ -116,10 +116,10 @@ describe("valuation service", () => {
 
     expect(snapshot.method).toBe("INDEX_TRACKING");
     expect(snapshot.estimateNav).toBeCloseTo(snapshot.officialNav ?? 0, 6);
-    expect(snapshot.estimateChangePct).toBeCloseTo(snapshot.officialDailyReturn, 6);
+    expect(snapshot.estimateChangePct).toBeCloseTo(0, 6);
   });
 
-  test("uses official NAV return when realtime estimate is zero change", async () => {
+  test("keeps realtime estimate when realtime estimate is zero change", async () => {
     const service = new ValuationService({
       provider: new McpSeedFundDataProvider(["161725"]),
       repository: new InMemoryRepository(),
@@ -143,11 +143,11 @@ describe("valuation service", () => {
       skipIfExists: false
     });
 
-    expect(snapshot.method).toBe("INDEX_TRACKING");
-    expect(snapshot.estimateChangePct).toBeCloseTo(snapshot.officialDailyReturn, 6);
+    expect(snapshot.method).toBe("BETA_PROXY");
+    expect(snapshot.estimateChangePct).toBeCloseTo(0, 6);
   });
 
-  test("prefers official daily return when official NAV has updated for today", async () => {
+  test("uses realtime estimate on trading day even when official NAV has updated for today", async () => {
     const service = new ValuationService({
       provider: new McpSeedFundDataProvider(["161725"]),
       repository: new InMemoryRepository(),
@@ -164,12 +164,11 @@ describe("valuation service", () => {
       skipIfExists: false
     });
 
-    expect(snapshot.method).toBe("INDEX_TRACKING");
-    expect(snapshot.estimateNav).toBeCloseTo(snapshot.officialNav ?? 0, 6);
-    expect(snapshot.estimateChangePct).toBeCloseTo(snapshot.officialDailyReturn, 6);
+    expect(snapshot.method).toBe("BETA_PROXY");
+    expect(snapshot.estimateChangePct).toBeCloseTo(0.01, 6);
   });
 
-  test("uses official daily return outside trading hours even if realtime estimate exists", async () => {
+  test("uses realtime estimate outside trading hours on trading day", async () => {
     const service = new ValuationService({
       provider: new McpSeedFundDataProvider(["161725"]),
       repository: new InMemoryRepository(),
@@ -187,7 +186,55 @@ describe("valuation service", () => {
     });
 
     expect(snapshot.method).toBe("INDEX_TRACKING");
-    expect(snapshot.estimateNav).toBeCloseTo(snapshot.officialNav ?? 0, 6);
-    expect(snapshot.estimateChangePct).toBeCloseTo(snapshot.officialDailyReturn, 6);
+    expect(snapshot.estimateChangePct).toBeCloseTo(0.01, 6);
+  });
+
+  test("rejects previous-trading-day realtime estimate on trading day", async () => {
+    const service = new ValuationService({
+      provider: new McpSeedFundDataProvider(["161725"]),
+      repository: new InMemoryRepository(),
+      cache: new MemoryCache(),
+      eastmoneyClient: createMockQuoteClient() as any,
+      realtimeEstimateFetcher: async (fundCode: string) => ({
+        fundCode,
+        name: `基金${fundCode}`,
+        officialNav: 1,
+        estimateNav: 1.01,
+        changePct: 0.01,
+        quoteTime: new Date("2026-03-02T08:00:00.000Z").toISOString()
+      })
+    });
+
+    await service.bootstrap();
+
+    const snapshot = await service.computeAndPersist("161725", {
+      now: new Date("2026-03-03T02:00:00.000Z"),
+      bucketIso: "2026-03-03T02:00:00.000Z",
+      skipIfExists: false
+    });
+
+    expect(snapshot.method).toBe("INDEX_TRACKING");
+    expect(snapshot.estimateChangePct).toBeCloseTo(0, 6);
+  });
+
+  test("sets intraday estimate to zero on non-trading day", async () => {
+    const service = new ValuationService({
+      provider: new McpSeedFundDataProvider(["161725"]),
+      repository: new InMemoryRepository(),
+      cache: new MemoryCache(),
+      eastmoneyClient: createMockQuoteClient() as any,
+      realtimeEstimateFetcher: createMockRealtimeEstimateFetcher()
+    });
+
+    await service.bootstrap();
+
+    const snapshot = await service.computeAndPersist("161725", {
+      now: new Date("2026-03-01T02:00:00.000Z"),
+      bucketIso: "2026-03-01T02:00:00.000Z",
+      skipIfExists: false
+    });
+
+    expect(snapshot.method).toBe("INDEX_TRACKING");
+    expect(snapshot.estimateChangePct).toBeCloseTo(0, 6);
   });
 });

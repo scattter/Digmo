@@ -1,44 +1,52 @@
 "use client";
 
-import { BatchEstimateResponse, FundEstimateSnapshot } from "@digmo/shared";
-import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  addWatchlistFund,
-  fetchBatchEstimates,
-  fetchWatchlistFunds,
-  removeWatchlistFund,
-  updateWatchlistFundHoldingAmount
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors
+} from "@dnd-kit/core";
+import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { FlatFundItem, PortfolioFundItem, PortfolioSummary, PortfolioType, TrendType } from "@digmo/shared";
+import Link from "next/link";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  addPortfolioFund,
+  createPortfolio,
+  deletePortfolio,
+  fetchFlatFunds,
+  fetchPortfolioFunds,
+  fetchPortfolios,
+  FlatExpandMode,
+  reorderPortfolioFunds,
+  removePortfolioFund,
+  renamePortfolio,
+  SortOrder,
+  updatePortfolioFund
 } from "../lib/api";
 
-function deltaClass(value: number): string {
-  if (value > 0.0001) return "delta-up";
-  if (value < -0.0001) return "delta-down";
-  return "delta-neutral";
+type MainView = "funds" | "portfolios";
+
+interface PortfolioMeta {
+  id: string;
+  name: string;
+  type: PortfolioType;
 }
 
-function formatMarketCap(value?: number): string {
-  if (typeof value !== "number") {
-    return "-";
-  }
-  return `${(value / 100000000).toFixed(2)}亿`;
-}
-
-function toMap(items: FundEstimateSnapshot[]): Map<string, FundEstimateSnapshot> {
-  return new Map(items.map((item) => [item.fundCode, item]));
-}
-
-function formatBeijingTime(input: string): string {
-  return new Date(input).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
+interface FundEditState {
+  holdingAmount: string;
+  plannedRatio: string;
 }
 
 function formatCurrency(value: number): string {
-  const fixed = value.toFixed(2);
-  const [integerPart, decimalPart] = fixed.split(".");
-  const isNegative = integerPart.startsWith("-");
-  const digits = isNegative ? integerPart.slice(1) : integerPart;
-  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return `${isNegative ? "-" : ""}${grouped}.${decimalPart}`;
+  return value.toLocaleString("zh-CN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 }
 
 function formatSignedAmount(value: number): string {
@@ -46,467 +54,747 @@ function formatSignedAmount(value: number): string {
   return `${sign}${formatCurrency(value)}`;
 }
 
-function formatSignedRatioPct(value: number): string {
+function formatSignedCurrency(value: number): string {
+  const sign = value > 0 ? "+" : "";
+  return `${sign}¥${formatCurrency(Math.abs(value))}`;
+}
+
+function formatSignedPct(value: number | undefined): string {
+  if (typeof value !== "number") {
+    return "-";
+  }
+
   const pct = value * 100;
   const sign = pct > 0 ? "+" : "";
   return `${sign}${pct.toFixed(2)}%`;
 }
 
-function formatDayReturn(holdingAmount: number, dayChangePct: number): string {
-  const amountText = formatSignedAmount(holdingAmount * dayChangePct);
-  return `${amountText} / ${formatSignedRatioPct(dayChangePct)}`;
+function formatPct(value: number | undefined): string {
+  if (typeof value !== "number") {
+    return "-";
+  }
+  return `${(value * 100).toFixed(2)}%`;
 }
 
-function parseHoldingAmountInput(raw: string): number | undefined {
+function formatBeijingTime(input: string): string {
+  return new Date(input).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
+}
+
+function trendClass(trend: TrendType): string {
+  if (trend === "UP") {
+    return "trend trend-up";
+  }
+  if (trend === "DOWN") {
+    return "trend trend-down";
+  }
+  return "trend trend-flat";
+}
+
+function parseNonNegativeNumber(raw: string): number | undefined {
   const normalized = raw.trim().replace(/,/g, "");
   if (!normalized) {
     return undefined;
   }
-
-  const parsed = Number(normalized);
-  if (!Number.isFinite(parsed) || parsed < 0) {
+  const value = Number(normalized);
+  if (!Number.isFinite(value) || value < 0) {
     return undefined;
   }
-
-  return Number(parsed.toFixed(2));
+  return Number(value.toFixed(2));
 }
 
-type DisplayMode = "detailed" | "compact";
-
-interface FundMeta {
-  holdingAmount: number;
-  totalChangePct: number;
-  createdAt?: string;
-  lastAccumulatedNavDate?: string;
+function parseRatioPercent(raw: string): number | undefined {
+  const normalized = raw.trim().replace("%", "");
+  if (!normalized) {
+    return undefined;
+  }
+  const value = Number(normalized);
+  if (!Number.isFinite(value) || value < 0 || value > 100) {
+    return undefined;
+  }
+  return Number((value / 100).toFixed(6));
 }
 
-interface SnapshotVM {
-  fundCode: string;
-  snapshot?: FundEstimateSnapshot;
-  meta: FundMeta;
+function nextFlatSortOrder(current: SortOrder): SortOrder {
+  if (current === "default") {
+    return "desc";
+  }
+  if (current === "desc") {
+    return "asc";
+  }
+  return "default";
 }
 
-const EMPTY_META: FundMeta = {
-  holdingAmount: 0,
-  totalChangePct: 0
-};
+function getFlatSortButtonLabel(order: SortOrder): string {
+  if (order === "desc") {
+    return "涨幅排序 ↓";
+  }
+  if (order === "asc") {
+    return "涨幅排序 ↑";
+  }
+  return "涨幅排序";
+}
+
+function getEstimateSortButtonLabel(order: SortOrder): string {
+  if (order === "desc") {
+    return "今日预估排序 ↓";
+  }
+  if (order === "asc") {
+    return "今日预估排序 ↑";
+  }
+  return "今日预估排序";
+}
+
+function deltaClassByPct(value: number): string {
+  if (value > 0.0001) {
+    return "delta-up";
+  }
+  if (value < -0.0001) {
+    return "delta-down";
+  }
+  return "delta-neutral";
+}
+
+interface SortablePortfolioFundCardProps {
+  item: PortfolioFundItem;
+  edit: FundEditState;
+  isBusy: boolean;
+  onEditFieldChange: (fundCode: string, key: keyof FundEditState, value: string) => void;
+  onUpdateFund: (item: PortfolioFundItem) => Promise<void>;
+  onDeleteFund: (item: PortfolioFundItem) => Promise<void>;
+}
+
+function SortablePortfolioFundCard(props: SortablePortfolioFundCardProps) {
+  const { item, edit, isBusy, onEditFieldChange, onUpdateFund, onDeleteFund } = props;
+  const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.fundCode,
+    disabled: isBusy
+  });
+
+  return (
+    <article
+      className={`card card-compact sortable-fund-card ${isDragging ? "sortable-fund-card-dragging" : ""}`}
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition
+      }}
+    >
+      <header className="card-head">
+        <div className="card-head-left">
+          <button
+            className="drag-handle"
+            type="button"
+            ref={setActivatorNodeRef}
+            {...attributes}
+            {...listeners}
+            aria-label={`拖拽排序 ${item.fundName ?? item.fundCode}`}
+            disabled={isBusy}
+          >
+            ⋮⋮
+          </button>
+          <div className="fund">{item.fundName ?? `基金 ${item.fundCode}`}</div>
+        </div>
+        <span className={trendClass(item.trend)}>{item.trend}</span>
+      </header>
+      <p className="code">基金代码: {item.fundCode}</p>
+      <p className="code">持仓金额: ¥{formatCurrency(item.holdingAmount)}</p>
+      <p className="code">历史总收益: {formatSignedAmount(item.totalProfitAmount)}</p>
+      <p className="code">历史总涨跌: {formatSignedPct(item.totalChangePct)}</p>
+      <p className={item.trend === "UP" ? "delta-up" : item.trend === "DOWN" ? "delta-down" : "delta-neutral"}>
+        盘中估算涨跌: {formatSignedPct(item.estimateChangePct)}
+      </p>
+      {item.portfolioType === "RATIO" ? (
+        <>
+          <p className="code">计划比例: {formatPct(item.plannedRatio)}</p>
+          <p className="code">实际比例: {formatPct(item.actualRatio)}</p>
+        </>
+      ) : null}
+
+      <div className="holding-editor">
+        <input
+          className="text-input holding-input"
+          type="text"
+          inputMode="decimal"
+          value={edit.holdingAmount}
+          onChange={(event) => onEditFieldChange(item.fundCode, "holdingAmount", event.target.value)}
+          disabled={isBusy}
+        />
+        {item.portfolioType === "RATIO" ? (
+          <input
+            className="text-input holding-input"
+            type="text"
+            inputMode="decimal"
+            value={edit.plannedRatio}
+            onChange={(event) => onEditFieldChange(item.fundCode, "plannedRatio", event.target.value)}
+            disabled={isBusy}
+          />
+        ) : null}
+        <button className="btn-secondary btn-small" type="button" onClick={() => void onUpdateFund(item)} disabled={isBusy}>
+          更新
+        </button>
+        <button className="btn-link-danger" type="button" onClick={() => void onDeleteFund(item)} disabled={isBusy}>
+          删除
+        </button>
+      </div>
+    </article>
+  );
+}
 
 export default function FundDashboard() {
-  const hasLoadedRef = useRef(false);
-  const activeHoldingEditorRef = useRef<HTMLDivElement | null>(null);
-  const [fundCodes, setFundCodes] = useState<string[]>([]);
-  const [estimateMap, setEstimateMap] = useState<Map<string, FundEstimateSnapshot>>(new Map());
-  const [fundMetaMap, setFundMetaMap] = useState<Map<string, FundMeta>>(new Map());
-  const [partialFailed, setPartialFailed] = useState<string[]>([]);
-  const [inputCode, setInputCode] = useState("");
-  const [inputHoldingAmount, setInputHoldingAmount] = useState("");
-  const [holdingEditMap, setHoldingEditMap] = useState<Map<string, string>>(new Map());
-  const [activeHoldingEditorCode, setActiveHoldingEditorCode] = useState<string | null>(null);
+  const [mainView, setMainView] = useState<MainView>("portfolios");
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string>("all");
+  const [flatExpand, setFlatExpand] = useState<FlatExpandMode>("dedup");
+  const [flatSortOrder, setFlatSortOrder] = useState<SortOrder>("default");
+  const [estimateSortOrder, setEstimateSortOrder] = useState<SortOrder>("default");
+
+  const [portfolios, setPortfolios] = useState<PortfolioSummary[]>([]);
+  const [flatFunds, setFlatFunds] = useState<FlatFundItem[]>([]);
+  const [portfolioFunds, setPortfolioFunds] = useState<PortfolioFundItem[]>([]);
+  const [selectedPortfolioMeta, setSelectedPortfolioMeta] = useState<PortfolioMeta | null>(null);
+
+  const [createPortfolioName, setCreatePortfolioName] = useState("");
+  const [createPortfolioType, setCreatePortfolioType] = useState<PortfolioType>("FREE");
+
+  const [addFundCode, setAddFundCode] = useState("");
+  const [addFundHoldingAmount, setAddFundHoldingAmount] = useState("");
+  const [addFundPlannedRatio, setAddFundPlannedRatio] = useState("");
+
+  const [editStateMap, setEditStateMap] = useState<Map<string, FundEditState>>(new Map());
+
   const [isLoading, setIsLoading] = useState(false);
-  const [statusText, setStatusText] = useState<string>("");
-  const [errorText, setErrorText] = useState<string>("");
-  const [lastManualRefreshAt, setLastManualRefreshAt] = useState<string>("");
-  const [displayMode, setDisplayMode] = useState<DisplayMode>("compact");
+  const [isReordering, setIsReordering] = useState(false);
+  const [statusText, setStatusText] = useState("");
+  const [errorText, setErrorText] = useState("");
+  const [lastManualRefreshAt, setLastManualRefreshAt] = useState("");
 
-  const snapshots = useMemo<SnapshotVM[]>(() => {
-    return fundCodes.map((code) => ({
-      fundCode: code,
-      snapshot: estimateMap.get(code),
-      meta: fundMetaMap.get(code) ?? EMPTY_META
-    }));
-  }, [estimateMap, fundCodes, fundMetaMap]);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 6
+      }
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 120,
+        tolerance: 8
+      }
+    })
+  );
 
-  const refresh = useCallback(async (codes: string[]): Promise<BatchEstimateResponse> => {
-    if (codes.length === 0) {
-      setEstimateMap(new Map());
-      setPartialFailed([]);
+  const selectedPortfolioSummary = useMemo(
+    () => portfolios.find((item) => item.id === selectedPortfolioId),
+    [portfolios, selectedPortfolioId]
+  );
+  const ratioAnalysisRows = useMemo(() => {
+    if (selectedPortfolioMeta?.type !== "RATIO") {
+      return [];
+    }
+
+    return portfolioFunds
+      .map((item) => {
+        if (typeof item.plannedRatio !== "number" || typeof item.actualRatio !== "number") {
+          return undefined;
+        }
+
+        const plannedRatio = item.plannedRatio;
+        const actualRatio = item.actualRatio;
+        const overPlannedRatio = actualRatio - plannedRatio;
+        const overByMoreThan15Pct = overPlannedRatio > 0.15;
+
+        return {
+          fundCode: item.fundCode,
+          fundName: item.fundName ?? `基金 ${item.fundCode}`,
+          plannedRatio,
+          actualRatio,
+          overByMoreThan15Pct
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => Boolean(row));
+  }, [portfolioFunds, selectedPortfolioMeta?.type]);
+  const estimateAnalysisRows = useMemo(() => {
+    const rows = portfolioFunds.map((item, index) => {
+      const estimateChangePct = typeof item.estimateChangePct === "number" ? item.estimateChangePct : 0;
+      const intradayAmount =
+        typeof item.intradayAmount === "number"
+          ? item.intradayAmount
+          : Number((item.holdingAmount * estimateChangePct).toFixed(2));
+
       return {
-        data: [],
-        partialFailed: []
+        order: index,
+        fundCode: item.fundCode,
+        fundName: item.fundName ?? `基金 ${item.fundCode}`,
+        estimateChangePct,
+        intradayAmount
       };
+    });
+
+    if (estimateSortOrder === "default") {
+      return rows;
     }
 
-    const response = await fetchBatchEstimates(codes);
-    setEstimateMap(toMap(response.data));
-    setPartialFailed(response.partialFailed);
-    return response;
-  }, []);
+    return rows.slice().sort((a, b) => {
+      const diff =
+        estimateSortOrder === "asc"
+          ? a.estimateChangePct - b.estimateChangePct
+          : b.estimateChangePct - a.estimateChangePct;
 
-  const loadWatchlist = useCallback(async () => {
-    const funds = await fetchWatchlistFunds();
-    const codes = funds.map((item) => item.fundCode);
-    const nextMetaMap = new Map<string, FundMeta>();
-    for (const item of funds) {
-      nextMetaMap.set(item.fundCode, {
-        holdingAmount: item.holdingAmount,
-        totalChangePct: item.totalChangePct,
-        createdAt: item.createdAt,
-        lastAccumulatedNavDate: item.lastAccumulatedNavDate
-      });
+      if (Math.abs(diff) > 0.0000001) {
+        return diff;
+      }
+
+      return a.order - b.order;
+    });
+  }, [portfolioFunds, estimateSortOrder]);
+  const isBusy = isLoading || isReordering;
+
+  const loadPortfolios = useCallback(async () => {
+    const next = await fetchPortfolios();
+    setPortfolios(next);
+
+    if (selectedPortfolioId !== "all" && !next.some((item) => item.id === selectedPortfolioId)) {
+      setSelectedPortfolioId("all");
+      setSelectedPortfolioMeta(null);
+      setPortfolioFunds([]);
     }
+  }, [selectedPortfolioId]);
 
-    setFundCodes(codes);
-    setFundMetaMap(nextMetaMap);
-    await refresh(codes);
-  }, [refresh]);
+  const loadFlatFunds = useCallback(async () => {
+    const next = await fetchFlatFunds(flatExpand, flatSortOrder);
+    setFlatFunds(next);
+  }, [flatExpand, flatSortOrder]);
 
-  useEffect(() => {
-    if (hasLoadedRef.current) {
+  const loadSelectedPortfolioFunds = useCallback(async () => {
+    if (selectedPortfolioId === "all") {
+      setPortfolioFunds([]);
+      setSelectedPortfolioMeta(null);
       return;
     }
-    hasLoadedRef.current = true;
 
+    const data = await fetchPortfolioFunds(selectedPortfolioId);
+    setSelectedPortfolioMeta(data.portfolio);
+    setPortfolioFunds(data.funds.slice().sort((a, b) => a.displayOrder - b.displayOrder));
+
+    setEditStateMap(() => {
+      const next = new Map<string, FundEditState>();
+      for (const item of data.funds) {
+        next.set(item.fundCode, {
+          holdingAmount: String(item.holdingAmount),
+          plannedRatio: typeof item.plannedRatio === "number" ? String((item.plannedRatio * 100).toFixed(2)) : ""
+        });
+      }
+      return next;
+    });
+  }, [selectedPortfolioId]);
+
+  const refreshData = useCallback(async () => {
+    await Promise.all([loadPortfolios(), loadFlatFunds(), loadSelectedPortfolioFunds()]);
+  }, [loadFlatFunds, loadPortfolios, loadSelectedPortfolioFunds]);
+
+  useEffect(() => {
     setIsLoading(true);
     setErrorText("");
-    void loadWatchlist()
+    void loadPortfolios()
       .catch((error) => {
-        setErrorText(error instanceof Error ? error.message : "加载关注基金失败，请稍后重试。");
+        setErrorText(error instanceof Error ? error.message : "加载组合列表失败");
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, [loadWatchlist]);
-
-  async function onManualRefresh() {
-    if (fundCodes.length === 0) {
-      setStatusText("当前没有关注基金，请先添加基金代码。");
-      setErrorText("");
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorText("");
-    setStatusText("");
-
-    try {
-      await loadWatchlist();
-      setLastManualRefreshAt(formatBeijingTime(new Date().toISOString()));
-      setStatusText("已手动更新全部关注基金。");
-    } catch (error) {
-      setErrorText(error instanceof Error ? error.message : "手动更新失败，请稍后重试。");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function onAddFund(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const nextCode = inputCode.trim();
-    const holdingAmountInput = inputHoldingAmount.trim();
-    let nextHoldingAmount: number | undefined;
-
-    if (!/^\d{6}$/.test(nextCode)) {
-      setErrorText("基金代码格式不正确，请输入 6 位数字。");
-      setStatusText("");
-      return;
-    }
-
-    if (holdingAmountInput.length > 0) {
-      const parsed = parseHoldingAmountInput(holdingAmountInput);
-      if (parsed === undefined) {
-        setErrorText("持仓金额格式不正确，请输入大于等于 0 的数字。");
-        setStatusText("");
-        return;
-      }
-      nextHoldingAmount = parsed;
-    }
-
-    const existed = fundCodes.includes(nextCode);
-    if (existed && nextHoldingAmount === undefined) {
-      setErrorText("该基金代码已在关注列表中。如需更新金额，请填写持仓金额后再次提交。");
-      setStatusText("");
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorText("");
-    setStatusText("");
-
-    try {
-      await addWatchlistFund(nextCode, nextHoldingAmount);
-      await loadWatchlist();
-      setInputCode("");
-      setInputHoldingAmount("");
-      setStatusText(existed ? `已更新基金 ${nextCode} 的持仓金额。` : `已添加基金 ${nextCode} 并拉取最新估值。`);
-    } catch (error) {
-      setErrorText(error instanceof Error ? error.message : "添加失败，请稍后重试。");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function onUpdateHoldingAmount(fundCode: string) {
-    const input = (holdingEditMap.get(fundCode) ?? "").trim();
-    const holdingAmount = input.length === 0 ? 0 : parseHoldingAmountInput(input);
-    if (holdingAmount === undefined) {
-      setErrorText("持仓金额格式不正确，请输入大于等于 0 的数字。");
-      setStatusText("");
-      return;
-    }
-    const currentHoldingAmount = Number(((fundMetaMap.get(fundCode) ?? EMPTY_META).holdingAmount ?? 0).toFixed(2));
-    if (Math.abs(holdingAmount - currentHoldingAmount) < 0.0001) {
-      onCloseHoldingEditor(fundCode);
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorText("");
-    setStatusText("");
-    try {
-      await updateWatchlistFundHoldingAmount(fundCode, holdingAmount);
-      setFundMetaMap((prev) => {
-        const next = new Map(prev);
-        const current = next.get(fundCode) ?? EMPTY_META;
-        next.set(fundCode, {
-          ...current,
-          holdingAmount
-        });
-        return next;
-      });
-      setHoldingEditMap((prev) => {
-        const next = new Map(prev);
-        next.delete(fundCode);
-        return next;
-      });
-      setActiveHoldingEditorCode((prev) => (prev === fundCode ? null : prev));
-      setStatusText(`已更新基金 ${fundCode} 持仓金额为 ¥${formatCurrency(holdingAmount)}。`);
-    } catch (error) {
-      setErrorText(error instanceof Error ? error.message : "更新持仓金额失败，请稍后重试。");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  function onHoldingInputChange(fundCode: string, value: string) {
-    setHoldingEditMap((prev) => {
-      const next = new Map(prev);
-      next.set(fundCode, value);
-      return next;
-    });
-  }
-
-  function onOpenHoldingEditor(fundCode: string, holdingAmount: number) {
-    setActiveHoldingEditorCode(fundCode);
-    setHoldingEditMap((prev) => {
-      if (prev.has(fundCode)) {
-        return prev;
-      }
-      const next = new Map(prev);
-      next.set(fundCode, holdingAmount.toFixed(2));
-      return next;
-    });
-  }
-
-  function onCloseHoldingEditor(fundCode: string) {
-    setActiveHoldingEditorCode((prev) => (prev === fundCode ? null : prev));
-    setHoldingEditMap((prev) => {
-      const next = new Map(prev);
-      next.delete(fundCode);
-      return next;
-    });
-  }
-
-  async function onDeleteFund(fundCode: string) {
-    setIsLoading(true);
-    setErrorText("");
-    setStatusText("");
-
-    try {
-      await removeWatchlistFund(fundCode);
-      const nextCodes = fundCodes.filter((code) => code !== fundCode);
-      setFundCodes(nextCodes);
-      setEstimateMap((prev) => {
-        const next = new Map(prev);
-        next.delete(fundCode);
-        return next;
-      });
-      setFundMetaMap((prev) => {
-        const next = new Map(prev);
-        next.delete(fundCode);
-        return next;
-      });
-      setHoldingEditMap((prev) => {
-        const next = new Map(prev);
-        next.delete(fundCode);
-        return next;
-      });
-      setActiveHoldingEditorCode((prev) => (prev === fundCode ? null : prev));
-      setPartialFailed((prev) => prev.filter((code) => code !== fundCode));
-      setStatusText(`已删除基金 ${fundCode}。`);
-    } catch (error) {
-      setErrorText(error instanceof Error ? error.message : "删除失败，请稍后重试。");
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  }, [loadPortfolios]);
 
   useEffect(() => {
-    if (!activeHoldingEditorCode || isLoading) {
+    setIsLoading(true);
+    setErrorText("");
+    void loadFlatFunds()
+      .catch((error) => {
+        setErrorText(error instanceof Error ? error.message : "加载基金平铺失败");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [loadFlatFunds]);
+
+  useEffect(() => {
+    setIsLoading(true);
+    setErrorText("");
+    void loadSelectedPortfolioFunds()
+      .catch((error) => {
+        setErrorText(error instanceof Error ? error.message : "加载组合基金失败");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [loadSelectedPortfolioFunds]);
+
+  async function onCreatePortfolio(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = createPortfolioName.trim();
+    if (!name) {
+      setErrorText("请输入组合名称");
       return;
     }
 
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) {
-        return;
-      }
+    setIsLoading(true);
+    setErrorText("");
+    setStatusText("");
 
-      if (target instanceof HTMLElement && target.closest('[data-skip-holding-auto-save="true"]')) {
-        return;
-      }
-
-      if (activeHoldingEditorRef.current?.contains(target)) {
-        return;
-      }
-
-      void onUpdateHoldingAmount(activeHoldingEditorCode);
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-    };
-  }, [activeHoldingEditorCode, isLoading, onUpdateHoldingAmount]);
-
-  function renderCardHeaderActions(fundCode: string) {
-    return (
-      <div className="card-head-actions">
-        <button
-          className="card-delete-btn"
-          type="button"
-          onClick={() => onDeleteFund(fundCode)}
-          disabled={isLoading}
-          data-skip-holding-auto-save="true"
-          aria-label={`删除基金 ${fundCode}`}
-        >
-          移除
-        </button>
-      </div>
-    );
+    try {
+      await createPortfolio(name, createPortfolioType);
+      setCreatePortfolioName("");
+      await refreshData();
+      setStatusText(`已创建组合: ${name}`);
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "创建组合失败");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
-  function renderHoldingAmountField(fundCode: string, holdingAmount: number) {
-    const isOpen = activeHoldingEditorCode === fundCode;
-    const editHoldingValue = holdingEditMap.get(fundCode) ?? "";
-
-    if (!isOpen) {
-      return (
-        <div className="holding-amount-row">
-          <button className="holding-amount-trigger" type="button" onClick={() => onOpenHoldingEditor(fundCode, holdingAmount)} disabled={isLoading}>
-            <span className="code">持仓金额:</span>
-            <span className="holding-amount-hotspot">
-              <span className="holding-amount-value">¥{formatCurrency(holdingAmount)}</span>
-              <span className="holding-amount-edit-icon" aria-hidden>
-                ✎
-              </span>
-            </span>
-          </button>
-        </div>
-      );
+  async function onRenamePortfolio(portfolio: PortfolioSummary) {
+    const nextName = window.prompt("请输入新的组合名称", portfolio.name);
+    if (!nextName || !nextName.trim() || nextName.trim() === portfolio.name) {
+      return;
     }
 
-    return (
-      <div className="holding-amount-row">
-        <div
-          className="holding-amount-editor-inline"
-          ref={(node) => {
-            activeHoldingEditorRef.current = node;
-          }}
-          data-holding-hotzone="true"
-        >
-          <label className="code" htmlFor={`holding-editor-${fundCode}`}>
-            持仓金额:
-          </label>
-          <input
-            id={`holding-editor-${fundCode}`}
-            className="text-input holding-inline-input"
-            type="text"
-            inputMode="decimal"
-            placeholder="输入金额"
-            value={editHoldingValue}
-            onChange={(event) => onHoldingInputChange(fundCode, event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                void onUpdateHoldingAmount(fundCode);
-              }
-              if (event.key === "Escape") {
-                onCloseHoldingEditor(fundCode);
-              }
-            }}
-            disabled={isLoading}
-            autoFocus
-          />
-          <span className="code">元</span>
-        </div>
-      </div>
-    );
+    setIsLoading(true);
+    setErrorText("");
+    setStatusText("");
+    try {
+      await renamePortfolio(portfolio.id, nextName.trim());
+      await refreshData();
+      setStatusText(`已重命名组合为 ${nextName.trim()}`);
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "重命名失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function onDeletePortfolio(portfolio: PortfolioSummary) {
+    if (!window.confirm(`确认删除组合「${portfolio.name}」吗？`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorText("");
+    setStatusText("");
+
+    try {
+      await deletePortfolio(portfolio.id);
+      if (selectedPortfolioId === portfolio.id) {
+        setSelectedPortfolioId("all");
+      }
+      await refreshData();
+      setStatusText(`已删除组合 ${portfolio.name}`);
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "删除组合失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function onAddFundToPortfolio(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!selectedPortfolioMeta) {
+      setErrorText("请先选择具体组合再添加基金");
+      return;
+    }
+
+    const fundCode = addFundCode.trim();
+    if (!/^\d{6}$/.test(fundCode)) {
+      setErrorText("基金代码格式不正确，请输入 6 位数字");
+      return;
+    }
+
+    const holdingAmount = parseNonNegativeNumber(addFundHoldingAmount);
+    if (holdingAmount === undefined) {
+      setErrorText("持仓金额格式错误，请输入大于等于 0 的数字");
+      return;
+    }
+
+    let plannedRatio: number | undefined;
+    if (selectedPortfolioMeta.type === "RATIO") {
+      plannedRatio = parseRatioPercent(addFundPlannedRatio);
+      if (plannedRatio === undefined) {
+        setErrorText("按比例组合请填写 0-100 的计划比例");
+        return;
+      }
+    }
+
+    setIsLoading(true);
+    setErrorText("");
+    setStatusText("");
+
+    try {
+      await addPortfolioFund({
+        portfolioId: selectedPortfolioMeta.id,
+        fundCode,
+        holdingAmount,
+        plannedRatio
+      });
+
+      setAddFundCode("");
+      setAddFundHoldingAmount("");
+      setAddFundPlannedRatio("");
+      await refreshData();
+      setStatusText(`已添加基金 ${fundCode}`);
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "添加基金失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  function onEditFieldChange(fundCode: string, key: keyof FundEditState, value: string) {
+    setEditStateMap((prev) => {
+      const next = new Map(prev);
+      const current = next.get(fundCode) ?? {
+        holdingAmount: "",
+        plannedRatio: ""
+      };
+      next.set(fundCode, {
+        ...current,
+        [key]: value
+      });
+      return next;
+    });
+  }
+
+  async function onUpdateFund(item: PortfolioFundItem) {
+    const edit = editStateMap.get(item.fundCode);
+    if (!edit) {
+      return;
+    }
+
+    const holdingAmount = parseNonNegativeNumber(edit.holdingAmount);
+    if (holdingAmount === undefined) {
+      setErrorText("持仓金额格式错误");
+      return;
+    }
+
+    let plannedRatio: number | undefined;
+    if (item.portfolioType === "RATIO") {
+      plannedRatio = parseRatioPercent(edit.plannedRatio);
+      if (plannedRatio === undefined) {
+        setErrorText("计划比例格式错误，请输入 0-100");
+        return;
+      }
+    }
+
+    setIsLoading(true);
+    setErrorText("");
+    setStatusText("");
+
+    try {
+      await updatePortfolioFund({
+        portfolioId: item.portfolioId,
+        fundCode: item.fundCode,
+        holdingAmount,
+        plannedRatio
+      });
+      await refreshData();
+      setStatusText(`已更新基金 ${item.fundCode}`);
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "更新基金失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function onDeleteFund(item: PortfolioFundItem) {
+    if (!window.confirm(`确认从组合移除基金 ${item.fundCode} 吗？`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorText("");
+    setStatusText("");
+
+    try {
+      await removePortfolioFund(item.portfolioId, item.fundCode);
+      await refreshData();
+      setStatusText(`已移除基金 ${item.fundCode}`);
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "移除基金失败");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function persistPortfolioFundOrder(previous: PortfolioFundItem[], next: PortfolioFundItem[]) {
+    if (selectedPortfolioId === "all") {
+      return;
+    }
+
+    setIsReordering(true);
+    setErrorText("");
+    setStatusText("");
+
+    try {
+      await reorderPortfolioFunds(
+        selectedPortfolioId,
+        next.map((item) => item.fundCode)
+      );
+      setStatusText("已更新组合基金顺序。");
+    } catch (error) {
+      setPortfolioFunds(previous);
+      setErrorText(error instanceof Error ? error.message : "基金重排序失败");
+    } finally {
+      setIsReordering(false);
+    }
+  }
+
+  function onPortfolioFundsDragEnd(event: DragEndEvent) {
+    if (selectedPortfolioId === "all" || isReordering) {
+      return;
+    }
+
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    const oldIndex = portfolioFunds.findIndex((item) => item.fundCode === String(active.id));
+    const newIndex = portfolioFunds.findIndex((item) => item.fundCode === String(over.id));
+
+    if (oldIndex < 0 || newIndex < 0) {
+      return;
+    }
+
+    const previous = portfolioFunds;
+    const reordered = arrayMove(portfolioFunds, oldIndex, newIndex).map((item, index) => ({
+      ...item,
+      displayOrder: index
+    }));
+
+    setPortfolioFunds(reordered);
+    void persistPortfolioFundOrder(previous, reordered);
+  }
+
+  async function onManualRefresh() {
+    setIsLoading(true);
+    setErrorText("");
+    setStatusText("");
+
+    try {
+      await refreshData();
+      const nowText = formatBeijingTime(new Date().toISOString());
+      setLastManualRefreshAt(nowText);
+      setStatusText("已手动更新全部数据。");
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : "手动更新失败");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
     <main>
       <section className="header">
         <div>
-          <h1 className="title">Digmo 盘中估值</h1>
-          <p className="subtitle">关注基金已持久化到服务端数据库，列表仅展示你手动添加的基金。</p>
+          <h1 className="title">Digmo 组合与基金视图</h1>
+          <p className="subtitle">支持基金平铺与组合管理，组合总收益采用「金额/比例」统一展示。</p>
         </div>
-        <span className="badge">MVP</span>
+        <span className="badge">Portfolio MVP</span>
       </section>
 
       <section className="actions">
-        <form className="add-fund-form" onSubmit={onAddFund}>
-          <label htmlFor="fund-code-input" className="code">
-            关注基金代码
-          </label>
-          <div className="control-row">
-            <input
-              id="fund-code-input"
-              className="text-input"
-              type="text"
-              inputMode="numeric"
-              placeholder="例如 161725"
-              value={inputCode}
-              onChange={(event) => setInputCode(event.target.value)}
-              disabled={isLoading}
-            />
-            <input
-              className="text-input"
-              type="text"
-              inputMode="decimal"
-              placeholder="持仓金额(选填)，默认 0"
-              value={inputHoldingAmount}
-              onChange={(event) => setInputHoldingAmount(event.target.value)}
-              disabled={isLoading}
-            />
-            <button className="btn-primary" type="submit" disabled={isLoading}>
-              添加基金
-            </button>
-            <button
-              className="btn-secondary"
-              type="button"
-              onClick={onManualRefresh}
-              disabled={isLoading || fundCodes.length === 0}
-            >
-              手动更新
-            </button>
-          </div>
-        </form>
-        <div className="mode-switch" role="group" aria-label="展示模式">
+        <div className="main-view-switch" role="group" aria-label="主视图切换">
           <button
-            className={`mode-btn ${displayMode === "detailed" ? "mode-btn-active" : ""}`}
+            className={`mode-btn ${mainView === "portfolios" ? "mode-btn-active" : ""}`}
             type="button"
-            onClick={() => setDisplayMode("detailed")}
+            onClick={() => setMainView("portfolios")}
           >
-            详细模式
+            组合视图
           </button>
           <button
-            className={`mode-btn ${displayMode === "compact" ? "mode-btn-active" : ""}`}
+            className={`mode-btn ${mainView === "funds" ? "mode-btn-active" : ""}`}
             type="button"
-            onClick={() => setDisplayMode("compact")}
+            onClick={() => setMainView("funds")}
           >
-            简洁模式
+            基金平铺
+          </button>
+          <button className="btn-secondary" type="button" onClick={onManualRefresh} disabled={isBusy}>
+            手动更新
           </button>
         </div>
+
+        {mainView === "portfolios" ? (
+          <form className="create-portfolio-form" onSubmit={onCreatePortfolio}>
+            <input
+              className="text-input"
+              type="text"
+              placeholder="新组合名称"
+              value={createPortfolioName}
+              onChange={(event) => setCreatePortfolioName(event.target.value)}
+              disabled={isBusy}
+            />
+            <select
+              className="text-input select-input"
+              value={createPortfolioType}
+              onChange={(event) => setCreatePortfolioType(event.target.value as PortfolioType)}
+              disabled={isBusy}
+            >
+              <option value="FREE">自由组合</option>
+              <option value="RATIO">按比例组合</option>
+            </select>
+            <button className="btn-primary" type="submit" disabled={isBusy}>
+              创建组合
+            </button>
+          </form>
+        ) : null}
+
+        {mainView === "funds" ? (
+          <div className="flat-tools">
+            <div className="mode-switch" role="group" aria-label="平铺展开模式">
+              <button
+                type="button"
+                className={`mode-btn ${flatExpand === "dedup" ? "mode-btn-active" : ""}`}
+                onClick={() => setFlatExpand("dedup")}
+              >
+                去重汇总
+              </button>
+              <button
+                type="button"
+                className={`mode-btn ${flatExpand === "expanded" ? "mode-btn-active" : ""}`}
+                onClick={() => setFlatExpand("expanded")}
+              >
+                按组合展开
+              </button>
+            </div>
+            <div className="mode-switch" role="group" aria-label="涨幅排序">
+              <button
+                type="button"
+                className={`mode-btn ${flatSortOrder === "default" ? "" : "mode-btn-active"}`}
+                onClick={() => setFlatSortOrder((prev) => nextFlatSortOrder(prev))}
+              >
+                {getFlatSortButtonLabel(flatSortOrder)}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="portfolio-tabs" role="tablist" aria-label="组合选择">
+            <button
+              className={`mode-btn ${selectedPortfolioId === "all" ? "mode-btn-active" : ""}`}
+              type="button"
+              onClick={() => setSelectedPortfolioId("all")}
+            >
+              全部组合
+            </button>
+            {portfolios.map((portfolio) => (
+              <button
+                className={`mode-btn ${selectedPortfolioId === portfolio.id ? "mode-btn-active" : ""}`}
+                key={portfolio.id}
+                type="button"
+                onClick={() => setSelectedPortfolioId(portfolio.id)}
+              >
+                {portfolio.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="status-line">
           {statusText ? <p className="delta-up">{statusText}</p> : null}
           {errorText ? <p className="delta-down">{errorText}</p> : null}
@@ -518,124 +806,237 @@ export default function FundDashboard() {
         </div>
       </section>
 
-      <section className={displayMode === "compact" ? "grid grid-compact" : "grid"}>
-        {snapshots.length === 0 ? (
-          <article className="card">
-            <header className="card-head">
-              <div className="fund">暂无关注基金</div>
-            </header>
-            <p className="code">请先输入基金代码并添加，列表不会再展示示例基金。</p>
-          </article>
-        ) : null}
+      {mainView === "funds" ? (
+        <section className="grid grid-compact">
+          {flatFunds.length === 0 ? (
+            <article className="card card-compact">
+              <div className="fund">暂无基金数据</div>
+              <p className="code">请先创建组合并添加基金。</p>
+            </article>
+          ) : null}
 
-        {snapshots.map(({ fundCode, snapshot, meta }) => {
-          const holdingAmount = meta.holdingAmount;
-          const totalChangePct = meta.totalChangePct;
-          const dayReturnText = snapshot ? formatDayReturn(holdingAmount, snapshot.estimateChangePct) : "- / -";
-          const dayReturnClass = snapshot ? deltaClass(snapshot.estimateChangePct) : "code";
-          const totalReturnText = `${formatSignedAmount(holdingAmount * totalChangePct)} / ${formatSignedRatioPct(totalChangePct)}`;
-
-          if (!snapshot) {
-            if (displayMode === "compact") {
-              return (
-                <article className="card card-compact" key={fundCode}>
-                  <header className="card-head card-head-fixed">
-                    <div className="card-head-main">
-                      <div className="fund fund-name">基金 {fundCode}</div>
-                      <div className="code">基金代码: {fundCode}</div>
-                    </div>
-                    {renderCardHeaderActions(fundCode)}
-                  </header>
-                  {renderHoldingAmountField(fundCode, holdingAmount)}
-                  <p className={`${deltaClass(totalChangePct)} metric-total`}>总收益: {totalReturnText}</p>
-                  <p className="code metric-day-amount">当日收益: - / -</p>
-                </article>
-              );
-            }
-
-            return (
-              <article className="card" key={fundCode}>
-                <header className="card-head card-head-fixed">
-                  <div className="card-head-main">
-                    <div className="fund fund-name">基金 {fundCode}</div>
-                    <div className="code">基金代码: {fundCode}</div>
-                  </div>
-                  {renderCardHeaderActions(fundCode)}
-                </header>
-                {renderHoldingAmountField(fundCode, holdingAmount)}
-                <p className={`${deltaClass(totalChangePct)} metric-total`}>总收益: {totalReturnText}</p>
-                <p className="delta-down">当前未获取到估值数据，请点击“手动更新”重试。</p>
-                <p className="code metric-day-amount">当日收益: - / -</p>
-              </article>
-            );
-          }
-
-          if (displayMode === "compact") {
-            return (
-              <article className="card card-compact" key={snapshot.fundCode}>
-                <header className="card-head card-head-fixed">
-                  <div className="card-head-main">
-                    <div className="fund fund-name">{snapshot.fundName ?? `基金 ${snapshot.fundCode}`}</div>
-                    <div className="code">基金代码: {snapshot.fundCode}</div>
-                  </div>
-                  {renderCardHeaderActions(snapshot.fundCode)}
-                </header>
-                {renderHoldingAmountField(snapshot.fundCode, holdingAmount)}
-                <p className={`${deltaClass(totalChangePct)} metric-total`}>总收益: {totalReturnText}</p>
-                <p className={`${dayReturnClass} metric-day-amount`}>当日收益: {dayReturnText}</p>
-              </article>
-            );
-          }
-
-          return (
-            <article className="card" key={snapshot.fundCode}>
-              <header className="card-head card-head-fixed">
-                <div className="card-head-main">
-                  <div className="fund fund-name">{snapshot.fundName ?? `基金 ${snapshot.fundCode}`}</div>
-                  <div className="code">基金代码: {snapshot.fundCode}</div>
-                </div>
-                {renderCardHeaderActions(snapshot.fundCode)}
+          {flatFunds.map((item) => (
+            <article className="card card-compact" key={`${item.fundCode}-${item.portfolioId ?? "all"}`}>
+              <header className="card-head">
+                <div className="fund">{item.fundName ?? `基金 ${item.fundCode}`}</div>
+                <span className={trendClass(item.trend)}>{item.trend}</span>
               </header>
-              {renderHoldingAmountField(snapshot.fundCode, holdingAmount)}
-              <p className="code">方法: {snapshot.method}</p>
-              <p>官方最新单位净值: {(snapshot.officialNav ?? snapshot.estimateNav).toFixed(4)}</p>
-              <p className={deltaClass(snapshot.officialDailyReturn ?? snapshot.estimateChangePct)}>
-                官方日涨跌: {((snapshot.officialDailyReturn ?? snapshot.estimateChangePct) * 100).toFixed(2)}%
+              <p className="code">基金代码: {item.fundCode}</p>
+              <p className="code">总持仓金额: ¥{formatCurrency(item.holdingAmount)}</p>
+              <p className="code">历史总涨跌: {formatSignedPct(item.totalChangePct)}</p>
+              <p className={item.trend === "UP" ? "delta-up" : item.trend === "DOWN" ? "delta-down" : "delta-neutral"}>
+                盘中估算涨跌: {formatSignedPct(item.estimateChangePct)}
               </p>
-              <p>盘中估值: {snapshot.estimateNav.toFixed(4)}</p>
-              <p className={`${dayReturnClass} metric-day-amount`}>当日收益: {dayReturnText}</p>
-              <p className={`${deltaClass(totalChangePct)} metric-total`}>总收益: {totalReturnText}</p>
-              <p className="code">更新时间: {formatBeijingTime(snapshot.estimateTime)}</p>
-              <p className="code">输入延迟: {snapshot.inputsStalenessSec}s</p>
-              <p className="code">持仓报告期: {snapshot.holdingReportDate ?? "暂无"}</p>
               <p className="code">
-                前五持仓:{" "}
-                {(snapshot.topHoldings ?? []).length > 0
-                  ? (snapshot.topHoldings ?? [])
-                      .map((holding) => {
-                        const marketPart =
-                          holding.marketCap || holding.floatMarketCap
-                            ? `, 总市值${formatMarketCap(holding.marketCap)}, 流通${formatMarketCap(holding.floatMarketCap)}`
-                            : "";
-                        const quotePart =
-                          typeof holding.latestPrice === "number"
-                            ? `, 价${holding.latestPrice.toFixed(2)}, 涨跌${((holding.changePct ?? 0) * 100).toFixed(2)}%`
-                            : "";
-                        return `${holding.name}(${(holding.ratio * 100).toFixed(2)}%${quotePart}${marketPart})`;
-                      })
-                      .join(" / ")
-                  : "暂无"}
+                {flatExpand === "dedup"
+                  ? `所属组合(${item.portfolioCount}): ${item.portfolioNames.join(" / ") || "-"}`
+                  : `所属组合: ${item.portfolioName ?? "-"}`}
               </p>
-              <p className="code">{snapshot.disclaimer}</p>
               <p className="card-actions">
-                <Link href={`/funds/${snapshot.fundCode}`}>查看详情</Link>
+                <Link href={`/funds/${item.fundCode}`}>查看详情</Link>
               </p>
             </article>
-          );
-        })}
-      </section>
+          ))}
+        </section>
+      ) : (
+        <>
+          {selectedPortfolioId === "all" ? (
+            <section className="grid grid-compact">
+              {portfolios.length === 0 ? (
+                <article className="card card-compact">
+                  <div className="fund">暂无组合</div>
+                  <p className="code">请先创建组合。</p>
+                </article>
+              ) : null}
 
-      {fundCodes.length > 0 ? <footer className="footer">批量失败: {partialFailed.join(", ") || "无"}</footer> : null}
+              {portfolios.map((portfolio) => (
+                <article className="card card-compact" key={portfolio.id}>
+                  <header className="card-head">
+                    <div className="fund">{portfolio.name}</div>
+                    <span className="badge">{portfolio.type === "FREE" ? "自由" : "按比例"}</span>
+                  </header>
+                  <p className="code">组合总金额: ¥{formatCurrency(portfolio.totalAmount)}</p>
+                  <p className={portfolio.totalProfitAmount >= 0 ? "delta-up" : "delta-down"}>
+                    组合总收益: {portfolio.totalProfitDisplay}
+                  </p>
+                  <p className="code">当日预估涨幅: {formatSignedPct(portfolio.intradayEstimatePct)}</p>
+                  <p className="code">基金数量: {portfolio.fundCount}</p>
+                  <div className="card-actions">
+                    <button className="btn-secondary btn-small" type="button" onClick={() => onRenamePortfolio(portfolio)}>
+                      重命名
+                    </button>
+                    <button className="btn-link-danger" type="button" onClick={() => onDeletePortfolio(portfolio)}>
+                      删除
+                    </button>
+                    <button className="btn-secondary btn-small" type="button" onClick={() => setSelectedPortfolioId(portfolio.id)}>
+                      打开
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </section>
+          ) : (
+            <>
+              <section className="actions inner-actions">
+                <h2 className="section-title">
+                  {selectedPortfolioMeta?.name ?? "当前组合"}
+                  {selectedPortfolioSummary ? ` · ${selectedPortfolioSummary.type === "FREE" ? "自由组合" : "按比例组合"}` : ""}
+                </h2>
+                <form className="add-fund-form" onSubmit={onAddFundToPortfolio}>
+                  <div className="control-row">
+                    <input
+                      className="text-input"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="基金代码(6位)"
+                      value={addFundCode}
+                      onChange={(event) => setAddFundCode(event.target.value)}
+                      disabled={isBusy}
+                    />
+                    <input
+                      className="text-input"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="持仓金额"
+                      value={addFundHoldingAmount}
+                      onChange={(event) => setAddFundHoldingAmount(event.target.value)}
+                      disabled={isBusy}
+                    />
+                    {selectedPortfolioMeta?.type === "RATIO" ? (
+                      <input
+                        className="text-input"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="计划比例(%)"
+                        value={addFundPlannedRatio}
+                        onChange={(event) => setAddFundPlannedRatio(event.target.value)}
+                        disabled={isBusy}
+                      />
+                    ) : null}
+                    <button className="btn-primary" type="submit" disabled={isBusy}>
+                      添加基金
+                    </button>
+                  </div>
+                </form>
+              </section>
+
+              <section className="portfolio-analysis">
+                <article className="analysis-panel">
+                  <div className="analysis-header">
+                    <h3 className="section-title">比例达成</h3>
+                    {selectedPortfolioMeta?.type === "RATIO" ? (
+                      <p className="code">实际低于计划或超配不超过 10% 时为灰色；超配超过 15% 标为提醒色。</p>
+                    ) : (
+                      <p className="code">自由组合无计划比例，不展示比例达成图。</p>
+                    )}
+                  </div>
+
+                  {selectedPortfolioMeta?.type === "RATIO" ? (
+                    ratioAnalysisRows.length === 0 ? (
+                      <p className="code">当前组合暂无可分析的比例数据。</p>
+                    ) : (
+                      <div className="ratio-chart">
+                        {ratioAnalysisRows.map((row) => (
+                          <div className="ratio-row" key={row.fundCode}>
+                            <div className="ratio-row-head">
+                              <span className="fund">{row.fundName}</span>
+                              <span className="code">{row.fundCode}</span>
+                            </div>
+                            <div className="ratio-line">
+                              <span className="ratio-line-label">计划</span>
+                              <div className="ratio-track">
+                                <div
+                                  className="ratio-fill ratio-fill-neutral"
+                                  style={{ width: `${Math.max(0, Math.min(100, row.plannedRatio * 100))}%` }}
+                                />
+                              </div>
+                              <span className="ratio-line-value">{formatPct(row.plannedRatio)}</span>
+                            </div>
+                            <div className="ratio-line">
+                              <span className="ratio-line-label">实际</span>
+                              <div className="ratio-track">
+                                <div
+                                  className={`ratio-fill ${row.overByMoreThan15Pct ? "ratio-fill-warn" : "ratio-fill-neutral"}`}
+                                  style={{ width: `${Math.max(0, Math.min(100, row.actualRatio * 100))}%` }}
+                                />
+                              </div>
+                              <span className="ratio-line-value">{formatPct(row.actualRatio)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  ) : null}
+                </article>
+
+                <article className="analysis-panel">
+                  <div className="analysis-header">
+                    <h3 className="section-title">今日预估</h3>
+                    <button
+                      type="button"
+                      className={`mode-btn ${estimateSortOrder === "default" ? "" : "mode-btn-active"}`}
+                      onClick={() => setEstimateSortOrder((prev) => nextFlatSortOrder(prev))}
+                      disabled={isBusy}
+                    >
+                      {getEstimateSortButtonLabel(estimateSortOrder)}
+                    </button>
+                  </div>
+
+                  {estimateAnalysisRows.length === 0 ? (
+                    <p className="code">当前组合暂无基金数据。</p>
+                  ) : (
+                    <div className="estimate-list">
+                      {estimateAnalysisRows.map((row) => (
+                        <div className="estimate-item" key={row.fundCode}>
+                          <div className="estimate-item-head">
+                            <span className="fund">{row.fundName}</span>
+                            <span className="code">{row.fundCode}</span>
+                          </div>
+                          <p className={deltaClassByPct(row.estimateChangePct)}>
+                            {formatSignedCurrency(row.intradayAmount)} / {formatSignedPct(row.estimateChangePct)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </article>
+              </section>
+
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onPortfolioFundsDragEnd}>
+                <SortableContext items={portfolioFunds.map((item) => item.fundCode)} strategy={rectSortingStrategy}>
+                  <section className="grid grid-compact">
+                    {portfolioFunds.length === 0 ? (
+                      <article className="card card-compact">
+                        <div className="fund">当前组合暂无基金</div>
+                        <p className="code">请通过上方表单添加基金。</p>
+                      </article>
+                    ) : null}
+
+                    {portfolioFunds.map((item) => {
+                      const edit = editStateMap.get(item.fundCode) ?? {
+                        holdingAmount: String(item.holdingAmount),
+                        plannedRatio: typeof item.plannedRatio === "number" ? String((item.plannedRatio * 100).toFixed(2)) : ""
+                      };
+
+                      return (
+                        <SortablePortfolioFundCard
+                          key={`${item.portfolioId}-${item.fundCode}`}
+                          item={item}
+                          edit={edit}
+                          isBusy={isBusy}
+                          onEditFieldChange={onEditFieldChange}
+                          onUpdateFund={onUpdateFund}
+                          onDeleteFund={onDeleteFund}
+                        />
+                      );
+                    })}
+                  </section>
+                </SortableContext>
+              </DndContext>
+            </>
+          )}
+        </>
+      )}
     </main>
   );
 }
