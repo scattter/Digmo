@@ -1,0 +1,11 @@
+# Suggested commands
+- Install deps: `pnpm install`
+- Start all dev services: `pnpm dev`
+- Start API only: `pnpm --filter @digmo/api dev`
+- Start Web only: `pnpm --filter @digmo/web dev`
+- Start mini-program dev: `pnpm --filter @digmo/mini dev:weapp`
+- Build all: `pnpm build`
+- Run tests: `pnpm test`
+- Typecheck all: `pnpm typecheck`
+- Typecheck web: `pnpm --filter @digmo/web typecheck`
+- Common Darwin utilities: `git`, `ls`, `cd`, `rg`, `find`, `cat`, `sed`.

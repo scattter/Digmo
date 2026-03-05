@@ -1,0 +1,17 @@
+{
+  "description": "Digmo mini app",
+  "packOptions": {
+    "ignore": []
+  },
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": true,
+    "minified": true
+  },
+  "compileType": "miniprogram",
+  "libVersion": "2.31.1",
+  "appid": "touristappid",
+  "projectname": "digmo-mini",
+  "miniprogramRoot": "dist"
+}

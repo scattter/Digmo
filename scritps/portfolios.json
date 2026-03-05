@@ -1,0 +1,18 @@
+{
+  "portfolios": {
+    "进攻组合": {
+      "name": "进攻组合",
+      "description": "高风险高收益投资组合",
+      "updated": "2026-03-03",
+      "holdings": [
+        {"name": "财通资管数字经济A", "code": "017483", "weight": 0.15},
+        {"name": "银华集成电路混合A", "code": "013840", "weight": 0.08},
+        {"name": "国泰中证电网设备ETF", "code": "023638", "weight": 0.15},
+        {"name": "化工ETF联接A", "code": "020273", "weight": 0.12},
+        {"name": "中证A500ETF", "code": "022434", "weight": 0.15},
+        {"name": "南方中证申万有色联接A", "code": "004432", "weight": 0.15},
+        {"name": "永赢先进制造", "code": "018124", "weight": 0.10}
+      ]
+    }
+  }
+}

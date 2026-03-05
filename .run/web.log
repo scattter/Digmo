@@ -1,0 +1,19 @@
+
+> @digmo/web@0.1.0 dev /Users/zhangke/code/self/Digmo/apps/web
+> next dev -p 3000
+
+   ▲ Next.js 15.2.0
+   - Local:        http://localhost:3000
+   - Network:      http://10.10.17.238:3000
+
+ ✓ Starting...
+ ✓ Ready in 2.1s
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 718ms (672 modules)
+ GET /_next/static/webpack/0602e8ed2c83a509.webpack.hot-update.json 404 in 919ms
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ ✓ Compiled / in 250ms (754 modules)
+ ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+ GET /_next/static/webpack/0602e8ed2c83a509.webpack.hot-update.json 404 in 91ms
+ GET / 200 in 507ms
+ GET /.well-known/appspecific/com.chrome.devtools.json 404 in 68ms

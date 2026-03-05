@@ -1,0 +1,24 @@
+{
+  "name": "@digmo/mini",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:weapp": "taro build --type weapp --watch",
+    "build:weapp": "taro build --type weapp",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@digmo/shared": "workspace:*",
+    "@tarojs/components": "4.0.0",
+    "@tarojs/runtime": "4.0.0",
+    "@tarojs/taro": "4.0.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@tarojs/cli": "4.0.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "typescript": "^5.8.2"
+  }
+}

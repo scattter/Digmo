@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: digmo-postgres
+    environment:
+      POSTGRES_USER: digmo
+      POSTGRES_PASSWORD: digmo
+      POSTGRES_DB: digmo
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../apps/api/db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+
+  redis:
+    image: redis:7-alpine
+    container_name: digmo-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:

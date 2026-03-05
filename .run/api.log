@@ -1,0 +1,13 @@
+
+> @digmo/api@0.1.0 dev /Users/zhangke/code/self/Digmo/apps/api
+> tsx watch src/index.ts
+
+(node:49926) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"level":30,"time":1772614465383,"pid":49926,"hostname":"tongshiMacBook-Pro.local","msg":"Server listening at http://127.0.0.1:3001"}
+{"level":30,"time":1772614465384,"pid":49926,"hostname":"tongshiMacBook-Pro.local","msg":"Server listening at http://10.10.17.238:3001"}
+{"level":30,"time":1772614465384,"pid":49926,"hostname":"tongshiMacBook-Pro.local","msg":"Server listening at http://172.29.184.180:3001"}
+{"level":30,"time":1772614465384,"pid":49926,"hostname":"tongshiMacBook-Pro.local","msg":"Server listening at http://198.18.0.1:3001"}
+{"level":30,"time":1772614465386,"pid":49926,"hostname":"tongshiMacBook-Pro.local","host":"0.0.0.0","port":3001,"msg":"digmo api started"}
+{"level":30,"time":1772614471388,"pid":49926,"hostname":"tongshiMacBook-Pro.local","reqId":"req-1","req":{"method":"GET","url":"/v1/portfolios","host":"localhost:3001","remoteAddress":"127.0.0.1","remotePort":52638},"msg":"incoming request"}
+{"level":30,"time":1772614471411,"pid":49926,"hostname":"tongshiMacBook-Pro.local","reqId":"req-2","req":{"method":"GET","url":"/v1/funds/flat?expand=dedup&sortOrder=default","host":"localhost:3001","remoteAddress":"127.0.0.1","remotePort":52639},"msg":"incoming request"}
