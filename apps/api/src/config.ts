@@ -15,6 +15,11 @@ export interface AppConfig {
     userAgent: string;
     referer: string;
   };
+  twelveData: {
+    apiKey?: string;
+    baseUrl: string;
+    timeoutMs: number;
+  };
 }
 
 export function getConfig(): AppConfig {
@@ -45,6 +50,11 @@ export function getConfig(): AppConfig {
         process.env.EASTMONEY_USER_AGENT ??
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
       referer: process.env.EASTMONEY_REFERER ?? "https://quote.eastmoney.com/"
+    },
+    twelveData: {
+      apiKey: process.env.TWELVEDATA_API_KEY,
+      baseUrl: process.env.TWELVEDATA_BASE_URL ?? "https://api.twelvedata.com",
+      timeoutMs: Number(process.env.TWELVEDATA_TIMEOUT_MS ?? 1800)
     }
   };
 }

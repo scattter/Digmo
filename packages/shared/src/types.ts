@@ -133,6 +133,25 @@ export interface PortfolioSummary {
   intradayEstimatePct: number;
 }
 
+export interface PortfolioDailyProfitV2Item {
+  id: string;
+  name: string;
+  type: PortfolioType;
+  fundCount: number;
+  availableFundCount: number;
+  missingFundCount: number;
+  totalAmount: number;
+  dailyProfitAmount: number;
+  dailyProfitPct: number;
+}
+
+export interface PortfolioDailyProfitV2Response {
+  tradeDate: string;
+  generatedAt: string;
+  source: "TWELVE_DATA_FUNDGZ_HYBRID";
+  portfolios: PortfolioDailyProfitV2Item[];
+}
+
 export interface PortfolioFundItem {
   portfolioId: string;
   portfolioName: string;

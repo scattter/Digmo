@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { DailyProfitComparePanel } from "@/components/dashboard/daily-profit-compare-panel";
 import { EstimateAnalysisPanel } from "@/components/dashboard/estimate-analysis-panel";
 import { FlatFundsTable } from "@/components/dashboard/flat-funds-table";
 import { MainViewTabs } from "@/components/dashboard/main-view-tabs";
@@ -144,6 +145,33 @@ export default function FundDashboard() {
   );
 
   const isRatioPortfolio = selectedPortfolioType === "RATIO";
+
+  const dailyProfitCompareRows = useMemo(() => {
+    const v2ById = new Map(dashboard.portfolioDailyProfitV2.map((item) => [item.id, item] as const));
+
+    return dashboard.portfolios.map((v1) => {
+      const v2 = v2ById.get(v1.id);
+      const v1DailyProfitAmount = Number((v1.totalAmount * v1.dailyProfitPct).toFixed(2));
+      const v2DailyProfitPct = v2?.dailyProfitPct ?? 0;
+      const v2DailyProfitAmount =
+        typeof v2?.dailyProfitAmount === "number" ? v2.dailyProfitAmount : Number((v1.totalAmount * v2DailyProfitPct).toFixed(2));
+      const diffPct = Number((v2DailyProfitPct - v1.dailyProfitPct).toFixed(6));
+      const diffAmount = Number((v2DailyProfitAmount - v1DailyProfitAmount).toFixed(2));
+
+      return {
+        portfolioId: v1.id,
+        portfolioName: v1.name,
+        portfolioType: v1.type,
+        v1DailyProfitPct: v1.dailyProfitPct,
+        v2DailyProfitPct,
+        v1DailyProfitAmount,
+        v2DailyProfitAmount,
+        diffPct,
+        diffAmount,
+        missingFundCount: v2?.missingFundCount ?? 0
+      };
+    });
+  }, [dashboard.portfolioDailyProfitV2, dashboard.portfolios]);
 
   const mergedRatioEstimateRows = useMemo(() => {
     const ratioByFund = new Map(dashboard.ratioAnalysisRows.map((row) => [row.fundCode, row] as const));
@@ -354,6 +382,18 @@ export default function FundDashboard() {
 
         <StatusFeedback lastManualRefreshAt={dashboard.lastManualRefreshAt} />
       </section>
+
+      {dashboard.mainView === "portfolios" && dashboard.selectedPortfolioId === "all" ? (
+        <section className="mb-4">
+          <DailyProfitComparePanel
+            rows={dailyProfitCompareRows}
+            isLoading={dashboard.isLoadingPortfolioDailyProfitV2}
+            generatedAt={dashboard.portfolioDailyProfitV2Meta?.generatedAt}
+            tradeDate={dashboard.portfolioDailyProfitV2Meta?.tradeDate}
+            source={dashboard.portfolioDailyProfitV2Meta?.source}
+          />
+        </section>
+      ) : null}
 
       {dashboard.mainView === "funds" ? (
         <FlatFundsTable

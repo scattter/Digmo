@@ -1,11 +1,19 @@
 "use client";
 
-import { FlatFundItem, PortfolioFundItem, PortfolioSummary, PortfolioType } from "@digmo/shared";
+import {
+  FlatFundItem,
+  PortfolioDailyProfitV2Item,
+  PortfolioDailyProfitV2Response,
+  PortfolioFundItem,
+  PortfolioSummary,
+  PortfolioType
+} from "@digmo/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchFlatFunds,
   fetchPortfolioFunds,
   fetchPortfolios,
+  fetchPortfoliosDailyProfitV2,
   FlatExpandMode,
   SortOrder
 } from "@/lib/api";
@@ -21,6 +29,8 @@ export interface PortfolioMeta {
   name: string;
   type: PortfolioType;
 }
+
+type PortfolioDailyProfitV2Meta = Pick<PortfolioDailyProfitV2Response, "tradeDate" | "generatedAt" | "source">;
 
 export function nextSortOrder(current: SortOrder): SortOrder {
   if (current === "default") {
@@ -60,6 +70,8 @@ export function useDashboardData() {
   const [estimateSortOrder, setEstimateSortOrder] = useState<SortOrder>("default");
 
   const [portfolios, setPortfolios] = useState<PortfolioSummary[]>([]);
+  const [portfolioDailyProfitV2, setPortfolioDailyProfitV2] = useState<PortfolioDailyProfitV2Item[]>([]);
+  const [portfolioDailyProfitV2Meta, setPortfolioDailyProfitV2Meta] = useState<PortfolioDailyProfitV2Meta | null>(null);
   const [flatFunds, setFlatFunds] = useState<FlatFundItem[]>([]);
   const [portfolioFunds, setPortfolioFunds] = useState<PortfolioFundItem[]>([]);
   const [selectedPortfolioMeta, setSelectedPortfolioMeta] = useState<PortfolioMeta | null>(null);
@@ -67,6 +79,7 @@ export function useDashboardData() {
   const [editStateMap, setEditStateMap] = useState<Map<string, FundEditState>>(new Map());
 
   const [isLoadingPortfolios, setIsLoadingPortfolios] = useState(true);
+  const [isLoadingPortfolioDailyProfitV2, setIsLoadingPortfolioDailyProfitV2] = useState(true);
   const [isLoadingFlatFunds, setIsLoadingFlatFunds] = useState(true);
   const [isLoadingPortfolioFunds, setIsLoadingPortfolioFunds] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -75,7 +88,8 @@ export function useDashboardData() {
   const [errorText, setErrorText] = useState("");
   const [lastManualRefreshAt, setLastManualRefreshAt] = useState("");
 
-  const isLoading = isLoadingPortfolios || isLoadingFlatFunds || isLoadingPortfolioFunds || isActionLoading;
+  const isLoading =
+    isLoadingPortfolios || isLoadingPortfolioDailyProfitV2 || isLoadingFlatFunds || isLoadingPortfolioFunds || isActionLoading;
   const setIsLoading = setIsActionLoading;
   const isBusy = isLoading || isReordering;
 
@@ -150,6 +164,16 @@ export function useDashboardData() {
     }
   }, [selectedPortfolioId]);
 
+  const loadPortfoliosDailyProfitV2 = useCallback(async () => {
+    const next = await fetchPortfoliosDailyProfitV2();
+    setPortfolioDailyProfitV2(next.portfolios);
+    setPortfolioDailyProfitV2Meta({
+      tradeDate: next.tradeDate,
+      generatedAt: next.generatedAt,
+      source: next.source
+    });
+  }, []);
+
   const loadFlatFunds = useCallback(async () => {
     const next = await fetchFlatFunds(flatExpand, flatSortOrder);
     setFlatFunds(next);
@@ -183,19 +207,21 @@ export function useDashboardData() {
     const silent = options?.silent ?? false;
     if (!silent) {
       setIsLoadingPortfolios(true);
+      setIsLoadingPortfolioDailyProfitV2(true);
       setIsLoadingFlatFunds(true);
       setIsLoadingPortfolioFunds(true);
     }
     try {
-      await Promise.all([loadPortfolios(), loadFlatFunds(), loadSelectedPortfolioFunds()]);
+      await Promise.all([loadPortfolios(), loadPortfoliosDailyProfitV2(), loadFlatFunds(), loadSelectedPortfolioFunds()]);
     } finally {
       if (!silent) {
         setIsLoadingPortfolios(false);
+        setIsLoadingPortfolioDailyProfitV2(false);
         setIsLoadingFlatFunds(false);
         setIsLoadingPortfolioFunds(false);
       }
     }
-  }, [loadFlatFunds, loadPortfolios, loadSelectedPortfolioFunds]);
+  }, [loadFlatFunds, loadPortfolios, loadPortfoliosDailyProfitV2, loadSelectedPortfolioFunds]);
 
   useEffect(() => {
     setIsLoadingPortfolios(true);
@@ -208,6 +234,18 @@ export function useDashboardData() {
         setIsLoadingPortfolios(false);
       });
   }, [loadPortfolios]);
+
+  useEffect(() => {
+    setIsLoadingPortfolioDailyProfitV2(true);
+    setErrorText("");
+    void loadPortfoliosDailyProfitV2()
+      .catch((error) => {
+        setErrorText(error instanceof Error ? error.message : "加载 v2 组合当日收益失败");
+      })
+      .finally(() => {
+        setIsLoadingPortfolioDailyProfitV2(false);
+      });
+  }, [loadPortfoliosDailyProfitV2]);
 
   useEffect(() => {
     setIsLoadingFlatFunds(true);
@@ -251,6 +289,8 @@ export function useDashboardData() {
     setEstimateSortOrder,
     portfolios,
     setPortfolios,
+    portfolioDailyProfitV2,
+    portfolioDailyProfitV2Meta,
     flatFunds,
     setFlatFunds,
     portfolioFunds,
@@ -260,6 +300,7 @@ export function useDashboardData() {
     editStateMap,
     setEditStateMap,
     isLoadingPortfolios,
+    isLoadingPortfolioDailyProfitV2,
     isLoadingFlatFunds,
     isLoadingPortfolioFunds,
     isLoading,

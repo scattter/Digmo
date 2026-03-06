@@ -2,6 +2,7 @@ import {
   BatchEstimateResponse,
   FlatFundItem,
   FundEstimateSnapshot,
+  PortfolioDailyProfitV2Response,
   PortfolioFundItem,
   PortfolioSummary,
   PortfolioType
@@ -52,6 +53,18 @@ export async function fetchPortfolios(): Promise<PortfolioSummary[]> {
 
   const data = (await response.json()) as { portfolios?: PortfolioSummary[] };
   return data.portfolios ?? [];
+}
+
+export async function fetchPortfoliosDailyProfitV2(): Promise<PortfolioDailyProfitV2Response> {
+  const response = await fetch(`${API_BASE_URL}/v2/portfolios/daily-profit`, {
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Fetch v2 portfolios daily profit failed with status ${response.status}`);
+  }
+
+  return response.json() as Promise<PortfolioDailyProfitV2Response>;
 }
 
 export async function createPortfolio(name: string, type: PortfolioType): Promise<PortfolioSummary> {

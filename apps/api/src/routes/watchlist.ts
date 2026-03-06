@@ -2,6 +2,8 @@ import {
   ERROR_CODES,
   FlatFundItem,
   FundEstimateSnapshot,
+  PortfolioDailyProfitV2Item,
+  PortfolioDailyProfitV2Response,
   PortfolioFundItem,
   PortfolioSummary,
   PortfolioType,
@@ -21,7 +23,15 @@ import { formatDate, isTradingDay, nowInShanghai } from "../utils/time";
 interface RegisterWatchlistRoutesDeps {
   store: WatchlistStore;
   service: ValuationService;
+  v2EstimateFetcher?: V2EstimateFetcher;
+  twelveData?: {
+    apiKey?: string;
+    baseUrl?: string;
+    timeoutMs?: number;
+  };
 }
+
+type V2EstimateFetcher = (fundCode: string) => Promise<number | undefined>;
 
 interface FlatQuery {
   expand?: "dedup" | "expanded";
@@ -143,6 +153,166 @@ function trendFromEstimate(estimateChangePct: number | undefined): TrendType {
     return "DOWN";
   }
   return "FLAT";
+}
+
+function toFiniteNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
+async function fetchTextWithTimeout(
+  url: string,
+  timeoutMs: number,
+  headers?: Record<string, string>
+): Promise<string | undefined> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers,
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      return undefined;
+    }
+    return await response.text();
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchJsonWithTimeout<T>(
+  url: string,
+  timeoutMs: number,
+  headers?: Record<string, string>
+): Promise<T | undefined> {
+  const text = await fetchTextWithTimeout(url, timeoutMs, headers);
+  if (!text) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchTwelveDataEstimateChangePct(
+  fundCode: string,
+  options: {
+    apiKey?: string;
+    baseUrl: string;
+    timeoutMs: number;
+  }
+): Promise<number | undefined> {
+  if (!options.apiKey) {
+    return undefined;
+  }
+
+  const code = fundCode.trim();
+  if (!/^\d{6}$/.test(code)) {
+    return undefined;
+  }
+
+  const baseUrl = options.baseUrl.replace(/\/$/, "");
+  const symbols = [`${code}.OF`, code, `${code}.SZ`, `${code}.SS`];
+
+  for (const symbol of symbols) {
+    const url =
+      `${baseUrl}/quote?symbol=${encodeURIComponent(symbol)}` +
+      `&apikey=${encodeURIComponent(options.apiKey)}`;
+    const payload = await fetchJsonWithTimeout<
+      Record<string, unknown> & {
+        status?: string;
+        percent_change?: string | number;
+        close?: string | number;
+        previous_close?: string | number;
+      }
+    >(url, options.timeoutMs, {
+      Accept: "application/json",
+      "User-Agent": "Mozilla/5.0"
+    });
+
+    if (!payload || payload.status === "error") {
+      continue;
+    }
+
+    const percentChange = toFiniteNumber(payload.percent_change);
+    if (typeof percentChange === "number") {
+      return Number((percentChange / 100).toFixed(6));
+    }
+
+    const close = toFiniteNumber(payload.close);
+    const previousClose = toFiniteNumber(payload.previous_close);
+    if (typeof close === "number" && typeof previousClose === "number" && previousClose > 0) {
+      return Number(((close - previousClose) / previousClose).toFixed(6));
+    }
+  }
+
+  return undefined;
+}
+
+async function fetchFundGzEstimateChangePct(fundCode: string): Promise<number | undefined> {
+  const code = fundCode.trim();
+  if (!/^\d{6}$/.test(code)) {
+    return undefined;
+  }
+
+  const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
+
+  try {
+    const text = await fetchTextWithTimeout(url, 4500, {
+      Accept: "*/*",
+      "User-Agent": "Mozilla/5.0",
+      Referer: "http://fund.eastmoney.com/"
+    });
+    if (!text) {
+      return undefined;
+    }
+
+    const match = text.match(/jsonpgz\((\{.*?\})\)/);
+    if (!match?.[1]) {
+      return undefined;
+    }
+
+    const payload = JSON.parse(match[1]) as { gszzl?: string | number };
+    const changePctPercent = toFiniteNumber(payload.gszzl);
+    if (typeof changePctPercent !== "number") {
+      return undefined;
+    }
+
+    return Number((changePctPercent / 100).toFixed(6));
+  } catch {
+    return undefined;
+  }
+}
+
+function createTwelveDataFundGzHybridFetcher(options: {
+  apiKey?: string;
+  baseUrl: string;
+  timeoutMs: number;
+}): V2EstimateFetcher {
+  return async (fundCode: string) => {
+    const fromTwelveData = await fetchTwelveDataEstimateChangePct(fundCode, options);
+    if (typeof fromTwelveData === "number") {
+      return fromTwelveData;
+    }
+    return fetchFundGzEstimateChangePct(fundCode);
+  };
 }
 
 function formatSignedAmount(value: number): string {
@@ -376,12 +546,126 @@ async function buildPortfolioSummaries(
   };
 }
 
+async function chunkGetV2Estimates(
+  fundCodes: string[],
+  estimateFetcher: V2EstimateFetcher
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  const chunkSize = 8;
+
+  for (let i = 0; i < fundCodes.length; i += chunkSize) {
+    const chunk = fundCodes.slice(i, i + chunkSize);
+    const rows = await Promise.all(
+      chunk.map(async (fundCode) => ({
+        fundCode,
+        estimateChangePct: await estimateFetcher(fundCode)
+      }))
+    );
+
+    for (const row of rows) {
+      if (typeof row.estimateChangePct === "number") {
+        map.set(row.fundCode, row.estimateChangePct);
+      }
+    }
+  }
+
+  return map;
+}
+
+async function buildPortfolioDailyProfitV2(
+  store: WatchlistStore,
+  estimateFetcher: V2EstimateFetcher
+): Promise<PortfolioDailyProfitV2Response> {
+  const [portfolios, portfolioFunds] = await Promise.all([store.listPortfolios(), store.listAllPortfolioFunds()]);
+  const fundCodes = Array.from(new Set(portfolioFunds.map((item) => item.fundCode)));
+  const estimateMap = await chunkGetV2Estimates(fundCodes, estimateFetcher);
+
+  const grouped = new Map<string, PortfolioFundItem[]>();
+  for (const item of portfolioFunds) {
+    const estimateChangePct = estimateMap.get(item.fundCode);
+    const vm: PortfolioFundItem = {
+      portfolioId: item.portfolioId,
+      portfolioName: item.portfolioName,
+      portfolioType: item.portfolioType,
+      fundCode: item.fundCode,
+      displayOrder: item.displayOrder,
+      holdingAmount: item.holdingAmount,
+      estimateChangePct,
+      totalChangePct: 0,
+      totalProfitAmount: item.holdingProfitAmount,
+      holdingProfitAmount: item.holdingProfitAmount,
+      holdingProfitPct: 0,
+      dailyProfitAmount:
+        typeof estimateChangePct === "number" ? Number((item.holdingAmount * estimateChangePct).toFixed(2)) : 0,
+      dailyProfitPct: typeof estimateChangePct === "number" ? estimateChangePct : 0,
+      dailyProfitOfficialUpdated: false,
+      trend: trendFromEstimate(estimateChangePct),
+      plannedRatio: item.portfolioType === "RATIO" ? item.plannedRatio : undefined
+    };
+
+    if (!grouped.has(item.portfolioId)) {
+      grouped.set(item.portfolioId, []);
+    }
+    grouped.get(item.portfolioId)?.push(vm);
+  }
+
+  const rows: PortfolioDailyProfitV2Item[] = portfolios.map((portfolio) => {
+    const funds = grouped.get(portfolio.id) ?? [];
+    const totalAmount = Number(funds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2));
+    const availableFundCount = funds.filter((item) => typeof item.estimateChangePct === "number").length;
+    const missingFundCount = Math.max(0, funds.length - availableFundCount);
+    const dailyProfitAmount = Number(
+      funds
+        .reduce((sum, item) => {
+          if (typeof item.estimateChangePct !== "number") {
+            return sum;
+          }
+          return sum + item.holdingAmount * item.estimateChangePct;
+        }, 0)
+        .toFixed(2)
+    );
+    const dailyProfitPct = totalAmount > 0 ? Number((dailyProfitAmount / totalAmount).toFixed(6)) : 0;
+
+    return {
+      id: portfolio.id,
+      name: portfolio.name,
+      type: portfolio.type,
+      fundCount: funds.length,
+      availableFundCount,
+      missingFundCount,
+      totalAmount,
+      dailyProfitAmount,
+      dailyProfitPct
+    };
+  });
+
+  const now = nowInShanghai();
+  return {
+    tradeDate: formatDate(now),
+    generatedAt: now.toISOString(),
+    source: "TWELVE_DATA_FUNDGZ_HYBRID",
+    portfolios: rows
+  };
+}
+
 export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatchlistRoutesDeps): void {
+  const v2EstimateFetcher =
+    deps.v2EstimateFetcher ??
+    createTwelveDataFundGzHybridFetcher({
+      apiKey: deps.twelveData?.apiKey,
+      baseUrl: deps.twelveData?.baseUrl ?? "https://api.twelvedata.com",
+      timeoutMs: deps.twelveData?.timeoutMs ?? 1800
+    });
+
   app.get("/v1/portfolios", async () => {
     const result = await buildPortfolioSummaries(deps.store, deps.service);
     return {
       portfolios: result.portfolios
     };
+  });
+
+  app.get("/v2/portfolios/daily-profit", async () => {
+    return buildPortfolioDailyProfitV2(deps.store, v2EstimateFetcher);
   });
 
   app.post("/v1/portfolios", async (request, reply) => {

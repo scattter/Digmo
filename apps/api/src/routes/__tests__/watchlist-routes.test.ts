@@ -89,7 +89,14 @@ async function createRouteApp(store: SqliteWatchlistStore, estimates: Record<str
 
   registerWatchlistRoutes(app, {
     store,
-    service
+    service,
+    v2EstimateFetcher: async (fundCode: string) => {
+      const seed = estimates[fundCode];
+      if (seed === undefined) {
+        return undefined;
+      }
+      return toEstimateSeed(seed).estimateChangePct;
+    }
   });
 
   await app.ready();
@@ -306,6 +313,84 @@ describe("watchlist routes", () => {
     expect(target?.totalProfitDisplay).toContain("10.00%");
     expect(typeof target?.dailyProfitPct).toBe("number");
     expect(typeof target?.allFundsDailyUpdated).toBe("boolean");
+
+    await app.close();
+  });
+
+  test("returns v2 portfolio daily profit snapshots", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.02,
+      "110011": -0.01
+    });
+
+    const p1Resp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "组合一", type: "FREE" }
+    });
+    const p2Resp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "组合二", type: "FREE" }
+    });
+    const p1Id = (p1Resp.json() as { portfolio: { id: string } }).portfolio.id;
+    const p2Id = (p2Resp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${p1Id}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000 }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${p1Id}/funds`,
+      payload: { fundCode: "110011", holdingAmount: 500 }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${p2Id}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 2000 }
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v2/portfolios/daily-profit"
+    });
+    expect(response.statusCode).toBe(200);
+    const payload = response.json() as {
+      source: string;
+      tradeDate: string;
+      generatedAt: string;
+      portfolios: Array<{
+        id: string;
+        fundCount: number;
+        availableFundCount: number;
+        missingFundCount: number;
+        dailyProfitPct: number;
+        dailyProfitAmount: number;
+      }>;
+    };
+
+    expect(payload.source).toBe("TWELVE_DATA_FUNDGZ_HYBRID");
+    expect(typeof payload.tradeDate).toBe("string");
+    expect(typeof payload.generatedAt).toBe("string");
+    expect(payload.portfolios.length).toBe(2);
+
+    const p1 = payload.portfolios.find((item) => item.id === p1Id);
+    expect(p1).toBeDefined();
+    expect(p1?.fundCount).toBe(2);
+    expect(p1?.availableFundCount).toBe(2);
+    expect(p1?.missingFundCount).toBe(0);
+    expect(p1?.dailyProfitAmount).toBe(15);
+    expect(p1?.dailyProfitPct).toBe(0.01);
+
+    const p2 = payload.portfolios.find((item) => item.id === p2Id);
+    expect(p2).toBeDefined();
+    expect(p2?.fundCount).toBe(1);
+    expect(p2?.dailyProfitAmount).toBe(40);
+    expect(p2?.dailyProfitPct).toBe(0.02);
 
     await app.close();
   });

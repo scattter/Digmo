@@ -63,7 +63,15 @@ export async function buildApp(): Promise<AppContext> {
   registerHealthRoutes(app);
   registerFundRoutes(app, { service });
   registerTaskRoutes(app, { repository });
-  registerWatchlistRoutes(app, { store: watchlistStore, service });
+  registerWatchlistRoutes(app, {
+    store: watchlistStore,
+    service,
+    twelveData: {
+      apiKey: config.twelveData.apiKey,
+      baseUrl: config.twelveData.baseUrl,
+      timeoutMs: config.twelveData.timeoutMs
+    }
+  });
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
