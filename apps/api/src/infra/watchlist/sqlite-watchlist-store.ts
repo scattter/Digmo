@@ -56,6 +56,8 @@ export interface WatchlistStore {
   createPortfolio(name: string, type: PortfolioType): Promise<PortfolioItem>;
   renamePortfolio(portfolioId: string, name: string): Promise<boolean>;
   deletePortfolio(portfolioId: string): Promise<boolean>;
+  validatePortfolioSet(orderedPortfolioIds: string[]): Promise<boolean>;
+  reorderPortfolios(orderedPortfolioIds: string[]): Promise<void>;
 
   listPortfolioFunds(portfolioId: string): Promise<PortfolioFundItem[]>;
   listAllPortfolioFunds(): Promise<PortfolioFundItem[]>;
@@ -92,6 +94,7 @@ interface PortfolioRow {
   id: string;
   name: string;
   type: string;
+  displayOrder: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -183,6 +186,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         type TEXT NOT NULL CHECK(type IN ('FREE', 'RATIO')),
+        display_order INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
@@ -216,6 +220,12 @@ export class SqliteWatchlistStore implements WatchlistStore {
       CREATE INDEX IF NOT EXISTS idx_user_portfolio_fund_fund_code ON user_portfolio_fund(fund_code);
     `);
 
+    this.ensureColumn(
+      "user_portfolio",
+      "display_order",
+      "ALTER TABLE user_portfolio ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0;"
+    );
+    this.normalizePortfolioDisplayOrder();
     this.ensureColumn(
       "user_portfolio_fund",
       "display_order",
@@ -282,6 +292,41 @@ export class SqliteWatchlistStore implements WatchlistStore {
     `);
   }
 
+  private normalizePortfolioDisplayOrder(): void {
+    const hasDuplicateOrder = this.db
+      .prepare(
+        `
+          SELECT 1
+          FROM user_portfolio
+          GROUP BY display_order
+          HAVING COUNT(1) > 1
+          LIMIT 1
+        `
+      )
+      .get();
+
+    if (!hasDuplicateOrder) {
+      return;
+    }
+
+    this.db.exec(`
+      WITH ranked AS (
+        SELECT
+          rowid AS rid,
+          ROW_NUMBER() OVER (
+            ORDER BY created_at DESC, rowid DESC
+          ) - 1 AS next_order
+        FROM user_portfolio
+      )
+      UPDATE user_portfolio
+      SET display_order = (
+        SELECT ranked.next_order
+        FROM ranked
+        WHERE ranked.rid = user_portfolio.rowid
+      );
+    `);
+  }
+
   private migrateLegacyDataIfNeeded(): void {
     const portfolioCountRow = this.db.prepare("SELECT COUNT(1) AS count FROM user_portfolio").get() as { count: number } | undefined;
     const portfolioCount = portfolioCountRow?.count ?? 0;
@@ -322,8 +367,8 @@ export class SqliteWatchlistStore implements WatchlistStore {
       this.db
         .prepare(
           `
-            INSERT INTO user_portfolio (id, name, type, created_at, updated_at)
-            VALUES (?, ?, 'FREE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT INTO user_portfolio (id, name, type, display_order, created_at, updated_at)
+            VALUES (?, ?, 'FREE', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           `
         )
         .run(portfolioId, DEFAULT_PORTFOLIO_NAME);
@@ -393,10 +438,11 @@ export class SqliteWatchlistStore implements WatchlistStore {
             id,
             name,
             type,
+            display_order AS displayOrder,
             created_at AS createdAt,
             updated_at AS updatedAt
           FROM user_portfolio
-          ORDER BY created_at DESC, rowid DESC
+          ORDER BY display_order ASC, updated_at DESC
         `
       )
       .all() as PortfolioRow[];
@@ -418,6 +464,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
             id,
             name,
             type,
+            display_order AS displayOrder,
             created_at AS createdAt,
             updated_at AS updatedAt
           FROM user_portfolio
@@ -441,14 +488,23 @@ export class SqliteWatchlistStore implements WatchlistStore {
 
   async createPortfolio(name: string, type: PortfolioType): Promise<PortfolioItem> {
     const id = randomUUID();
+    const row = this.db
+      .prepare(
+        `
+          SELECT COALESCE(MAX(display_order), -1) AS maxDisplayOrder
+          FROM user_portfolio
+        `
+      )
+      .get() as { maxDisplayOrder: number | null } | undefined;
+    const nextDisplayOrder = (row?.maxDisplayOrder ?? -1) + 1;
     this.db
       .prepare(
         `
-          INSERT INTO user_portfolio (id, name, type, created_at, updated_at)
-          VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO user_portfolio (id, name, type, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `
       )
-      .run(id, name, type);
+      .run(id, name, type, nextDisplayOrder);
 
     const created = await this.getPortfolio(id);
     if (!created) {
@@ -478,6 +534,64 @@ export class SqliteWatchlistStore implements WatchlistStore {
       await this.cleanupOrphanFundStates();
     }
     return removed;
+  }
+
+  async validatePortfolioSet(orderedPortfolioIds: string[]): Promise<boolean> {
+    const rows = this.db
+      .prepare(
+        `
+          SELECT id
+          FROM user_portfolio
+        `
+      )
+      .all() as Array<{ id: string }>;
+
+    if (rows.length !== orderedPortfolioIds.length) {
+      return false;
+    }
+
+    const inputSet = new Set(orderedPortfolioIds);
+    if (inputSet.size !== orderedPortfolioIds.length) {
+      return false;
+    }
+
+    const existingSet = new Set(rows.map((row) => row.id));
+    if (existingSet.size !== rows.length) {
+      return false;
+    }
+
+    for (const portfolioId of orderedPortfolioIds) {
+      if (!existingSet.has(portfolioId)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  async reorderPortfolios(orderedPortfolioIds: string[]): Promise<void> {
+    this.db.exec("BEGIN TRANSACTION;");
+    try {
+      const updateStmt = this.db.prepare(
+        `
+          UPDATE user_portfolio
+          SET display_order = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `
+      );
+
+      for (const [index, portfolioId] of orderedPortfolioIds.entries()) {
+        const result = updateStmt.run(index, portfolioId) as SqliteRunResult;
+        if (toChanges(result) === 0) {
+          throw new Error(`portfolio ${portfolioId} is not found`);
+        }
+      }
+
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
   }
 
   async listPortfolioFunds(portfolioId: string): Promise<PortfolioFundItem[]> {

@@ -17,7 +17,7 @@ export function ReorderControls({ onMoveUp, onMoveDown, disableUp, disableDown, 
         type="button"
         variant="ghost"
         size="icon"
-        className="h-11 w-11"
+        className="h-9 w-9"
         aria-label={`上移 ${fundName}`}
         onClick={onMoveUp}
         disabled={disabled || disableUp}
@@ -28,7 +28,7 @@ export function ReorderControls({ onMoveUp, onMoveDown, disableUp, disableDown, 
         type="button"
         variant="ghost"
         size="icon"
-        className="h-11 w-11"
+        className="h-9 w-9"
         aria-label={`下移 ${fundName}`}
         onClick={onMoveDown}
         disabled={disabled || disableDown}

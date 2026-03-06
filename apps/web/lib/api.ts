@@ -98,6 +98,21 @@ export async function deletePortfolio(portfolioId: string): Promise<void> {
   }
 }
 
+export async function reorderPortfolios(portfolioIds: string[]): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/v1/portfolios/order`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({ portfolioIds }),
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Reorder portfolios failed with status ${response.status}`);
+  }
+}
+
 export async function fetchPortfolioFunds(
   portfolioId: string
 ): Promise<{

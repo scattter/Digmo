@@ -12,6 +12,9 @@ import {
 import { FundEditState, formatBeijingTime } from "@/lib/format";
 
 export type MainView = "funds" | "portfolios";
+export interface RefreshDataOptions {
+  silent?: boolean;
+}
 
 export interface PortfolioMeta {
   id: string;
@@ -176,16 +179,21 @@ export function useDashboardData() {
     });
   }, [selectedPortfolioId]);
 
-  const refreshData = useCallback(async () => {
-    setIsLoadingPortfolios(true);
-    setIsLoadingFlatFunds(true);
-    setIsLoadingPortfolioFunds(true);
+  const refreshData = useCallback(async (options?: RefreshDataOptions) => {
+    const silent = options?.silent ?? false;
+    if (!silent) {
+      setIsLoadingPortfolios(true);
+      setIsLoadingFlatFunds(true);
+      setIsLoadingPortfolioFunds(true);
+    }
     try {
       await Promise.all([loadPortfolios(), loadFlatFunds(), loadSelectedPortfolioFunds()]);
     } finally {
-      setIsLoadingPortfolios(false);
-      setIsLoadingFlatFunds(false);
-      setIsLoadingPortfolioFunds(false);
+      if (!silent) {
+        setIsLoadingPortfolios(false);
+        setIsLoadingFlatFunds(false);
+        setIsLoadingPortfolioFunds(false);
+      }
     }
   }, [loadFlatFunds, loadPortfolios, loadSelectedPortfolioFunds]);
 

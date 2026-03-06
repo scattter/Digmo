@@ -119,6 +119,19 @@ function parseFundCodes(raw: unknown): string[] {
   return fundCodes;
 }
 
+function parsePortfolioIds(raw: unknown): string[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "portfolioIds must be a non-empty array", 400);
+  }
+
+  const portfolioIds = raw.map((item) => (typeof item === "string" ? item.trim() : ""));
+  for (const portfolioId of portfolioIds) {
+    ensurePortfolioId(portfolioId);
+  }
+
+  return portfolioIds;
+}
+
 function trendFromEstimate(estimateChangePct: number | undefined): TrendType {
   if (typeof estimateChangePct !== "number") {
     return "FLAT";
@@ -400,6 +413,24 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       }
       throw error;
     }
+  });
+
+  app.patch("/v1/portfolios/order", async (request) => {
+    const body = request.body as { portfolioIds?: unknown };
+    const portfolioIds = parsePortfolioIds(body?.portfolioIds);
+    const isValidSet = await deps.store.validatePortfolioSet(portfolioIds);
+    if (!isValidSet) {
+      throw new AppError(
+        ERROR_CODES.INVALID_PORTFOLIO,
+        "portfolioIds must include all and only existing portfolios",
+        400
+      );
+    }
+
+    await deps.store.reorderPortfolios(portfolioIds);
+    return {
+      updated: true
+    };
   });
 
   app.patch("/v1/portfolios/:portfolioId", async (request) => {

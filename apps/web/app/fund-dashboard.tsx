@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PortfolioFundItem, PortfolioSummary, PortfolioType } from "@digmo/shared";
+import { Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -38,6 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getFlatSortButtonLabel, nextSortOrder, useDashboardData } from "@/hooks/use-dashboard-data";
 import { useFundReorder } from "@/hooks/use-fund-reorder";
+import { usePortfolioReorder } from "@/hooks/use-portfolio-reorder";
 import { usePortfolioActions } from "@/hooks/use-portfolio-actions";
 import { FundEditState } from "@/lib/format";
 
@@ -75,6 +77,7 @@ export default function FundDashboard() {
   const [isFlatAddFundDialogOpen, setIsFlatAddFundDialogOpen] = useState(false);
   const [isPortfolioAddFundDialogOpen, setIsPortfolioAddFundDialogOpen] = useState(false);
   const [isRatioPanelExpanded, setIsRatioPanelExpanded] = useState(false);
+  const [isEstimatePanelExpanded, setIsEstimatePanelExpanded] = useState(false);
 
   const createPortfolioForm = useForm<z.infer<typeof createPortfolioDialogSchema>>({
     resolver: zodResolver(createPortfolioDialogSchema),
@@ -118,6 +121,13 @@ export default function FundDashboard() {
     selectedPortfolioId: dashboard.selectedPortfolioId,
     portfolioFunds: dashboard.portfolioFunds,
     setPortfolioFunds: dashboard.setPortfolioFunds,
+    setIsReordering: dashboard.setIsReordering,
+    setErrorText: dashboard.setErrorText,
+    setStatusText: dashboard.setStatusText
+  });
+  const portfolioReorder = usePortfolioReorder({
+    portfolios: dashboard.portfolios,
+    setPortfolios: dashboard.setPortfolios,
     setIsReordering: dashboard.setIsReordering,
     setErrorText: dashboard.setErrorText,
     setStatusText: dashboard.setStatusText
@@ -178,6 +188,8 @@ export default function FundDashboard() {
     () => dashboard.portfolios.reduce((sum, portfolio) => sum + portfolio.totalAmount * portfolio.dailyProfitPct, 0),
     [dashboard.portfolios]
   );
+  const isFlatAddFundSubmitting = flatAddFundForm.formState.isSubmitting;
+  const isPortfolioAddFundSubmitting = portfolioAddFundForm.formState.isSubmitting;
 
   function onEditFieldChange(fundCode: string, key: keyof FundEditState, value: string) {
     dashboard.setEditStateMap((prev) => {
@@ -337,6 +349,7 @@ export default function FundDashboard() {
           onFlatSortToggle={() => dashboard.setFlatSortOrder((prev) => nextSortOrder(prev))}
           flatSortLabel={getFlatSortButtonLabel(dashboard.flatSortOrder)}
           onDeletePortfolioTab={(portfolio) => setDeletePortfolioTarget(portfolio)}
+          onPortfolioDragEnd={(event) => portfolioReorder.onPortfolioTabsDragEnd(event, dashboard.isReordering)}
         />
 
         <StatusFeedback lastManualRefreshAt={dashboard.lastManualRefreshAt} />
@@ -385,6 +398,8 @@ export default function FundDashboard() {
               rows={dashboard.estimateAnalysisRows}
               sortOrder={dashboard.estimateSortOrder}
               onToggleSort={() => dashboard.setEstimateSortOrder((prev) => nextSortOrder(prev))}
+              expanded={isEstimatePanelExpanded}
+              onToggleExpanded={() => setIsEstimatePanelExpanded((prev) => !prev)}
               disabled={dashboard.isBusy}
               compact
             />
@@ -547,6 +562,20 @@ export default function FundDashboard() {
                 )}
               />
 
+              <FormField
+                control={flatAddFundForm.control}
+                name="holdingProfitAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>持有收益金额（可正可负）</FormLabel>
+                    <FormControl>
+                      <Input inputMode="decimal" placeholder="例如：-88.36（不填默认为 0）" disabled={dashboard.isBusy} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {flatTargetPortfolio?.type === "RATIO" ? (
                 <FormField
                   control={flatAddFundForm.control}
@@ -567,8 +596,15 @@ export default function FundDashboard() {
                 <Button type="button" variant="secondary" onClick={() => setIsFlatAddFundDialogOpen(false)}>
                   取消
                 </Button>
-                <Button type="submit" disabled={dashboard.isBusy}>
-                  确认添加
+                <Button type="submit" disabled={dashboard.isBusy || isFlatAddFundSubmitting} aria-busy={isFlatAddFundSubmitting}>
+                  {isFlatAddFundSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      添加中...
+                    </>
+                  ) : (
+                    "确认添加"
+                  )}
                 </Button>
               </DialogFooter>
             </form>
@@ -625,6 +661,20 @@ export default function FundDashboard() {
                 )}
               />
 
+              <FormField
+                control={portfolioAddFundForm.control}
+                name="holdingProfitAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>持有收益金额（可正可负）</FormLabel>
+                    <FormControl>
+                      <Input inputMode="decimal" placeholder="例如：-88.36（不填默认为 0）" disabled={dashboard.isBusy} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {dashboard.selectedPortfolioMeta?.type === "RATIO" ? (
                 <FormField
                   control={portfolioAddFundForm.control}
@@ -645,8 +695,19 @@ export default function FundDashboard() {
                 <Button type="button" variant="secondary" onClick={() => setIsPortfolioAddFundDialogOpen(false)}>
                   取消
                 </Button>
-                <Button type="submit" disabled={dashboard.isBusy}>
-                  确认添加
+                <Button
+                  type="submit"
+                  disabled={dashboard.isBusy || isPortfolioAddFundSubmitting}
+                  aria-busy={isPortfolioAddFundSubmitting}
+                >
+                  {isPortfolioAddFundSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      添加中...
+                    </>
+                  ) : (
+                    "确认添加"
+                  )}
                 </Button>
               </DialogFooter>
             </form>

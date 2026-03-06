@@ -95,7 +95,7 @@ function SortableFundRow({ item, isBusy, onDeleteFund, onOpenUpdateDialog }: Sor
           type="button"
           variant="ghost"
           size="icon"
-          className="h-11 w-11"
+          className="h-9 w-9"
           ref={setActivatorNodeRef}
           {...attributes}
           {...listeners}
@@ -126,10 +126,24 @@ function SortableFundRow({ item, isBusy, onDeleteFund, onOpenUpdateDialog }: Sor
 
       <TableCell className={`sticky right-0 z-20 min-w-[120px] max-w-[120px] ${fixedBgClass}`}>
         <div className="flex items-center justify-end gap-1">
-          <Button type="button" size="sm" className="h-8 px-2 text-xs" variant="secondary" onClick={() => onOpenUpdateDialog(item)} disabled={isBusy}>
+          <Button
+            type="button"
+            size="sm"
+            className="h-7 px-1.5 text-[11px]"
+            variant="secondary"
+            onClick={() => onOpenUpdateDialog(item)}
+            disabled={isBusy}
+          >
             更新
           </Button>
-          <Button type="button" size="sm" className="h-8 px-2 text-xs" variant="danger" onClick={() => onDeleteFund(item)} disabled={isBusy}>
+          <Button
+            type="button"
+            size="sm"
+            className="h-7 px-1.5 text-[11px]"
+            variant="danger"
+            onClick={() => onDeleteFund(item)}
+            disabled={isBusy}
+          >
             删除
           </Button>
         </div>

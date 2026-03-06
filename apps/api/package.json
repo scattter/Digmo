@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "demo:realtime-provider-poc": "tsx src/demo/realtime-provider-poc/run.ts"
   },
   "dependencies": {
     "@digmo/shared": "workspace:*",

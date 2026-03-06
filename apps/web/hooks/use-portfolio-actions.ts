@@ -13,7 +13,7 @@ import {
 import { parseNonNegativeNumber, parseRatioPercent, parseSignedNumber } from "@/lib/format";
 
 interface UsePortfolioActionsArgs {
-  refreshData: () => Promise<void>;
+  refreshData: (options?: { silent?: boolean }) => Promise<void>;
   selectedPortfolioId: string;
   setSelectedPortfolioId: (value: string) => void;
   setIsLoading: (value: boolean) => void;
@@ -138,7 +138,7 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
         holdingProfitAmount,
         plannedRatio
       });
-      await refreshData();
+      await refreshData({ silent: true });
       const message = `已添加基金 ${fundCode}`;
       setStatusText(message);
       toast.success(message);

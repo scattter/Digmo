@@ -478,6 +478,134 @@ describe("watchlist routes", () => {
     await app.close();
   });
 
+  test("reorders portfolios and appends new portfolio to the end", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.015
+    });
+
+    const p1Resp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "组合A", type: "FREE" }
+    });
+    const p2Resp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "组合B", type: "FREE" }
+    });
+    const p3Resp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "组合C", type: "FREE" }
+    });
+    const p1Id = (p1Resp.json() as { portfolio: { id: string } }).portfolio.id;
+    const p2Id = (p2Resp.json() as { portfolio: { id: string } }).portfolio.id;
+    const p3Id = (p3Resp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    const initialResp = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios"
+    });
+    expect(initialResp.statusCode).toBe(200);
+    const initialPayload = initialResp.json() as { portfolios: Array<{ id: string }> };
+    expect(initialPayload.portfolios.map((item) => item.id)).toEqual([p1Id, p2Id, p3Id]);
+
+    const reorderResp = await app.inject({
+      method: "PATCH",
+      url: "/v1/portfolios/order",
+      payload: {
+        portfolioIds: [p3Id, p1Id, p2Id]
+      }
+    });
+    expect(reorderResp.statusCode).toBe(200);
+
+    const reorderedResp = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios"
+    });
+    expect(reorderedResp.statusCode).toBe(200);
+    const reorderedPayload = reorderedResp.json() as { portfolios: Array<{ id: string }> };
+    expect(reorderedPayload.portfolios.map((item) => item.id)).toEqual([p3Id, p1Id, p2Id]);
+
+    const p4Resp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "组合D", type: "FREE" }
+    });
+    const p4Id = (p4Resp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    const afterCreateResp = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios"
+    });
+    expect(afterCreateResp.statusCode).toBe(200);
+    const afterCreatePayload = afterCreateResp.json() as { portfolios: Array<{ id: string }> };
+    expect(afterCreatePayload.portfolios.map((item) => item.id)).toEqual([p3Id, p1Id, p2Id, p4Id]);
+
+    await app.close();
+  });
+
+  test("rejects invalid reorder payload for portfolios", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.015
+    });
+
+    const p1Resp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "组合A", type: "FREE" }
+    });
+    const p2Resp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "组合B", type: "FREE" }
+    });
+    const p1Id = (p1Resp.json() as { portfolio: { id: string } }).portfolio.id;
+    const p2Id = (p2Resp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    const missingResp = await app.inject({
+      method: "PATCH",
+      url: "/v1/portfolios/order",
+      payload: {
+        portfolioIds: [p1Id]
+      }
+    });
+    expect(missingResp.statusCode).toBe(400);
+
+    const duplicateResp = await app.inject({
+      method: "PATCH",
+      url: "/v1/portfolios/order",
+      payload: {
+        portfolioIds: [p1Id, p1Id]
+      }
+    });
+    expect(duplicateResp.statusCode).toBe(400);
+
+    const unknownResp = await app.inject({
+      method: "PATCH",
+      url: "/v1/portfolios/order",
+      payload: {
+        portfolioIds: [p1Id, "unknown-portfolio-id"]
+      }
+    });
+    expect(unknownResp.statusCode).toBe(400);
+
+    const validResp = await app.inject({
+      method: "PATCH",
+      url: "/v1/portfolios/order",
+      payload: {
+        portfolioIds: [p2Id, p1Id]
+      }
+    });
+    expect(validResp.statusCode).toBe(200);
+
+    await app.close();
+  });
+
   test("reorders portfolio funds and persists order", async () => {
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);

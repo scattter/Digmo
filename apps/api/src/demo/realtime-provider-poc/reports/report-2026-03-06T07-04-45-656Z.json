@@ -1,0 +1,190 @@
+{
+  "config": {
+    "rounds": 1,
+    "intervalMs": 0,
+    "timeoutMs": 4500,
+    "fundCodes": [
+      "020273"
+    ],
+    "stockSymbols": [
+      "AAPL",
+      "MSFT"
+    ],
+    "appApiBaseUrl": "http://localhost:3001"
+  },
+  "summaries": [
+    {
+      "provider": "fundgz_direct",
+      "market": "fund",
+      "enabled": true,
+      "successRate": 1,
+      "successCount": 1,
+      "totalCount": 1,
+      "avgLatencyMs": 140,
+      "p95LatencyMs": 140,
+      "notes": []
+    },
+    {
+      "provider": "digmo_api",
+      "market": "fund",
+      "enabled": true,
+      "successRate": 1,
+      "successCount": 1,
+      "totalCount": 1,
+      "avgLatencyMs": 8,
+      "p95LatencyMs": 8,
+      "notes": []
+    },
+    {
+      "provider": "alpaca",
+      "market": "stock",
+      "enabled": false,
+      "successRate": 0,
+      "successCount": 0,
+      "totalCount": 0,
+      "avgLatencyMs": null,
+      "p95LatencyMs": null,
+      "notes": [
+        "provider disabled (missing API key)"
+      ]
+    },
+    {
+      "provider": "twelvedata",
+      "market": "stock",
+      "enabled": false,
+      "successRate": 0,
+      "successCount": 0,
+      "totalCount": 0,
+      "avgLatencyMs": null,
+      "p95LatencyMs": null,
+      "notes": [
+        "provider disabled (missing API key)"
+      ]
+    },
+    {
+      "provider": "alphavantage",
+      "market": "stock",
+      "enabled": false,
+      "successRate": 0,
+      "successCount": 0,
+      "totalCount": 0,
+      "avgLatencyMs": null,
+      "p95LatencyMs": null,
+      "notes": [
+        "provider disabled (missing API key)"
+      ]
+    }
+  ],
+  "stockDriftSummary": {
+    "alpaca": {
+      "meanDriftBps": null,
+      "maxDriftBps": null,
+      "sampleCount": 0
+    },
+    "twelvedata": {
+      "meanDriftBps": null,
+      "maxDriftBps": null,
+      "sampleCount": 0
+    },
+    "alphavantage": {
+      "meanDriftBps": null,
+      "maxDriftBps": null,
+      "sampleCount": 0
+    }
+  },
+  "fundPairDiffBpsSummary": {
+    "mean": 3.469446951953614e-14,
+    "max": 3.469446951953614e-14,
+    "sampleCount": 1
+  },
+  "decision": {
+    "generatedAt": "2026-03-06T07:04:45.656Z",
+    "thresholds": {
+      "successRateGte": 0.95,
+      "p95LatencyMsLte": 1200,
+      "stockMeanDriftBpsLte": 30,
+      "fundApiVsFundGzMeanDiffBpsLte": 15,
+      "fundApiVsFundGzMaxDiffBpsLte": 40
+    },
+    "checks": {
+      "fundApiAccuracy": {
+        "meanDiffBps": 3.469446951953614e-14,
+        "maxDiffBps": 3.469446951953614e-14,
+        "sampleCount": 1,
+        "pass": true
+      },
+      "providerFeasibility": [
+        {
+          "provider": "fundgz_direct",
+          "market": "fund",
+          "pass": true,
+          "reason": {
+            "successRate": 1,
+            "p95LatencyMs": 140
+          }
+        },
+        {
+          "provider": "digmo_api",
+          "market": "fund",
+          "pass": true,
+          "reason": {
+            "successRate": 1,
+            "p95LatencyMs": 8
+          }
+        },
+        {
+          "provider": "alpaca",
+          "market": "stock",
+          "pass": false,
+          "reason": {
+            "successRate": 0,
+            "p95LatencyMs": null,
+            "meanDriftBps": null
+          }
+        },
+        {
+          "provider": "twelvedata",
+          "market": "stock",
+          "pass": false,
+          "reason": {
+            "successRate": 0,
+            "p95LatencyMs": null,
+            "meanDriftBps": null
+          }
+        },
+        {
+          "provider": "alphavantage",
+          "market": "stock",
+          "pass": false,
+          "reason": {
+            "successRate": 0,
+            "p95LatencyMs": null,
+            "meanDriftBps": null
+          }
+        }
+      ]
+    }
+  },
+  "samples": [
+    {
+      "provider": "digmo_api",
+      "market": "fund",
+      "symbol": "020273",
+      "round": 1,
+      "ok": true,
+      "latencyMs": 8,
+      "value": 0.0186,
+      "timestamp": "2026-03-06T07:04:45.542Z"
+    },
+    {
+      "provider": "fundgz_direct",
+      "market": "fund",
+      "symbol": "020273",
+      "round": 1,
+      "ok": true,
+      "latencyMs": 140,
+      "value": 0.018600000000000002,
+      "timestamp": "2026-03-06T07:04:45.656Z"
+    }
+  ]
+}

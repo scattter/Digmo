@@ -90,7 +90,7 @@ function EditablePortfolioName(props: {
         type="button"
         variant="ghost"
         size="icon"
-        className="h-9 w-9"
+        className="h-8 w-8"
         aria-label={`编辑组合名称 ${portfolio.name}`}
         onClick={() => onStartRename(portfolio)}
         disabled={isBusy}
@@ -213,7 +213,7 @@ export function PortfolioOverviewTable({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="h-9 w-9"
+                              className="h-8 w-8"
                               aria-label={`编辑组合名称 ${portfolio.name}`}
                               onClick={() => onStartRename(portfolio)}
                               disabled={isBusy}
