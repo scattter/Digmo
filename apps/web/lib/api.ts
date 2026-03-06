@@ -134,6 +134,7 @@ export async function addPortfolioFund(params: {
   portfolioId: string;
   fundCode: string;
   holdingAmount: number;
+  holdingProfitAmount?: number;
   plannedRatio?: number;
 }): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/v1/portfolios/${params.portfolioId}/funds`, {
@@ -144,6 +145,7 @@ export async function addPortfolioFund(params: {
     body: JSON.stringify({
       fundCode: params.fundCode,
       holdingAmount: params.holdingAmount,
+      holdingProfitAmount: params.holdingProfitAmount,
       plannedRatio: params.plannedRatio
     }),
     cache: "no-store"
@@ -158,6 +160,7 @@ export async function updatePortfolioFund(params: {
   portfolioId: string;
   fundCode: string;
   holdingAmount?: number;
+  holdingProfitAmount?: number;
   plannedRatio?: number;
 }): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/v1/portfolios/${params.portfolioId}/funds/${params.fundCode}`, {
@@ -167,6 +170,7 @@ export async function updatePortfolioFund(params: {
     },
     body: JSON.stringify({
       holdingAmount: params.holdingAmount,
+      holdingProfitAmount: params.holdingProfitAmount,
       plannedRatio: params.plannedRatio
     }),
     cache: "no-store"

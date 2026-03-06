@@ -27,7 +27,9 @@ export interface PortfolioFundItem {
   fundCode: string;
   displayOrder: number;
   holdingAmount: number;
+  holdingProfitAmount: number;
   plannedRatio?: number;
+  lastHoldingRollNavDate?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -36,6 +38,7 @@ export interface UpsertPortfolioFundInput {
   portfolioId: string;
   fundCode: string;
   holdingAmount: number;
+  holdingProfitAmount?: number;
   plannedRatio?: number;
 }
 
@@ -43,6 +46,7 @@ export interface UpdatePortfolioFundInput {
   portfolioId: string;
   fundCode: string;
   holdingAmount?: number;
+  holdingProfitAmount?: number;
   plannedRatio?: number;
 }
 
@@ -58,6 +62,7 @@ export interface WatchlistStore {
   getPortfolioFund(portfolioId: string, fundCode: string): Promise<PortfolioFundItem | undefined>;
   upsertPortfolioFund(input: UpsertPortfolioFundInput): Promise<void>;
   updatePortfolioFund(input: UpdatePortfolioFundInput): Promise<boolean>;
+  rollPortfolioFundHoldingByNavDate(fundCode: string, navDate: string, dailyReturn: number): Promise<number>;
   removePortfolioFund(portfolioId: string, fundCode: string): Promise<boolean>;
   reorderPortfolioFunds(portfolioId: string, orderedFundCodes: string[]): Promise<void>;
   validatePortfolioFundSet(portfolioId: string, orderedFundCodes: string[]): Promise<boolean>;
@@ -98,7 +103,9 @@ interface PortfolioFundRow {
   fundCode: string;
   displayOrder: number | null;
   holdingAmount: number | null;
+  holdingProfitAmount: number | null;
   plannedRatio: number | null;
+  lastHoldingRollNavDate: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -195,7 +202,9 @@ export class SqliteWatchlistStore implements WatchlistStore {
         fund_code TEXT NOT NULL,
         display_order INTEGER NOT NULL DEFAULT 0,
         holding_amount REAL NOT NULL DEFAULT 0,
+        holding_profit_amount REAL NOT NULL DEFAULT 0,
         planned_ratio REAL,
+        last_holding_roll_nav_date TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (portfolio_id, fund_code),
@@ -212,6 +221,20 @@ export class SqliteWatchlistStore implements WatchlistStore {
       "display_order",
       "ALTER TABLE user_portfolio_fund ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0;"
     );
+    this.ensureColumn(
+      "user_portfolio_fund",
+      "holding_profit_amount",
+      "ALTER TABLE user_portfolio_fund ADD COLUMN holding_profit_amount REAL NOT NULL DEFAULT 0;"
+    );
+    this.ensureColumn(
+      "user_portfolio_fund",
+      "last_holding_roll_nav_date",
+      "ALTER TABLE user_portfolio_fund ADD COLUMN last_holding_roll_nav_date TEXT;"
+    );
+    this.db.exec(`
+      UPDATE user_portfolio_fund
+      SET holding_profit_amount = COALESCE(holding_profit_amount, 0);
+    `);
     this.normalizePortfolioFundDisplayOrder();
   }
 
@@ -468,7 +491,9 @@ export class SqliteWatchlistStore implements WatchlistStore {
             pf.fund_code AS fundCode,
             pf.display_order AS displayOrder,
             pf.holding_amount AS holdingAmount,
+            pf.holding_profit_amount AS holdingProfitAmount,
             pf.planned_ratio AS plannedRatio,
+            pf.last_holding_roll_nav_date AS lastHoldingRollNavDate,
             pf.created_at AS createdAt,
             pf.updated_at AS updatedAt
           FROM user_portfolio_fund pf
@@ -486,7 +511,9 @@ export class SqliteWatchlistStore implements WatchlistStore {
       fundCode: row.fundCode,
       displayOrder: row.displayOrder ?? 0,
       holdingAmount: Number((row.holdingAmount ?? 0).toFixed(2)),
+      holdingProfitAmount: Number((row.holdingProfitAmount ?? 0).toFixed(2)),
       plannedRatio: typeof row.plannedRatio === "number" ? Number(row.plannedRatio.toFixed(6)) : undefined,
+      lastHoldingRollNavDate: row.lastHoldingRollNavDate ?? undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     }));
@@ -503,7 +530,9 @@ export class SqliteWatchlistStore implements WatchlistStore {
             pf.fund_code AS fundCode,
             pf.display_order AS displayOrder,
             pf.holding_amount AS holdingAmount,
+            pf.holding_profit_amount AS holdingProfitAmount,
             pf.planned_ratio AS plannedRatio,
+            pf.last_holding_roll_nav_date AS lastHoldingRollNavDate,
             pf.created_at AS createdAt,
             pf.updated_at AS updatedAt
           FROM user_portfolio_fund pf
@@ -520,7 +549,9 @@ export class SqliteWatchlistStore implements WatchlistStore {
       fundCode: row.fundCode,
       displayOrder: row.displayOrder ?? 0,
       holdingAmount: Number((row.holdingAmount ?? 0).toFixed(2)),
+      holdingProfitAmount: Number((row.holdingProfitAmount ?? 0).toFixed(2)),
       plannedRatio: typeof row.plannedRatio === "number" ? Number(row.plannedRatio.toFixed(6)) : undefined,
+      lastHoldingRollNavDate: row.lastHoldingRollNavDate ?? undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     }));
@@ -537,7 +568,9 @@ export class SqliteWatchlistStore implements WatchlistStore {
             pf.fund_code AS fundCode,
             pf.display_order AS displayOrder,
             pf.holding_amount AS holdingAmount,
+            pf.holding_profit_amount AS holdingProfitAmount,
             pf.planned_ratio AS plannedRatio,
+            pf.last_holding_roll_nav_date AS lastHoldingRollNavDate,
             pf.created_at AS createdAt,
             pf.updated_at AS updatedAt
           FROM user_portfolio_fund pf
@@ -558,7 +591,9 @@ export class SqliteWatchlistStore implements WatchlistStore {
       fundCode: row.fundCode,
       displayOrder: row.displayOrder ?? 0,
       holdingAmount: Number((row.holdingAmount ?? 0).toFixed(2)),
+      holdingProfitAmount: Number((row.holdingProfitAmount ?? 0).toFixed(2)),
       plannedRatio: typeof row.plannedRatio === "number" ? Number(row.plannedRatio.toFixed(6)) : undefined,
+      lastHoldingRollNavDate: row.lastHoldingRollNavDate ?? undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     };
@@ -581,6 +616,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
   async upsertPortfolioFund(input: UpsertPortfolioFundInput): Promise<void> {
     await this.ensureFundState(input.fundCode);
     const nextDisplayOrder = await this.getNextDisplayOrder(input.portfolioId);
+    const holdingProfitAmount = typeof input.holdingProfitAmount === "number" ? input.holdingProfitAmount : null;
 
     this.db
       .prepare(
@@ -590,18 +626,32 @@ export class SqliteWatchlistStore implements WatchlistStore {
             fund_code,
             display_order,
             holding_amount,
+            holding_profit_amount,
             planned_ratio,
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          VALUES (?, ?, ?, ?, COALESCE(?, 0), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           ON CONFLICT(portfolio_id, fund_code) DO UPDATE SET
             holding_amount = excluded.holding_amount,
+            holding_profit_amount = CASE
+              WHEN ? IS NULL THEN user_portfolio_fund.holding_profit_amount
+              ELSE ?
+            END,
             planned_ratio = excluded.planned_ratio,
             updated_at = CURRENT_TIMESTAMP
         `
       )
-      .run(input.portfolioId, input.fundCode, nextDisplayOrder, input.holdingAmount, input.plannedRatio ?? null);
+      .run(
+        input.portfolioId,
+        input.fundCode,
+        nextDisplayOrder,
+        input.holdingAmount,
+        holdingProfitAmount,
+        input.plannedRatio ?? null,
+        holdingProfitAmount,
+        holdingProfitAmount
+      );
   }
 
   async updatePortfolioFund(input: UpdatePortfolioFundInput): Promise<boolean> {
@@ -611,6 +661,8 @@ export class SqliteWatchlistStore implements WatchlistStore {
     }
 
     const nextHoldingAmount = typeof input.holdingAmount === "number" ? input.holdingAmount : current.holdingAmount;
+    const nextHoldingProfitAmount =
+      typeof input.holdingProfitAmount === "number" ? input.holdingProfitAmount : current.holdingProfitAmount;
     const nextPlannedRatio = input.plannedRatio === undefined ? current.plannedRatio : input.plannedRatio;
 
     this.db
@@ -619,14 +671,35 @@ export class SqliteWatchlistStore implements WatchlistStore {
           UPDATE user_portfolio_fund
           SET
             holding_amount = ?,
+            holding_profit_amount = ?,
             planned_ratio = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE portfolio_id = ? AND fund_code = ?
         `
       )
-      .run(nextHoldingAmount, nextPlannedRatio ?? null, input.portfolioId, input.fundCode);
+      .run(nextHoldingAmount, nextHoldingProfitAmount, nextPlannedRatio ?? null, input.portfolioId, input.fundCode);
 
     return true;
+  }
+
+  async rollPortfolioFundHoldingByNavDate(fundCode: string, navDate: string, dailyReturn: number): Promise<number> {
+    const result = this.db
+      .prepare(
+        `
+          UPDATE user_portfolio_fund
+          SET
+            holding_profit_amount = ROUND(COALESCE(holding_profit_amount, 0) + ROUND(COALESCE(holding_amount, 0) * ?, 2), 2),
+            holding_amount = ROUND(COALESCE(holding_amount, 0) + ROUND(COALESCE(holding_amount, 0) * ?, 2), 2),
+            last_holding_roll_nav_date = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE
+            fund_code = ?
+            AND (last_holding_roll_nav_date IS NULL OR last_holding_roll_nav_date <> ?)
+        `
+      )
+      .run(dailyReturn, dailyReturn, navDate, fundCode, navDate) as SqliteRunResult;
+
+    return toChanges(result);
   }
 
   async removePortfolioFund(portfolioId: string, fundCode: string): Promise<boolean> {

@@ -7,6 +7,7 @@ import Fastify from "fastify";
 import { afterEach, describe, expect, test } from "vitest";
 import { SqliteWatchlistStore } from "../../infra/watchlist/sqlite-watchlist-store";
 import { ValuationService } from "../../modules/valuation/service";
+import { formatDate, isTradingDay, nowInShanghai } from "../../utils/time";
 import { registerWatchlistRoutes } from "../watchlist";
 
 interface TestCtx {
@@ -26,15 +27,35 @@ function createTempCtx(): TestCtx {
   };
 }
 
-function buildSnapshot(fundCode: string, estimateChangePct: number): FundEstimateSnapshot {
+interface EstimateSeed {
+  estimateChangePct: number;
+  officialDailyReturn?: number;
+  baseNavDate?: string;
+}
+
+function toEstimateSeed(input: number | EstimateSeed): EstimateSeed {
+  if (typeof input === "number") {
+    return {
+      estimateChangePct: input
+    };
+  }
+  return input;
+}
+
+function buildSnapshot(
+  fundCode: string,
+  estimateChangePct: number,
+  officialDailyReturn = 0,
+  baseNavDate = "2026-03-02"
+): FundEstimateSnapshot {
   return {
     fundCode,
     fundName: `基金${fundCode}`,
     officialNav: 1,
-    officialDailyReturn: 0,
+    officialDailyReturn,
     estimateNav: 1,
     estimateChangePct,
-    baseNavDate: "2026-03-02",
+    baseNavDate,
     estimateTime: "2026-03-02T02:00:00.000Z",
     confidenceLevel: "HIGH",
     confidenceScore: 90,
@@ -45,7 +66,7 @@ function buildSnapshot(fundCode: string, estimateChangePct: number): FundEstimat
   };
 }
 
-async function createRouteApp(store: SqliteWatchlistStore, estimates: Record<string, number>) {
+async function createRouteApp(store: SqliteWatchlistStore, estimates: Record<string, number | EstimateSeed>) {
   const app = Fastify({ logger: false });
 
   const service = {
@@ -53,12 +74,16 @@ async function createRouteApp(store: SqliteWatchlistStore, estimates: Record<str
       return {
         data: fundCodes
           .filter((code) => Object.prototype.hasOwnProperty.call(estimates, code))
-          .map((code) => buildSnapshot(code, estimates[code])),
+          .map((code) => {
+            const seed = toEstimateSeed(estimates[code]);
+            return buildSnapshot(code, seed.estimateChangePct, seed.officialDailyReturn, seed.baseNavDate);
+          }),
         partialFailed: []
       };
     },
     getOrComputeEstimate: async (fundCode: string) => {
-      return buildSnapshot(fundCode, estimates[fundCode] ?? 0);
+      const seed = toEstimateSeed(estimates[fundCode] ?? 0);
+      return buildSnapshot(fundCode, seed.estimateChangePct, seed.officialDailyReturn, seed.baseNavDate);
     }
   } as unknown as ValuationService;
 
@@ -253,7 +278,12 @@ describe("watchlist routes", () => {
       payload: { fundCode: "161725", holdingAmount: 1000 }
     });
 
-    await store.accumulateOfficialReturn("161725", "2026-03-01", 0.1);
+    const updateResp = await app.inject({
+      method: "PATCH",
+      url: `/v1/portfolios/${portfolioId}/funds/161725`,
+      payload: { holdingAmount: 1100, holdingProfitAmount: 100 }
+    });
+    expect(updateResp.statusCode).toBe(200);
 
     const listResp = await app.inject({
       method: "GET",
@@ -261,12 +291,189 @@ describe("watchlist routes", () => {
     });
     expect(listResp.statusCode).toBe(200);
 
-    const payload = listResp.json() as { portfolios: Array<{ name: string; totalProfitDisplay: string }> };
+    const payload = listResp.json() as {
+      portfolios: Array<{
+        name: string;
+        totalProfitDisplay: string;
+        dailyProfitPct: number;
+        allFundsDailyUpdated: boolean;
+      }>;
+    };
     const target = payload.portfolios.find((item) => item.name === "收益组合");
 
     expect(target).toBeDefined();
     expect(target?.totalProfitDisplay).toContain("/");
     expect(target?.totalProfitDisplay).toContain("10.00%");
+    expect(typeof target?.dailyProfitPct).toBe("number");
+    expect(typeof target?.allFundsDailyUpdated).toBe("boolean");
+
+    await app.close();
+  });
+
+  test("rolls holding amount and holding profit once when official nav date updates", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const today = formatDate(nowInShanghai());
+    const app = await createRouteApp(store, {
+      "161725": {
+        estimateChangePct: 0.02,
+        officialDailyReturn: 0.01,
+        baseNavDate: today
+      }
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "滚动组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000, holdingProfitAmount: 20 }
+    });
+
+    const tradingDay = isTradingDay(nowInShanghai());
+
+    const firstListResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    expect(firstListResp.statusCode).toBe(200);
+    const firstPayload = firstListResp.json() as {
+      funds: Array<{
+        holdingAmount: number;
+        holdingProfitAmount: number;
+        dailyProfitPct: number;
+        dailyProfitOfficialUpdated: boolean;
+      }>;
+    };
+    if (tradingDay) {
+      expect(firstPayload.funds[0].holdingAmount).toBe(1010);
+      expect(firstPayload.funds[0].holdingProfitAmount).toBe(30);
+      expect(firstPayload.funds[0].dailyProfitPct).toBe(0.01);
+      expect(firstPayload.funds[0].dailyProfitOfficialUpdated).toBe(true);
+    } else {
+      expect(firstPayload.funds[0].holdingAmount).toBe(1000);
+      expect(firstPayload.funds[0].holdingProfitAmount).toBe(20);
+      expect(firstPayload.funds[0].dailyProfitPct).toBe(0.02);
+      expect(firstPayload.funds[0].dailyProfitOfficialUpdated).toBe(false);
+    }
+
+    const secondListResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    expect(secondListResp.statusCode).toBe(200);
+    const secondPayload = secondListResp.json() as {
+      funds: Array<{ holdingAmount: number; holdingProfitAmount: number }>;
+    };
+    if (tradingDay) {
+      expect(secondPayload.funds[0].holdingAmount).toBe(1010);
+      expect(secondPayload.funds[0].holdingProfitAmount).toBe(30);
+    } else {
+      expect(secondPayload.funds[0].holdingAmount).toBe(1000);
+      expect(secondPayload.funds[0].holdingProfitAmount).toBe(20);
+    }
+
+    const portfolioResp = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios"
+    });
+    expect(portfolioResp.statusCode).toBe(200);
+    const portfolioPayload = portfolioResp.json() as {
+      portfolios: Array<{ id: string; dailyProfitPct: number; allFundsDailyUpdated: boolean }>;
+    };
+    const summary = portfolioPayload.portfolios.find((item) => item.id === portfolioId);
+    expect(summary).toBeDefined();
+    expect(summary?.dailyProfitPct).toBe(tradingDay ? 0.01 : 0.02);
+    expect(summary?.allFundsDailyUpdated).toBe(tradingDay);
+
+    await app.close();
+  });
+
+  test("uses estimate daily profit when official data is not accumulated", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": {
+        estimateChangePct: 0.03,
+        officialDailyReturn: Number.NaN,
+        baseNavDate: "2026-03-05"
+      }
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "估算口径组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000 }
+    });
+
+    const listResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    expect(listResp.statusCode).toBe(200);
+    const payload = listResp.json() as {
+      funds: Array<{ dailyProfitPct: number; holdingAmount: number; dailyProfitOfficialUpdated: boolean }>;
+    };
+    expect(payload.funds[0].dailyProfitPct).toBe(0.03);
+    expect(payload.funds[0].holdingAmount).toBe(1000);
+    expect(payload.funds[0].dailyProfitOfficialUpdated).toBe(false);
+
+    await app.close();
+  });
+
+  test("supports negative holding profit updates and rejects invalid holding profit amount", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.02
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "收益编辑组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000 }
+    });
+
+    const invalidResp = await app.inject({
+      method: "PATCH",
+      url: `/v1/portfolios/${portfolioId}/funds/161725`,
+      payload: { holdingProfitAmount: "abc" }
+    });
+    expect(invalidResp.statusCode).toBe(400);
+
+    const updateResp = await app.inject({
+      method: "PATCH",
+      url: `/v1/portfolios/${portfolioId}/funds/161725`,
+      payload: { holdingProfitAmount: -88.36 }
+    });
+    expect(updateResp.statusCode).toBe(200);
+
+    const listResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    expect(listResp.statusCode).toBe(200);
+    const payload = listResp.json() as { funds: Array<{ holdingProfitAmount: number }> };
+    expect(payload.funds[0].holdingProfitAmount).toBe(-88.36);
 
     await app.close();
   });

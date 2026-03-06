@@ -10,7 +10,7 @@ import {
   renamePortfolio,
   updatePortfolioFund
 } from "@/lib/api";
-import { parseNonNegativeNumber, parseRatioPercent } from "@/lib/format";
+import { parseNonNegativeNumber, parseRatioPercent, parseSignedNumber } from "@/lib/format";
 
 interface UsePortfolioActionsArgs {
   refreshData: () => Promise<void>;
@@ -92,6 +92,7 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
     portfolioType: PortfolioType;
     fundCode: string;
     holdingAmount: string;
+    holdingProfitAmount?: string;
     plannedRatio: string;
   }) {
     const fundCode = input.fundCode.trim();
@@ -118,6 +119,14 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
       }
     }
 
+    const holdingProfitRaw = input.holdingProfitAmount?.trim() ?? "";
+    const holdingProfitAmount = holdingProfitRaw ? parseSignedNumber(holdingProfitRaw) : undefined;
+    if (holdingProfitRaw && holdingProfitAmount === undefined) {
+      const message = "持有收益金额格式错误";
+      setErrorText(message);
+      throw new Error(message);
+    }
+
     setIsLoading(true);
     setErrorText("");
     setStatusText("");
@@ -126,6 +135,7 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
         portfolioId: input.portfolioId,
         fundCode,
         holdingAmount,
+        holdingProfitAmount,
         plannedRatio
       });
       await refreshData();
@@ -142,7 +152,12 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
     }
   }
 
-  async function updateFundAction(item: PortfolioFundItem, holdingAmountRaw: string, plannedRatioRaw: string) {
+  async function updateFundAction(
+    item: PortfolioFundItem,
+    holdingAmountRaw: string,
+    plannedRatioRaw: string,
+    holdingProfitAmountRaw: string
+  ) {
     const holdingAmount = parseNonNegativeNumber(holdingAmountRaw);
     if (holdingAmount === undefined) {
       const message = "持仓金额格式错误";
@@ -160,6 +175,13 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
       }
     }
 
+    const holdingProfitAmount = parseSignedNumber(holdingProfitAmountRaw);
+    if (holdingProfitAmount === undefined) {
+      const message = "持有收益金额格式错误";
+      setErrorText(message);
+      throw new Error(message);
+    }
+
     setIsLoading(true);
     setErrorText("");
     setStatusText("");
@@ -169,6 +191,7 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
         portfolioId: item.portfolioId,
         fundCode: item.fundCode,
         holdingAmount,
+        holdingProfitAmount,
         plannedRatio
       });
       await refreshData();

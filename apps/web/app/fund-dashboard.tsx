@@ -52,12 +52,14 @@ const flatAddFundDialogSchema = z.object({
   portfolioId: z.string().min(1, "请选择目标组合"),
   fundCode: z.string().regex(/^\d{6}$/, "请输入 6 位基金代码"),
   holdingAmount: z.string().min(1, "请输入持仓金额"),
+  holdingProfitAmount: z.string().optional(),
   plannedRatio: z.string().optional()
 });
 
 const portfolioAddFundDialogSchema = z.object({
   fundCode: z.string().regex(/^\d{6}$/, "请输入 6 位基金代码"),
   holdingAmount: z.string().min(1, "请输入持仓金额"),
+  holdingProfitAmount: z.string().optional(),
   plannedRatio: z.string().optional()
 });
 
@@ -72,6 +74,7 @@ export default function FundDashboard() {
   const [isCreatePortfolioDialogOpen, setIsCreatePortfolioDialogOpen] = useState(false);
   const [isFlatAddFundDialogOpen, setIsFlatAddFundDialogOpen] = useState(false);
   const [isPortfolioAddFundDialogOpen, setIsPortfolioAddFundDialogOpen] = useState(false);
+  const [isRatioPanelExpanded, setIsRatioPanelExpanded] = useState(false);
 
   const createPortfolioForm = useForm<z.infer<typeof createPortfolioDialogSchema>>({
     resolver: zodResolver(createPortfolioDialogSchema),
@@ -87,6 +90,7 @@ export default function FundDashboard() {
       portfolioId: "",
       fundCode: "",
       holdingAmount: "",
+      holdingProfitAmount: "",
       plannedRatio: ""
     }
   });
@@ -96,6 +100,7 @@ export default function FundDashboard() {
     defaultValues: {
       fundCode: "",
       holdingAmount: "",
+      holdingProfitAmount: "",
       plannedRatio: ""
     }
   });
@@ -169,8 +174,8 @@ export default function FundDashboard() {
     () => dashboard.portfolios.reduce((sum, portfolio) => sum + portfolio.totalAmount, 0),
     [dashboard.portfolios]
   );
-  const portfolioTotalIntradayAmount = useMemo(
-    () => dashboard.portfolios.reduce((sum, portfolio) => sum + portfolio.totalAmount * portfolio.intradayEstimatePct, 0),
+  const portfolioTotalDailyAmount = useMemo(
+    () => dashboard.portfolios.reduce((sum, portfolio) => sum + portfolio.totalAmount * portfolio.dailyProfitPct, 0),
     [dashboard.portfolios]
   );
 
@@ -179,7 +184,8 @@ export default function FundDashboard() {
       const next = new Map(prev);
       const current = next.get(fundCode) ?? {
         holdingAmount: "",
-        plannedRatio: ""
+        plannedRatio: "",
+        holdingProfitAmount: ""
       };
       next.set(fundCode, {
         ...current,
@@ -194,7 +200,7 @@ export default function FundDashboard() {
     if (!edit) {
       return;
     }
-    await actions.updateFundAction(item, edit.holdingAmount, edit.plannedRatio);
+    await actions.updateFundAction(item, edit.holdingAmount, edit.plannedRatio, edit.holdingProfitAmount);
   }
 
   function onStartRenamePortfolio(portfolio: PortfolioSummary) {
@@ -255,6 +261,7 @@ export default function FundDashboard() {
       portfolioType: targetPortfolio.type,
       fundCode: values.fundCode,
       holdingAmount: values.holdingAmount,
+      holdingProfitAmount: values.holdingProfitAmount,
       plannedRatio: values.plannedRatio ?? ""
     });
 
@@ -263,6 +270,7 @@ export default function FundDashboard() {
       portfolioId: "",
       fundCode: "",
       holdingAmount: "",
+      holdingProfitAmount: "",
       plannedRatio: ""
     });
   }
@@ -283,6 +291,7 @@ export default function FundDashboard() {
       portfolioType: dashboard.selectedPortfolioMeta.type,
       fundCode: values.fundCode,
       holdingAmount: values.holdingAmount,
+      holdingProfitAmount: values.holdingProfitAmount,
       plannedRatio: values.plannedRatio ?? ""
     });
 
@@ -290,12 +299,13 @@ export default function FundDashboard() {
     portfolioAddFundForm.reset({
       fundCode: "",
       holdingAmount: "",
+      holdingProfitAmount: "",
       plannedRatio: ""
     });
   }
 
   return (
-    <DashboardShell totalAmount={portfolioTotalAmount} totalIntradayAmount={portfolioTotalIntradayAmount}>
+    <DashboardShell totalAmount={portfolioTotalAmount} totalIntradayAmount={portfolioTotalDailyAmount}>
       <section className="mb-4 space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <MainViewTabs value={dashboard.mainView} onChange={dashboard.setMainView} />
@@ -366,6 +376,8 @@ export default function FundDashboard() {
               rows={mergedRatioEstimateRows}
               sortOrder={dashboard.estimateSortOrder}
               onToggleSort={() => dashboard.setEstimateSortOrder((prev) => nextSortOrder(prev))}
+              expanded={isRatioPanelExpanded}
+              onToggleExpanded={() => setIsRatioPanelExpanded((prev) => !prev)}
               disabled={dashboard.isBusy}
             />
           ) : (
@@ -469,6 +481,7 @@ export default function FundDashboard() {
               portfolioId: "",
               fundCode: "",
               holdingAmount: "",
+              holdingProfitAmount: "",
               plannedRatio: ""
             });
           }
@@ -571,6 +584,7 @@ export default function FundDashboard() {
             portfolioAddFundForm.reset({
               fundCode: "",
               holdingAmount: "",
+              holdingProfitAmount: "",
               plannedRatio: ""
             });
           }

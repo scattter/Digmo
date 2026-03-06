@@ -147,7 +147,7 @@ export function PortfolioOverviewTable({
                     <TableHead>类型</TableHead>
                     <TableHead className="text-right">总金额</TableHead>
                     <TableHead className="text-right">总收益</TableHead>
-                    <TableHead className="text-right">当日预估</TableHead>
+                    <TableHead className="text-right">当日收益</TableHead>
                     <TableHead className="text-right">基金数</TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
@@ -173,7 +173,12 @@ export function PortfolioOverviewTable({
                       </TableCell>
                       <TableCell className="text-right font-mono">¥{formatCurrency(portfolio.totalAmount)}</TableCell>
                       <TableCell className="text-right font-mono">{compactProfitDisplay(portfolio.totalProfitDisplay)}</TableCell>
-                      <TableCell className="text-right font-mono">{formatSignedPct(portfolio.intradayEstimatePct)}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        <span>{formatSignedPct(portfolio.dailyProfitPct)}</span>
+                        {portfolio.allFundsDailyUpdated ? (
+                          <span className="ml-1 text-[10px] text-muted-foreground">已更新</span>
+                        ) : null}
+                      </TableCell>
                       <TableCell className="text-right font-mono">{portfolio.fundCount}</TableCell>
                       <TableCell>
                         <div className="flex justify-end">
@@ -242,7 +247,10 @@ export function PortfolioOverviewTable({
                       </div>
                       <p className="text-xs text-muted-foreground">总金额: ¥{formatCurrency(portfolio.totalAmount)}</p>
                       <p className="text-xs text-muted-foreground">总收益: {compactProfitDisplay(portfolio.totalProfitDisplay)}</p>
-                      <p className="text-xs text-muted-foreground">当日预估: {formatSignedPct(portfolio.intradayEstimatePct)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        当日收益: {formatSignedPct(portfolio.dailyProfitPct)}
+                        {portfolio.allFundsDailyUpdated ? <span className="ml-1 text-[10px]">已更新</span> : null}
+                      </p>
                       <div>
                         <Button type="button" variant="danger" size="sm" onClick={() => onDelete(portfolio)} disabled={isBusy}>
                           删除

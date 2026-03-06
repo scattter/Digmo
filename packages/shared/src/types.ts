@@ -128,6 +128,8 @@ export interface PortfolioSummary {
   totalProfitAmount: number;
   totalProfitPct: number;
   totalProfitDisplay: string;
+  dailyProfitPct: number;
+  allFundsDailyUpdated: boolean;
   intradayEstimatePct: number;
 }
 
@@ -143,6 +145,11 @@ export interface PortfolioFundItem {
   totalChangePct: number;
   intradayAmount?: number;
   totalProfitAmount: number;
+  holdingProfitAmount: number;
+  holdingProfitPct: number;
+  dailyProfitAmount?: number;
+  dailyProfitPct?: number;
+  dailyProfitOfficialUpdated: boolean;
   trend: TrendType;
   plannedRatio?: number;
   actualRatio?: number;

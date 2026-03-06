@@ -168,7 +168,8 @@ export function useDashboardData() {
       for (const item of data.funds) {
         next.set(item.fundCode, {
           holdingAmount: String(item.holdingAmount),
-          plannedRatio: typeof item.plannedRatio === "number" ? String((item.plannedRatio * 100).toFixed(2)) : ""
+          plannedRatio: typeof item.plannedRatio === "number" ? String((item.plannedRatio * 100).toFixed(2)) : "",
+          holdingProfitAmount: String(item.holdingProfitAmount)
         });
       }
       return next;

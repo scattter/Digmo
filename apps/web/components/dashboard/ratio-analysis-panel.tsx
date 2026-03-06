@@ -19,25 +19,41 @@ interface RatioAnalysisPanelProps {
   rows: RatioAnalysisRow[];
   sortOrder: SortOrder;
   onToggleSort: () => void;
+  expanded: boolean;
+  onToggleExpanded: () => void;
   disabled: boolean;
 }
 
-export function RatioAnalysisPanel({ rows, sortOrder, onToggleSort, disabled }: RatioAnalysisPanelProps) {
+export function RatioAnalysisPanel({
+  rows,
+  sortOrder,
+  onToggleSort,
+  expanded,
+  onToggleExpanded,
+  disabled
+}: RatioAnalysisPanelProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle className="text-base">比例达成</CardTitle>
-        <Button type="button" variant="secondary" size="sm" onClick={onToggleSort} disabled={disabled}>
-          <ArrowUpDown className="h-4 w-4" />
-          {getEstimateSortButtonLabel(sortOrder)}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={onToggleExpanded} disabled={disabled}>
+            {expanded ? "收起" : "展开"}
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={onToggleSort} disabled={disabled || !expanded}>
+            <ArrowUpDown className="h-4 w-4" />
+            {getEstimateSortButtonLabel(sortOrder)}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
           <p className="text-xs text-muted-foreground">当前组合暂无可分析的比例数据。</p>
         ) : null}
 
-        {rows.length > 0 ? (
+        {rows.length > 0 && !expanded ? <p className="text-xs text-muted-foreground">已收起，点击“展开”查看达成详情。</p> : null}
+
+        {rows.length > 0 && expanded ? (
           <div className="grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
             {rows.map((row) => {
               const overrun = Math.max(0, row.actualRatio - row.plannedRatio);

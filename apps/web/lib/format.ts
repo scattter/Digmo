@@ -3,6 +3,7 @@ import { TrendType } from "@digmo/shared";
 export interface FundEditState {
   holdingAmount: string;
   plannedRatio: string;
+  holdingProfitAmount: string;
 }
 
 export function formatCurrency(value: number): string {
@@ -54,6 +55,18 @@ export function parseNonNegativeNumber(raw: string): number | undefined {
   }
   const value = Number(normalized);
   if (!Number.isFinite(value) || value < 0) {
+    return undefined;
+  }
+  return Number(value.toFixed(2));
+}
+
+export function parseSignedNumber(raw: string): number | undefined {
+  const normalized = raw.trim().replace(/,/g, "");
+  if (!normalized) {
+    return undefined;
+  }
+  const value = Number(normalized);
+  if (!Number.isFinite(value)) {
     return undefined;
   }
   return Number(value.toFixed(2));

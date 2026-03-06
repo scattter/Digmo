@@ -16,7 +16,7 @@ import {
 } from "../infra/watchlist/sqlite-watchlist-store";
 import { ValuationService } from "../modules/valuation/service";
 import { AppError } from "../utils/app-error";
-import { isTradingDay, nowInShanghai } from "../utils/time";
+import { formatDate, isTradingDay, nowInShanghai } from "../utils/time";
 
 interface RegisterWatchlistRoutesDeps {
   store: WatchlistStore;
@@ -70,6 +70,22 @@ function parsePlannedRatio(raw: unknown, required: boolean): number | undefined 
   }
 
   return Number(value.toFixed(6));
+}
+
+function parseHoldingProfitAmount(raw: unknown, required: boolean): number | undefined {
+  if (raw === undefined || raw === null || raw === "") {
+    if (required) {
+      throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "holdingProfitAmount is required", 400);
+    }
+    return undefined;
+  }
+
+  const value = typeof raw === "string" ? Number(raw.trim()) : Number(raw);
+  if (!Number.isFinite(value)) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "holdingProfitAmount must be a finite number", 400);
+  }
+
+  return Number(value.toFixed(2));
 }
 
 function parsePortfolioType(raw: unknown): PortfolioType {
@@ -127,6 +143,27 @@ function formatSignedPct(value: number): string {
   return `${sign}${pct.toFixed(2)}%`;
 }
 
+function calcProfitPctByCost(holdingAmount: number, holdingProfitAmount: number): number {
+  const cost = Number((holdingAmount - holdingProfitAmount).toFixed(2));
+  if (!Number.isFinite(cost) || cost <= 0) {
+    return 0;
+  }
+  return Number((holdingProfitAmount / cost).toFixed(6));
+}
+
+function isOfficialDailyUpdated(
+  tradingDayNow: boolean,
+  today: string,
+  estimate: FundEstimateSnapshot | undefined,
+  fundState: { lastAccumulatedNavDate?: string } | undefined
+): boolean {
+  if (!tradingDayNow || !estimate?.baseNavDate) {
+    return false;
+  }
+
+  return estimate.baseNavDate === today && estimate.baseNavDate === fundState?.lastAccumulatedNavDate;
+}
+
 async function chunkGetEstimates(
   service: ValuationService,
   fundCodes: string[]
@@ -157,7 +194,15 @@ async function syncFundStateWithLatestReturns(
   for (const fundCode of fundCodes) {
     try {
       const snapshot = await service.getOrComputeEstimate(fundCode);
-      await store.accumulateOfficialReturn(fundCode, snapshot.baseNavDate, snapshot.officialDailyReturn);
+      const hasNewOfficialData = await store.accumulateOfficialReturn(
+        fundCode,
+        snapshot.baseNavDate,
+        snapshot.officialDailyReturn
+      );
+
+      if (hasNewOfficialData) {
+        await store.rollPortfolioFundHoldingByNavDate(fundCode, snapshot.baseNavDate, snapshot.officialDailyReturn);
+      }
     } catch {
       // 忽略单只基金同步失败，避免整体接口失败。
     }
@@ -205,29 +250,42 @@ async function buildPortfolioSummaries(
 ): Promise<{
   portfolios: PortfolioSummary[];
   estimateMap: Map<string, FundEstimateSnapshot>;
-  fundStateMap: Map<string, { totalChangePct: number }>;
+  fundStateMap: Map<string, { totalChangePct: number; lastAccumulatedNavDate?: string }>;
 }> {
   const portfolios = await store.listPortfolios();
-  const portfolioFunds = await store.listAllPortfolioFunds();
-  const fundCodes = Array.from(new Set(portfolioFunds.map((item) => item.fundCode)));
+  const initialPortfolioFunds = await store.listAllPortfolioFunds();
+  const fundCodes = Array.from(new Set(initialPortfolioFunds.map((item) => item.fundCode)));
 
   await syncFundStateWithLatestReturns(store, service, fundCodes);
+
+  const portfolioFunds = await store.listAllPortfolioFunds();
 
   const [estimateMap, fundStates] = await Promise.all([
     chunkGetEstimates(service, fundCodes),
     store.listFundStatesByCodes(fundCodes)
   ]);
 
-  const fundStateMap = new Map<string, { totalChangePct: number }>();
+  const fundStateMap = new Map<string, { totalChangePct: number; lastAccumulatedNavDate?: string }>();
   for (const [code, row] of fundStates.entries()) {
-    fundStateMap.set(code, { totalChangePct: row.totalChangePct });
+    fundStateMap.set(code, { totalChangePct: row.totalChangePct, lastAccumulatedNavDate: row.lastAccumulatedNavDate });
   }
 
   const grouped = new Map<string, PortfolioFundItem[]>();
+  const now = nowInShanghai();
+  const tradingDayNow = isTradingDay(now);
+  const today = formatDate(now);
   for (const item of portfolioFunds) {
     const estimate = estimateMap.get(item.fundCode);
-    const totalChangePct = fundStateMap.get(item.fundCode)?.totalChangePct ?? 0;
-    const totalProfitAmount = Number((item.holdingAmount * totalChangePct).toFixed(2));
+    const fundState = fundStateMap.get(item.fundCode);
+    const totalChangePct = fundState?.totalChangePct ?? 0;
+    const dailyProfitOfficialUpdated = isOfficialDailyUpdated(tradingDayNow, today, estimate, fundState);
+    const dailyProfitPct =
+      dailyProfitOfficialUpdated
+        ? estimate?.officialDailyReturn ?? 0
+        : estimate?.estimateChangePct ?? 0;
+    const dailyProfitAmount = Number((item.holdingAmount * dailyProfitPct).toFixed(2));
+    const holdingProfitAmount = item.holdingProfitAmount;
+    const holdingProfitPct = calcProfitPctByCost(item.holdingAmount, holdingProfitAmount);
     const trend = trendFromEstimate(estimate?.estimateChangePct);
 
     const vm: PortfolioFundItem = {
@@ -244,7 +302,12 @@ async function buildPortfolioSummaries(
         typeof estimate?.estimateChangePct === "number"
           ? Number((item.holdingAmount * estimate.estimateChangePct).toFixed(2))
           : undefined,
-      totalProfitAmount,
+      totalProfitAmount: holdingProfitAmount,
+      holdingProfitAmount,
+      holdingProfitPct,
+      dailyProfitAmount,
+      dailyProfitPct,
+      dailyProfitOfficialUpdated,
       trend,
       plannedRatio: item.portfolioType === "RATIO" ? item.plannedRatio : undefined
     };
@@ -258,8 +321,17 @@ async function buildPortfolioSummaries(
   const summary = portfolios.map((portfolio) => {
     const funds = grouped.get(portfolio.id) ?? [];
     const totalAmount = Number(funds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2));
-    const totalProfitAmount = Number(funds.reduce((sum, item) => sum + item.totalProfitAmount, 0).toFixed(2));
-    const totalProfitPct = totalAmount > 0 ? Number((totalProfitAmount / totalAmount).toFixed(6)) : 0;
+    const totalProfitAmount = Number(funds.reduce((sum, item) => sum + item.holdingProfitAmount, 0).toFixed(2));
+    const totalCost = Number((totalAmount - totalProfitAmount).toFixed(2));
+    const totalProfitPct = totalCost > 0 ? Number((totalProfitAmount / totalCost).toFixed(6)) : 0;
+    const weightedDailyProfitAmount = funds.reduce((sum, item) => {
+      if (typeof item.dailyProfitPct !== "number") {
+        return sum;
+      }
+      return sum + item.holdingAmount * item.dailyProfitPct;
+    }, 0);
+    const dailyProfitPct = totalAmount > 0 ? Number((weightedDailyProfitAmount / totalAmount).toFixed(6)) : 0;
+    const allFundsDailyUpdated = funds.length > 0 && funds.every((item) => item.dailyProfitOfficialUpdated);
 
     const weightedIntradayAmount = funds.reduce((sum, item) => {
       if (typeof item.estimateChangePct !== "number") {
@@ -278,6 +350,8 @@ async function buildPortfolioSummaries(
       totalProfitAmount,
       totalProfitPct,
       totalProfitDisplay: `${formatSignedAmount(totalProfitAmount)} / ${formatSignedPct(totalProfitPct)}`,
+      dailyProfitPct,
+      allFundsDailyUpdated,
       intradayEstimatePct
     } satisfies PortfolioSummary;
   });
@@ -315,6 +389,8 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
           totalProfitAmount: 0,
           totalProfitPct: 0,
           totalProfitDisplay: "0.00 / 0.00%",
+          dailyProfitPct: 0,
+          allFundsDailyUpdated: false,
           intradayEstimatePct: 0
         } satisfies PortfolioSummary
       };
@@ -362,17 +438,28 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
 
     await syncFundStateWithLatestReturns(deps.store, deps.service, fundCodes);
 
+    const latestItems = await deps.store.listPortfolioFunds(params.portfolioId);
+
     const [estimateMap, fundStates] = await Promise.all([
       chunkGetEstimates(deps.service, fundCodes),
       deps.store.listFundStatesByCodes(fundCodes)
     ]);
 
-    const totalAmount = items.reduce((sum, item) => sum + item.holdingAmount, 0);
+    const totalAmount = latestItems.reduce((sum, item) => sum + item.holdingAmount, 0);
+    const now = nowInShanghai();
+    const tradingDayNow = isTradingDay(now);
+    const today = formatDate(now);
 
-    const funds = items.map((item) => {
+    const funds = latestItems.map((item) => {
       const estimate = estimateMap.get(item.fundCode);
-      const totalChangePct = fundStates.get(item.fundCode)?.totalChangePct ?? 0;
-      const totalProfitAmount = Number((item.holdingAmount * totalChangePct).toFixed(2));
+      const fundState = fundStates.get(item.fundCode);
+      const totalChangePct = fundState?.totalChangePct ?? 0;
+      const dailyProfitOfficialUpdated = isOfficialDailyUpdated(tradingDayNow, today, estimate, fundState);
+      const dailyProfitPct =
+        dailyProfitOfficialUpdated ? estimate?.officialDailyReturn ?? 0 : estimate?.estimateChangePct ?? 0;
+      const dailyProfitAmount = Number((item.holdingAmount * dailyProfitPct).toFixed(2));
+      const holdingProfitAmount = item.holdingProfitAmount;
+      const holdingProfitPct = calcProfitPctByCost(item.holdingAmount, holdingProfitAmount);
       const actualRatio = totalAmount > 0 ? Number((item.holdingAmount / totalAmount).toFixed(6)) : 0;
       return {
         portfolioId: item.portfolioId,
@@ -388,7 +475,12 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
           typeof estimate?.estimateChangePct === "number"
             ? Number((item.holdingAmount * estimate.estimateChangePct).toFixed(2))
             : undefined,
-        totalProfitAmount,
+        totalProfitAmount: holdingProfitAmount,
+        holdingProfitAmount,
+        holdingProfitPct,
+        dailyProfitAmount,
+        dailyProfitPct,
+        dailyProfitOfficialUpdated,
         trend: trendFromEstimate(estimate?.estimateChangePct),
         plannedRatio: portfolio.type === "RATIO" ? item.plannedRatio : undefined,
         actualRatio: portfolio.type === "RATIO" ? actualRatio : undefined
@@ -431,12 +523,14 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
     const body = request.body as {
       fundCode?: unknown;
       holdingAmount?: unknown;
+      holdingProfitAmount?: unknown;
       plannedRatio?: unknown;
     };
 
     const fundCode = typeof body?.fundCode === "string" ? body.fundCode.trim() : "";
     ensureFundCode(fundCode);
     const holdingAmount = parseHoldingAmount(body?.holdingAmount, true) ?? 0;
+    const holdingProfitAmount = parseHoldingProfitAmount(body?.holdingProfitAmount, false) ?? 0;
 
     const portfolio = await ensurePortfolioOrThrow(deps.store, params.portfolioId);
     const existing = await deps.store.getPortfolioFund(params.portfolioId, fundCode);
@@ -459,6 +553,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       portfolioId: params.portfolioId,
       fundCode,
       holdingAmount,
+      holdingProfitAmount,
       plannedRatio: portfolio.type === "RATIO" ? nextPlannedRatio : undefined
     });
 
@@ -467,6 +562,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       portfolioId: params.portfolioId,
       fundCode,
       holdingAmount,
+      holdingProfitAmount,
       plannedRatio: portfolio.type === "RATIO" ? nextPlannedRatio : undefined
     };
   });
@@ -478,13 +574,15 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
 
     const body = request.body as {
       holdingAmount?: unknown;
+      holdingProfitAmount?: unknown;
       plannedRatio?: unknown;
     };
 
     const hasHoldingAmount = body?.holdingAmount !== undefined;
+    const hasHoldingProfitAmount = body?.holdingProfitAmount !== undefined;
     const hasPlannedRatio = body?.plannedRatio !== undefined;
-    if (!hasHoldingAmount && !hasPlannedRatio) {
-      throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "holdingAmount or plannedRatio is required", 400);
+    if (!hasHoldingAmount && !hasHoldingProfitAmount && !hasPlannedRatio) {
+      throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "holdingAmount or holdingProfitAmount or plannedRatio is required", 400);
     }
 
     const portfolio = await ensurePortfolioOrThrow(deps.store, params.portfolioId);
@@ -494,6 +592,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
     }
 
     const holdingAmount = parseHoldingAmount(body?.holdingAmount, false);
+    const holdingProfitAmount = parseHoldingProfitAmount(body?.holdingProfitAmount, false);
     let plannedRatio = parsePlannedRatio(body?.plannedRatio, false);
 
     if (portfolio.type === "RATIO") {
@@ -516,6 +615,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       portfolioId: params.portfolioId,
       fundCode: params.fundCode,
       holdingAmount,
+      holdingProfitAmount,
       plannedRatio
     };
 
@@ -544,18 +644,20 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
 
     await syncFundStateWithLatestReturns(deps.store, deps.service, fundCodes);
 
+    const latestPortfolioFunds = await deps.store.listAllPortfolioFunds();
+
     const [estimateMap, fundStates] = await Promise.all([
       chunkGetEstimates(deps.service, fundCodes),
       deps.store.listFundStatesByCodes(fundCodes)
     ]);
 
     const totalAmountMap = new Map<string, number>();
-    for (const row of portfolioFunds) {
+    for (const row of latestPortfolioFunds) {
       totalAmountMap.set(row.portfolioId, (totalAmountMap.get(row.portfolioId) ?? 0) + row.holdingAmount);
     }
 
     if (expand === "expanded") {
-      const expandedRows = portfolioFunds.map((row) => {
+      const expandedRows = latestPortfolioFunds.map((row) => {
         const estimate = estimateMap.get(row.fundCode);
         const totalChangePct = fundStates.get(row.fundCode)?.totalChangePct ?? 0;
         const totalAmount = totalAmountMap.get(row.portfolioId) ?? 0;
@@ -584,7 +686,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
     }
 
     const grouped = new Map<string, FlatFundItem>();
-    for (const row of portfolioFunds) {
+    for (const row of latestPortfolioFunds) {
       const estimate = estimateMap.get(row.fundCode);
       const totalChangePct = fundStates.get(row.fundCode)?.totalChangePct ?? 0;
 

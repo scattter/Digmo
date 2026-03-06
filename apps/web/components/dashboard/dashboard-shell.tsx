@@ -28,7 +28,7 @@ export function DashboardShell({ children, totalAmount, totalIntradayAmount }: D
             <p className="font-mono text-sm text-foreground">{formatCurrency(totalAmount)}</p>
           </div>
           <div className="space-y-0.5 md:text-right">
-            <p className="text-xs text-muted-foreground">今日预估收益</p>
+            <p className="text-xs text-muted-foreground">当日收益</p>
             <p className={`font-mono text-sm ${deltaClassByPct(totalIntradayAmount)}`}>
               {formatSignedAmountCompact(totalIntradayAmount)}
             </p>
