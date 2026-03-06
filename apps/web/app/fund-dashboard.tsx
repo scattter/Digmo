@@ -1,9 +1,10 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PortfolioFundItem, PortfolioSummary, PortfolioType } from "@digmo/shared";
+import { AuthUser, PortfolioFundItem, PortfolioSummary, PortfolioType } from "@digmo/shared";
 import { Loader2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
@@ -42,6 +43,8 @@ import { getFlatSortButtonLabel, nextSortOrder, useDashboardData } from "@/hooks
 import { useFundReorder } from "@/hooks/use-fund-reorder";
 import { usePortfolioReorder } from "@/hooks/use-portfolio-reorder";
 import { usePortfolioActions } from "@/hooks/use-portfolio-actions";
+import { fetchMe, getAuthRequiredEventName } from "@/lib/api";
+import { clearAccessToken, getAccessToken } from "@/lib/auth-session";
 import { FundEditState } from "@/lib/format";
 
 const renameSchema = z.string().min(1, "请输入新的组合名称").max(32, "组合名称长度不能超过 32");
@@ -67,6 +70,55 @@ const portfolioAddFundDialogSchema = z.object({
 });
 
 export default function FundDashboard() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const authRequiredEventName = getAuthRequiredEventName();
+
+  useEffect(() => {
+    let active = true;
+    const jumpToLogin = () => {
+      clearAccessToken();
+      if (!active) {
+        return;
+      }
+      setIsAuthChecking(false);
+      router.replace("/login");
+    };
+
+    const onAuthRequired = () => {
+      jumpToLogin();
+    };
+
+    window.addEventListener(authRequiredEventName, onAuthRequired);
+
+    const token = getAccessToken();
+    if (!token) {
+      jumpToLogin();
+      return () => {
+        active = false;
+        window.removeEventListener(authRequiredEventName, onAuthRequired);
+      };
+    }
+
+    void fetchMe()
+      .then(({ user }) => {
+        if (!active) {
+          return;
+        }
+        setCurrentUser(user);
+        setIsAuthChecking(false);
+      })
+      .catch(() => {
+        jumpToLogin();
+      });
+
+    return () => {
+      active = false;
+      window.removeEventListener(authRequiredEventName, onAuthRequired);
+    };
+  }, [authRequiredEventName, router]);
+
   const dashboard = useDashboardData();
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null);
   const [editingPortfolioName, setEditingPortfolioName] = useState("");
@@ -344,8 +396,33 @@ export default function FundDashboard() {
     });
   }
 
+  function handleLogout(): void {
+    clearAccessToken();
+    router.replace("/login");
+  }
+
+  if (isAuthChecking) {
+    return (
+      <main className="flex min-h-screen items-center justify-center">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          正在校验登录状态...
+        </div>
+      </main>
+    );
+  }
+
+  if (!currentUser) {
+    return null;
+  }
+
   return (
-    <DashboardShell totalAmount={portfolioTotalAmount} totalIntradayAmount={portfolioTotalDailyAmount}>
+    <DashboardShell
+      totalAmount={portfolioTotalAmount}
+      totalIntradayAmount={portfolioTotalDailyAmount}
+      username={currentUser.username}
+      onLogout={handleLogout}
+    >
       <section className="mb-4 space-y-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <MainViewTabs value={dashboard.mainView} onChange={dashboard.setMainView} />

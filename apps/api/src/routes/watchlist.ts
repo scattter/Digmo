@@ -9,7 +9,6 @@ import {
   PortfolioType,
   TrendType
 } from "@digmo/shared";
-import { FastifyInstance } from "fastify";
 import {
   PortfolioItem,
   SqliteWatchlistStore,
@@ -19,10 +18,12 @@ import {
 import { ValuationService } from "../modules/valuation/service";
 import { AppError } from "../utils/app-error";
 import { formatDate, isTradingDay, nowInShanghai } from "../utils/time";
+import { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
 
 interface RegisterWatchlistRoutesDeps {
   store: WatchlistStore;
   service: ValuationService;
+  requireAuth: preHandlerHookHandler;
   v2EstimateFetcher?: V2EstimateFetcher;
   twelveData?: {
     apiKey?: string;
@@ -367,6 +368,7 @@ async function chunkGetEstimates(
 
 async function syncFundStateWithLatestReturns(
   store: WatchlistStore,
+  userId: string,
   service: ValuationService,
   fundCodes: string[]
 ): Promise<void> {
@@ -378,13 +380,14 @@ async function syncFundStateWithLatestReturns(
     try {
       const snapshot = await service.getOrComputeEstimate(fundCode);
       const hasNewOfficialData = await store.accumulateOfficialReturn(
+        userId,
         fundCode,
         snapshot.baseNavDate,
         snapshot.officialDailyReturn
       );
 
       if (hasNewOfficialData) {
-        await store.rollPortfolioFundHoldingByNavDate(fundCode, snapshot.baseNavDate, snapshot.officialDailyReturn);
+        await store.rollPortfolioFundHoldingByNavDate(userId, fundCode, snapshot.baseNavDate, snapshot.officialDailyReturn);
       }
     } catch {
       // 忽略单只基金同步失败，避免整体接口失败。
@@ -419,33 +422,42 @@ function sortByEstimate<T extends { estimateChangePct?: number; fundCode: string
   });
 }
 
-async function ensurePortfolioOrThrow(store: WatchlistStore, portfolioId: string): Promise<PortfolioItem> {
-  const portfolio = await store.getPortfolio(portfolioId);
+async function ensurePortfolioOrThrow(store: WatchlistStore, userId: string, portfolioId: string): Promise<PortfolioItem> {
+  const portfolio = await store.getPortfolio(userId, portfolioId);
   if (!portfolio) {
     throw new AppError(ERROR_CODES.PORTFOLIO_NOT_FOUND, `portfolio ${portfolioId} not found`, 404);
   }
   return portfolio;
 }
 
+function requireUserId(request: FastifyRequest): string {
+  const userId = request.authUser?.id;
+  if (!userId) {
+    throw new AppError(ERROR_CODES.AUTH_REQUIRED, "authorization token is required", 401);
+  }
+  return userId;
+}
+
 async function buildPortfolioSummaries(
   store: WatchlistStore,
+  userId: string,
   service: ValuationService
 ): Promise<{
   portfolios: PortfolioSummary[];
   estimateMap: Map<string, FundEstimateSnapshot>;
   fundStateMap: Map<string, { totalChangePct: number; lastAccumulatedNavDate?: string }>;
 }> {
-  const portfolios = await store.listPortfolios();
-  const initialPortfolioFunds = await store.listAllPortfolioFunds();
+  const portfolios = await store.listPortfolios(userId);
+  const initialPortfolioFunds = await store.listAllPortfolioFunds(userId);
   const fundCodes = Array.from(new Set(initialPortfolioFunds.map((item) => item.fundCode)));
 
-  await syncFundStateWithLatestReturns(store, service, fundCodes);
+  await syncFundStateWithLatestReturns(store, userId, service, fundCodes);
 
-  const portfolioFunds = await store.listAllPortfolioFunds();
+  const portfolioFunds = await store.listAllPortfolioFunds(userId);
 
   const [estimateMap, fundStates] = await Promise.all([
     chunkGetEstimates(service, fundCodes),
-    store.listFundStatesByCodes(fundCodes)
+    store.listFundStatesByCodes(userId, fundCodes)
   ]);
 
   const fundStateMap = new Map<string, { totalChangePct: number; lastAccumulatedNavDate?: string }>();
@@ -574,9 +586,10 @@ async function chunkGetV2Estimates(
 
 async function buildPortfolioDailyProfitV2(
   store: WatchlistStore,
+  userId: string,
   estimateFetcher: V2EstimateFetcher
 ): Promise<PortfolioDailyProfitV2Response> {
-  const [portfolios, portfolioFunds] = await Promise.all([store.listPortfolios(), store.listAllPortfolioFunds()]);
+  const [portfolios, portfolioFunds] = await Promise.all([store.listPortfolios(userId), store.listAllPortfolioFunds(userId)]);
   const fundCodes = Array.from(new Set(portfolioFunds.map((item) => item.fundCode)));
   const estimateMap = await chunkGetV2Estimates(fundCodes, estimateFetcher);
 
@@ -657,387 +670,407 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       timeoutMs: deps.twelveData?.timeoutMs ?? 1800
     });
 
-  app.get("/v1/portfolios", async () => {
-    const result = await buildPortfolioSummaries(deps.store, deps.service);
-    return {
-      portfolios: result.portfolios
-    };
-  });
+  app.register(async (protectedApp) => {
+    protectedApp.addHook("preHandler", deps.requireAuth);
 
-  app.get("/v2/portfolios/daily-profit", async () => {
-    return buildPortfolioDailyProfitV2(deps.store, v2EstimateFetcher);
-  });
-
-  app.post("/v1/portfolios", async (request, reply) => {
-    const body = request.body as { name?: unknown; type?: unknown };
-    const name = parsePortfolioName(body?.name);
-    const type = parsePortfolioType(body?.type);
-
-    try {
-      const created = await deps.store.createPortfolio(name, type);
-      reply.code(201);
+    protectedApp.get("/v1/portfolios", async (request) => {
+      const userId = requireUserId(request);
+      const result = await buildPortfolioSummaries(deps.store, userId, deps.service);
       return {
-        portfolio: {
-          id: created.id,
-          name: created.name,
-          type: created.type,
-          fundCount: 0,
-          totalAmount: 0,
-          totalProfitAmount: 0,
-          totalProfitPct: 0,
-          totalProfitDisplay: "0.00 / 0.00%",
-          dailyProfitPct: 0,
-          allFundsDailyUpdated: false,
-          intradayEstimatePct: 0
-        } satisfies PortfolioSummary
+        portfolios: result.portfolios
       };
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("UNIQUE")) {
-        throw new AppError(ERROR_CODES.DUPLICATE_PORTFOLIO_NAME, "portfolio name already exists", 409);
-      }
-      throw error;
-    }
-  });
-
-  app.patch("/v1/portfolios/order", async (request) => {
-    const body = request.body as { portfolioIds?: unknown };
-    const portfolioIds = parsePortfolioIds(body?.portfolioIds);
-    const isValidSet = await deps.store.validatePortfolioSet(portfolioIds);
-    if (!isValidSet) {
-      throw new AppError(
-        ERROR_CODES.INVALID_PORTFOLIO,
-        "portfolioIds must include all and only existing portfolios",
-        400
-      );
-    }
-
-    await deps.store.reorderPortfolios(portfolioIds);
-    return {
-      updated: true
-    };
-  });
-
-  app.patch("/v1/portfolios/:portfolioId", async (request) => {
-    const params = request.params as { portfolioId: string };
-    ensurePortfolioId(params.portfolioId);
-    const body = request.body as { name?: unknown };
-    const name = parsePortfolioName(body?.name);
-
-    await ensurePortfolioOrThrow(deps.store, params.portfolioId);
-
-    try {
-      const updated = await deps.store.renamePortfolio(params.portfolioId, name);
-      return { updated };
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("UNIQUE")) {
-        throw new AppError(ERROR_CODES.DUPLICATE_PORTFOLIO_NAME, "portfolio name already exists", 409);
-      }
-      throw error;
-    }
-  });
-
-  app.delete("/v1/portfolios/:portfolioId", async (request) => {
-    const params = request.params as { portfolioId: string };
-    ensurePortfolioId(params.portfolioId);
-    const removed = await deps.store.deletePortfolio(params.portfolioId);
-    return { removed };
-  });
-
-  app.get("/v1/portfolios/:portfolioId/funds", async (request) => {
-    const params = request.params as { portfolioId: string };
-    ensurePortfolioId(params.portfolioId);
-
-    const portfolio = await ensurePortfolioOrThrow(deps.store, params.portfolioId);
-    const items = await deps.store.listPortfolioFunds(params.portfolioId);
-    const fundCodes = items.map((item) => item.fundCode);
-
-    await syncFundStateWithLatestReturns(deps.store, deps.service, fundCodes);
-
-    const latestItems = await deps.store.listPortfolioFunds(params.portfolioId);
-
-    const [estimateMap, fundStates] = await Promise.all([
-      chunkGetEstimates(deps.service, fundCodes),
-      deps.store.listFundStatesByCodes(fundCodes)
-    ]);
-
-    const totalAmount = latestItems.reduce((sum, item) => sum + item.holdingAmount, 0);
-    const now = nowInShanghai();
-    const tradingDayNow = isTradingDay(now);
-    const today = formatDate(now);
-
-    const funds = latestItems.map((item) => {
-      const estimate = estimateMap.get(item.fundCode);
-      const fundState = fundStates.get(item.fundCode);
-      const totalChangePct = fundState?.totalChangePct ?? 0;
-      const dailyProfitOfficialUpdated = isOfficialDailyUpdated(tradingDayNow, today, estimate, fundState);
-      const dailyProfitPct =
-        dailyProfitOfficialUpdated ? estimate?.officialDailyReturn ?? 0 : estimate?.estimateChangePct ?? 0;
-      const dailyProfitAmount = Number((item.holdingAmount * dailyProfitPct).toFixed(2));
-      const holdingProfitAmount = item.holdingProfitAmount;
-      const holdingProfitPct = calcProfitPctByCost(item.holdingAmount, holdingProfitAmount);
-      const actualRatio = totalAmount > 0 ? Number((item.holdingAmount / totalAmount).toFixed(6)) : 0;
-      return {
-        portfolioId: item.portfolioId,
-        portfolioName: item.portfolioName,
-        portfolioType: item.portfolioType,
-        fundCode: item.fundCode,
-        displayOrder: item.displayOrder,
-        fundName: estimate?.fundName,
-        holdingAmount: item.holdingAmount,
-        estimateChangePct: estimate?.estimateChangePct,
-        totalChangePct,
-        intradayAmount:
-          typeof estimate?.estimateChangePct === "number"
-            ? Number((item.holdingAmount * estimate.estimateChangePct).toFixed(2))
-            : undefined,
-        totalProfitAmount: holdingProfitAmount,
-        holdingProfitAmount,
-        holdingProfitPct,
-        dailyProfitAmount,
-        dailyProfitPct,
-        dailyProfitOfficialUpdated,
-        trend: trendFromEstimate(estimate?.estimateChangePct),
-        plannedRatio: portfolio.type === "RATIO" ? item.plannedRatio : undefined,
-        actualRatio: portfolio.type === "RATIO" ? actualRatio : undefined
-      } satisfies PortfolioFundItem;
     });
 
-    return {
-      portfolio,
-      funds
-    };
-  });
-
-  app.patch("/v1/portfolios/:portfolioId/funds/order", async (request) => {
-    const params = request.params as { portfolioId: string };
-    ensurePortfolioId(params.portfolioId);
-
-    const body = request.body as { fundCodes?: unknown };
-    const fundCodes = parseFundCodes(body?.fundCodes);
-
-    await ensurePortfolioOrThrow(deps.store, params.portfolioId);
-    const isValidSet = await deps.store.validatePortfolioFundSet(params.portfolioId, fundCodes);
-    if (!isValidSet) {
-      throw new AppError(
-        ERROR_CODES.INVALID_PORTFOLIO,
-        "fundCodes must include all and only funds in the target portfolio",
-        400
-      );
-    }
-
-    await deps.store.reorderPortfolioFunds(params.portfolioId, fundCodes);
-    return {
-      updated: true
-    };
-  });
-
-  app.post("/v1/portfolios/:portfolioId/funds", async (request, reply) => {
-    const params = request.params as { portfolioId: string };
-    ensurePortfolioId(params.portfolioId);
-
-    const body = request.body as {
-      fundCode?: unknown;
-      holdingAmount?: unknown;
-      holdingProfitAmount?: unknown;
-      plannedRatio?: unknown;
-    };
-
-    const fundCode = typeof body?.fundCode === "string" ? body.fundCode.trim() : "";
-    ensureFundCode(fundCode);
-    const holdingAmount = parseHoldingAmount(body?.holdingAmount, true) ?? 0;
-    const holdingProfitAmount = parseHoldingProfitAmount(body?.holdingProfitAmount, false) ?? 0;
-
-    const portfolio = await ensurePortfolioOrThrow(deps.store, params.portfolioId);
-    const existing = await deps.store.getPortfolioFund(params.portfolioId, fundCode);
-
-    let nextPlannedRatio: number | undefined;
-    if (portfolio.type === "RATIO") {
-      const required = !existing;
-      nextPlannedRatio = parsePlannedRatio(body?.plannedRatio, required) ?? existing?.plannedRatio;
-      if (typeof nextPlannedRatio !== "number") {
-        throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "plannedRatio is required for ratio portfolio", 400);
-      }
-
-      const currentSumWithoutFund = await deps.store.sumPlannedRatio(params.portfolioId, fundCode);
-      if (currentSumWithoutFund + nextPlannedRatio > 1.0000001) {
-        throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "plannedRatio sum must be <= 1", 400);
-      }
-    }
-
-    await deps.store.upsertPortfolioFund({
-      portfolioId: params.portfolioId,
-      fundCode,
-      holdingAmount,
-      holdingProfitAmount,
-      plannedRatio: portfolio.type === "RATIO" ? nextPlannedRatio : undefined
+    protectedApp.get("/v2/portfolios/daily-profit", async (request) => {
+      const userId = requireUserId(request);
+      return buildPortfolioDailyProfitV2(deps.store, userId, v2EstimateFetcher);
     });
 
-    reply.code(existing ? 200 : 201);
-    return {
-      portfolioId: params.portfolioId,
-      fundCode,
-      holdingAmount,
-      holdingProfitAmount,
-      plannedRatio: portfolio.type === "RATIO" ? nextPlannedRatio : undefined
-    };
-  });
+    protectedApp.post("/v1/portfolios", async (request, reply) => {
+      const userId = requireUserId(request);
+      const body = request.body as { name?: unknown; type?: unknown };
+      const name = parsePortfolioName(body?.name);
+      const type = parsePortfolioType(body?.type);
 
-  app.patch("/v1/portfolios/:portfolioId/funds/:fundCode", async (request) => {
-    const params = request.params as { portfolioId: string; fundCode: string };
-    ensurePortfolioId(params.portfolioId);
-    ensureFundCode(params.fundCode);
-
-    const body = request.body as {
-      holdingAmount?: unknown;
-      holdingProfitAmount?: unknown;
-      plannedRatio?: unknown;
-    };
-
-    const hasHoldingAmount = body?.holdingAmount !== undefined;
-    const hasHoldingProfitAmount = body?.holdingProfitAmount !== undefined;
-    const hasPlannedRatio = body?.plannedRatio !== undefined;
-    if (!hasHoldingAmount && !hasHoldingProfitAmount && !hasPlannedRatio) {
-      throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "holdingAmount or holdingProfitAmount or plannedRatio is required", 400);
-    }
-
-    const portfolio = await ensurePortfolioOrThrow(deps.store, params.portfolioId);
-    const existing = await deps.store.getPortfolioFund(params.portfolioId, params.fundCode);
-    if (!existing) {
-      throw new AppError(ERROR_CODES.PORTFOLIO_FUND_NOT_FOUND, "portfolio fund not found", 404);
-    }
-
-    const holdingAmount = parseHoldingAmount(body?.holdingAmount, false);
-    const holdingProfitAmount = parseHoldingProfitAmount(body?.holdingProfitAmount, false);
-    let plannedRatio = parsePlannedRatio(body?.plannedRatio, false);
-
-    if (portfolio.type === "RATIO") {
-      const nextPlannedRatio = plannedRatio ?? existing.plannedRatio;
-      if (typeof nextPlannedRatio !== "number") {
-        throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "plannedRatio is required for ratio portfolio", 400);
-      }
-
-      const currentSumWithoutFund = await deps.store.sumPlannedRatio(params.portfolioId, params.fundCode);
-      if (currentSumWithoutFund + nextPlannedRatio > 1.0000001) {
-        throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "plannedRatio sum must be <= 1", 400);
-      }
-
-      plannedRatio = nextPlannedRatio;
-    } else {
-      plannedRatio = undefined;
-    }
-
-    const input: UpdatePortfolioFundInput = {
-      portfolioId: params.portfolioId,
-      fundCode: params.fundCode,
-      holdingAmount,
-      holdingProfitAmount,
-      plannedRatio
-    };
-
-    const updated = await deps.store.updatePortfolioFund(input);
-    return {
-      updated
-    };
-  });
-
-  app.delete("/v1/portfolios/:portfolioId/funds/:fundCode", async (request) => {
-    const params = request.params as { portfolioId: string; fundCode: string };
-    ensurePortfolioId(params.portfolioId);
-    ensureFundCode(params.fundCode);
-
-    const removed = await deps.store.removePortfolioFund(params.portfolioId, params.fundCode);
-    return { removed };
-  });
-
-  app.get("/v1/funds/flat", async (request) => {
-    const query = request.query as FlatQuery;
-    const expand = query.expand === "expanded" ? "expanded" : "dedup";
-    const sortOrder = query.sortOrder === "asc" || query.sortOrder === "desc" ? query.sortOrder : "default";
-
-    const portfolioFunds = await deps.store.listAllPortfolioFunds();
-    const fundCodes = Array.from(new Set(portfolioFunds.map((item) => item.fundCode)));
-
-    await syncFundStateWithLatestReturns(deps.store, deps.service, fundCodes);
-
-    const latestPortfolioFunds = await deps.store.listAllPortfolioFunds();
-
-    const [estimateMap, fundStates] = await Promise.all([
-      chunkGetEstimates(deps.service, fundCodes),
-      deps.store.listFundStatesByCodes(fundCodes)
-    ]);
-
-    const totalAmountMap = new Map<string, number>();
-    for (const row of latestPortfolioFunds) {
-      totalAmountMap.set(row.portfolioId, (totalAmountMap.get(row.portfolioId) ?? 0) + row.holdingAmount);
-    }
-
-    if (expand === "expanded") {
-      const expandedRows = latestPortfolioFunds.map((row) => {
-        const estimate = estimateMap.get(row.fundCode);
-        const totalChangePct = fundStates.get(row.fundCode)?.totalChangePct ?? 0;
-        const totalAmount = totalAmountMap.get(row.portfolioId) ?? 0;
+      try {
+        const created = await deps.store.createPortfolio(userId, name, type);
+        reply.code(201);
         return {
-          fundCode: row.fundCode,
+          portfolio: {
+            id: created.id,
+            name: created.name,
+            type: created.type,
+            fundCount: 0,
+            totalAmount: 0,
+            totalProfitAmount: 0,
+            totalProfitPct: 0,
+            totalProfitDisplay: "0.00 / 0.00%",
+            dailyProfitPct: 0,
+            allFundsDailyUpdated: false,
+            intradayEstimatePct: 0
+          } satisfies PortfolioSummary
+        };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("UNIQUE")) {
+          throw new AppError(ERROR_CODES.DUPLICATE_PORTFOLIO_NAME, "portfolio name already exists", 409);
+        }
+        throw error;
+      }
+    });
+
+    protectedApp.patch("/v1/portfolios/order", async (request) => {
+      const userId = requireUserId(request);
+      const body = request.body as { portfolioIds?: unknown };
+      const portfolioIds = parsePortfolioIds(body?.portfolioIds);
+      const isValidSet = await deps.store.validatePortfolioSet(userId, portfolioIds);
+      if (!isValidSet) {
+        throw new AppError(
+          ERROR_CODES.INVALID_PORTFOLIO,
+          "portfolioIds must include all and only existing portfolios",
+          400
+        );
+      }
+
+      await deps.store.reorderPortfolios(userId, portfolioIds);
+      return {
+        updated: true
+      };
+    });
+
+    protectedApp.patch("/v1/portfolios/:portfolioId", async (request) => {
+      const userId = requireUserId(request);
+      const params = request.params as { portfolioId: string };
+      ensurePortfolioId(params.portfolioId);
+      const body = request.body as { name?: unknown };
+      const name = parsePortfolioName(body?.name);
+
+      await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+
+      try {
+        const updated = await deps.store.renamePortfolio(userId, params.portfolioId, name);
+        return { updated };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("UNIQUE")) {
+          throw new AppError(ERROR_CODES.DUPLICATE_PORTFOLIO_NAME, "portfolio name already exists", 409);
+        }
+        throw error;
+      }
+    });
+
+    protectedApp.delete("/v1/portfolios/:portfolioId", async (request) => {
+      const userId = requireUserId(request);
+      const params = request.params as { portfolioId: string };
+      ensurePortfolioId(params.portfolioId);
+      const removed = await deps.store.deletePortfolio(userId, params.portfolioId);
+      return { removed };
+    });
+
+    protectedApp.get("/v1/portfolios/:portfolioId/funds", async (request) => {
+      const userId = requireUserId(request);
+      const params = request.params as { portfolioId: string };
+      ensurePortfolioId(params.portfolioId);
+
+      const portfolio = await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+      const items = await deps.store.listPortfolioFunds(userId, params.portfolioId);
+      const fundCodes = items.map((item) => item.fundCode);
+
+      await syncFundStateWithLatestReturns(deps.store, userId, deps.service, fundCodes);
+
+      const latestItems = await deps.store.listPortfolioFunds(userId, params.portfolioId);
+
+      const [estimateMap, fundStates] = await Promise.all([
+        chunkGetEstimates(deps.service, fundCodes),
+        deps.store.listFundStatesByCodes(userId, fundCodes)
+      ]);
+
+      const totalAmount = latestItems.reduce((sum, item) => sum + item.holdingAmount, 0);
+      const now = nowInShanghai();
+      const tradingDayNow = isTradingDay(now);
+      const today = formatDate(now);
+
+      const funds = latestItems.map((item) => {
+        const estimate = estimateMap.get(item.fundCode);
+        const fundState = fundStates.get(item.fundCode);
+        const totalChangePct = fundState?.totalChangePct ?? 0;
+        const dailyProfitOfficialUpdated = isOfficialDailyUpdated(tradingDayNow, today, estimate, fundState);
+        const dailyProfitPct =
+          dailyProfitOfficialUpdated ? estimate?.officialDailyReturn ?? 0 : estimate?.estimateChangePct ?? 0;
+        const dailyProfitAmount = Number((item.holdingAmount * dailyProfitPct).toFixed(2));
+        const holdingProfitAmount = item.holdingProfitAmount;
+        const holdingProfitPct = calcProfitPctByCost(item.holdingAmount, holdingProfitAmount);
+        const actualRatio = totalAmount > 0 ? Number((item.holdingAmount / totalAmount).toFixed(6)) : 0;
+        return {
+          portfolioId: item.portfolioId,
+          portfolioName: item.portfolioName,
+          portfolioType: item.portfolioType,
+          fundCode: item.fundCode,
+          displayOrder: item.displayOrder,
           fundName: estimate?.fundName,
-          holdingAmount: row.holdingAmount,
+          holdingAmount: item.holdingAmount,
           estimateChangePct: estimate?.estimateChangePct,
           totalChangePct,
+          intradayAmount:
+            typeof estimate?.estimateChangePct === "number"
+              ? Number((item.holdingAmount * estimate.estimateChangePct).toFixed(2))
+              : undefined,
+          totalProfitAmount: holdingProfitAmount,
+          holdingProfitAmount,
+          holdingProfitPct,
+          dailyProfitAmount,
+          dailyProfitPct,
+          dailyProfitOfficialUpdated,
           trend: trendFromEstimate(estimate?.estimateChangePct),
-          portfolioCount: 1,
-          portfolioNames: [row.portfolioName],
-          portfolioId: row.portfolioId,
-          portfolioName: row.portfolioName,
-          portfolioType: row.portfolioType,
-          plannedRatio: row.portfolioType === "RATIO" ? row.plannedRatio : undefined,
-          actualRatio: row.portfolioType === "RATIO" && totalAmount > 0 ? Number((row.holdingAmount / totalAmount).toFixed(6)) : undefined
-        } satisfies FlatFundItem;
+          plannedRatio: portfolio.type === "RATIO" ? item.plannedRatio : undefined,
+          actualRatio: portfolio.type === "RATIO" ? actualRatio : undefined
+        } satisfies PortfolioFundItem;
       });
 
       return {
-        items: sortOrder === "default" ? expandedRows : sortByEstimate(expandedRows, sortOrder),
+        portfolio,
+        funds
+      };
+    });
+
+    protectedApp.patch("/v1/portfolios/:portfolioId/funds/order", async (request) => {
+      const userId = requireUserId(request);
+      const params = request.params as { portfolioId: string };
+      ensurePortfolioId(params.portfolioId);
+
+      const body = request.body as { fundCodes?: unknown };
+      const fundCodes = parseFundCodes(body?.fundCodes);
+
+      await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+      const isValidSet = await deps.store.validatePortfolioFundSet(userId, params.portfolioId, fundCodes);
+      if (!isValidSet) {
+        throw new AppError(
+          ERROR_CODES.INVALID_PORTFOLIO,
+          "fundCodes must include all and only funds in the target portfolio",
+          400
+        );
+      }
+
+      await deps.store.reorderPortfolioFunds(userId, params.portfolioId, fundCodes);
+      return {
+        updated: true
+      };
+    });
+
+    protectedApp.post("/v1/portfolios/:portfolioId/funds", async (request, reply) => {
+      const userId = requireUserId(request);
+      const params = request.params as { portfolioId: string };
+      ensurePortfolioId(params.portfolioId);
+
+      const body = request.body as {
+        fundCode?: unknown;
+        holdingAmount?: unknown;
+        holdingProfitAmount?: unknown;
+        plannedRatio?: unknown;
+      };
+
+      const fundCode = typeof body?.fundCode === "string" ? body.fundCode.trim() : "";
+      ensureFundCode(fundCode);
+      const holdingAmount = parseHoldingAmount(body?.holdingAmount, true) ?? 0;
+      const holdingProfitAmount = parseHoldingProfitAmount(body?.holdingProfitAmount, false) ?? 0;
+
+      const portfolio = await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+      const existing = await deps.store.getPortfolioFund(userId, params.portfolioId, fundCode);
+
+      let nextPlannedRatio: number | undefined;
+      if (portfolio.type === "RATIO") {
+        const required = !existing;
+        nextPlannedRatio = parsePlannedRatio(body?.plannedRatio, required) ?? existing?.plannedRatio;
+        if (typeof nextPlannedRatio !== "number") {
+          throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "plannedRatio is required for ratio portfolio", 400);
+        }
+
+        const currentSumWithoutFund = await deps.store.sumPlannedRatio(userId, params.portfolioId, fundCode);
+        if (currentSumWithoutFund + nextPlannedRatio > 1.0000001) {
+          throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "plannedRatio sum must be <= 1", 400);
+        }
+      }
+
+      await deps.store.upsertPortfolioFund(userId, {
+        portfolioId: params.portfolioId,
+        fundCode,
+        holdingAmount,
+        holdingProfitAmount,
+        plannedRatio: portfolio.type === "RATIO" ? nextPlannedRatio : undefined
+      });
+
+      reply.code(existing ? 200 : 201);
+      return {
+        portfolioId: params.portfolioId,
+        fundCode,
+        holdingAmount,
+        holdingProfitAmount,
+        plannedRatio: portfolio.type === "RATIO" ? nextPlannedRatio : undefined
+      };
+    });
+
+    protectedApp.patch("/v1/portfolios/:portfolioId/funds/:fundCode", async (request) => {
+      const userId = requireUserId(request);
+      const params = request.params as { portfolioId: string; fundCode: string };
+      ensurePortfolioId(params.portfolioId);
+      ensureFundCode(params.fundCode);
+
+      const body = request.body as {
+        holdingAmount?: unknown;
+        holdingProfitAmount?: unknown;
+        plannedRatio?: unknown;
+      };
+
+      const hasHoldingAmount = body?.holdingAmount !== undefined;
+      const hasHoldingProfitAmount = body?.holdingProfitAmount !== undefined;
+      const hasPlannedRatio = body?.plannedRatio !== undefined;
+      if (!hasHoldingAmount && !hasHoldingProfitAmount && !hasPlannedRatio) {
+        throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "holdingAmount or holdingProfitAmount or plannedRatio is required", 400);
+      }
+
+      const portfolio = await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+      const existing = await deps.store.getPortfolioFund(userId, params.portfolioId, params.fundCode);
+      if (!existing) {
+        throw new AppError(ERROR_CODES.PORTFOLIO_FUND_NOT_FOUND, "portfolio fund not found", 404);
+      }
+
+      const holdingAmount = parseHoldingAmount(body?.holdingAmount, false);
+      const holdingProfitAmount = parseHoldingProfitAmount(body?.holdingProfitAmount, false);
+      let plannedRatio = parsePlannedRatio(body?.plannedRatio, false);
+
+      if (portfolio.type === "RATIO") {
+        const nextPlannedRatio = plannedRatio ?? existing.plannedRatio;
+        if (typeof nextPlannedRatio !== "number") {
+          throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "plannedRatio is required for ratio portfolio", 400);
+        }
+
+        const currentSumWithoutFund = await deps.store.sumPlannedRatio(userId, params.portfolioId, params.fundCode);
+        if (currentSumWithoutFund + nextPlannedRatio > 1.0000001) {
+          throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "plannedRatio sum must be <= 1", 400);
+        }
+
+        plannedRatio = nextPlannedRatio;
+      } else {
+        plannedRatio = undefined;
+      }
+
+      const input: UpdatePortfolioFundInput = {
+        portfolioId: params.portfolioId,
+        fundCode: params.fundCode,
+        holdingAmount,
+        holdingProfitAmount,
+        plannedRatio
+      };
+
+      const updated = await deps.store.updatePortfolioFund(userId, input);
+      return {
+        updated
+      };
+    });
+
+    protectedApp.delete("/v1/portfolios/:portfolioId/funds/:fundCode", async (request) => {
+      const userId = requireUserId(request);
+      const params = request.params as { portfolioId: string; fundCode: string };
+      ensurePortfolioId(params.portfolioId);
+      ensureFundCode(params.fundCode);
+
+      const removed = await deps.store.removePortfolioFund(userId, params.portfolioId, params.fundCode);
+      return { removed };
+    });
+
+    protectedApp.get("/v1/funds/flat", async (request) => {
+      const userId = requireUserId(request);
+      const query = request.query as FlatQuery;
+      const expand = query.expand === "expanded" ? "expanded" : "dedup";
+      const sortOrder = query.sortOrder === "asc" || query.sortOrder === "desc" ? query.sortOrder : "default";
+
+      const portfolioFunds = await deps.store.listAllPortfolioFunds(userId);
+      const fundCodes = Array.from(new Set(portfolioFunds.map((item) => item.fundCode)));
+
+      await syncFundStateWithLatestReturns(deps.store, userId, deps.service, fundCodes);
+
+      const latestPortfolioFunds = await deps.store.listAllPortfolioFunds(userId);
+
+      const [estimateMap, fundStates] = await Promise.all([
+        chunkGetEstimates(deps.service, fundCodes),
+        deps.store.listFundStatesByCodes(userId, fundCodes)
+      ]);
+
+      const totalAmountMap = new Map<string, number>();
+      for (const row of latestPortfolioFunds) {
+        totalAmountMap.set(row.portfolioId, (totalAmountMap.get(row.portfolioId) ?? 0) + row.holdingAmount);
+      }
+
+      if (expand === "expanded") {
+        const expandedRows = latestPortfolioFunds.map((row) => {
+          const estimate = estimateMap.get(row.fundCode);
+          const totalChangePct = fundStates.get(row.fundCode)?.totalChangePct ?? 0;
+          const totalAmount = totalAmountMap.get(row.portfolioId) ?? 0;
+          return {
+            fundCode: row.fundCode,
+            fundName: estimate?.fundName,
+            holdingAmount: row.holdingAmount,
+            estimateChangePct: estimate?.estimateChangePct,
+            totalChangePct,
+            trend: trendFromEstimate(estimate?.estimateChangePct),
+            portfolioCount: 1,
+            portfolioNames: [row.portfolioName],
+            portfolioId: row.portfolioId,
+            portfolioName: row.portfolioName,
+            portfolioType: row.portfolioType,
+            plannedRatio: row.portfolioType === "RATIO" ? row.plannedRatio : undefined,
+            actualRatio:
+              row.portfolioType === "RATIO" && totalAmount > 0 ? Number((row.holdingAmount / totalAmount).toFixed(6)) : undefined
+          } satisfies FlatFundItem;
+        });
+
+        return {
+          items: sortOrder === "default" ? expandedRows : sortByEstimate(expandedRows, sortOrder),
+          expand,
+          sortOrder
+        };
+      }
+
+      const grouped = new Map<string, FlatFundItem>();
+      for (const row of latestPortfolioFunds) {
+        const estimate = estimateMap.get(row.fundCode);
+        const totalChangePct = fundStates.get(row.fundCode)?.totalChangePct ?? 0;
+
+        if (!grouped.has(row.fundCode)) {
+          grouped.set(row.fundCode, {
+            fundCode: row.fundCode,
+            fundName: estimate?.fundName,
+            holdingAmount: 0,
+            estimateChangePct: estimate?.estimateChangePct,
+            totalChangePct,
+            trend: trendFromEstimate(estimate?.estimateChangePct),
+            portfolioCount: 0,
+            portfolioNames: []
+          });
+        }
+
+        const current = grouped.get(row.fundCode);
+        if (!current) {
+          continue;
+        }
+
+        current.holdingAmount = Number((current.holdingAmount + row.holdingAmount).toFixed(2));
+        if (!current.portfolioNames.includes(row.portfolioName)) {
+          current.portfolioNames.push(row.portfolioName);
+        }
+        current.portfolioCount = current.portfolioNames.length;
+      }
+
+      return {
+        items: sortOrder === "default" ? Array.from(grouped.values()) : sortByEstimate(Array.from(grouped.values()), sortOrder),
         expand,
         sortOrder
       };
-    }
-
-    const grouped = new Map<string, FlatFundItem>();
-    for (const row of latestPortfolioFunds) {
-      const estimate = estimateMap.get(row.fundCode);
-      const totalChangePct = fundStates.get(row.fundCode)?.totalChangePct ?? 0;
-
-      if (!grouped.has(row.fundCode)) {
-        grouped.set(row.fundCode, {
-          fundCode: row.fundCode,
-          fundName: estimate?.fundName,
-          holdingAmount: 0,
-          estimateChangePct: estimate?.estimateChangePct,
-          totalChangePct,
-          trend: trendFromEstimate(estimate?.estimateChangePct),
-          portfolioCount: 0,
-          portfolioNames: []
-        });
-      }
-
-      const current = grouped.get(row.fundCode);
-      if (!current) {
-        continue;
-      }
-
-      current.holdingAmount = Number((current.holdingAmount + row.holdingAmount).toFixed(2));
-      if (!current.portfolioNames.includes(row.portfolioName)) {
-        current.portfolioNames.push(row.portfolioName);
-      }
-      current.portfolioCount = current.portfolioNames.length;
-    }
-
-    return {
-      items: sortOrder === "default" ? Array.from(grouped.values()) : sortByEstimate(Array.from(grouped.values()), sortOrder),
-      expand,
-      sortOrder
-    };
+    });
   });
 }
 
-export function createWatchlistStore(dbPath: string): SqliteWatchlistStore {
-  return new SqliteWatchlistStore(dbPath);
+export function createWatchlistStore(
+  dbPath: string,
+  options?: ConstructorParameters<typeof SqliteWatchlistStore>[1]
+): SqliteWatchlistStore {
+  return new SqliteWatchlistStore(dbPath, options);
 }

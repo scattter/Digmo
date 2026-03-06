@@ -3,10 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { FundEstimateSnapshot } from "@digmo/shared";
-import Fastify from "fastify";
+import Fastify, { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, test } from "vitest";
 import { SqliteWatchlistStore } from "../../infra/watchlist/sqlite-watchlist-store";
 import { ValuationService } from "../../modules/valuation/service";
+import { registerAuthRoutes } from "../auth";
+import { createRequireAuth } from "../middleware/require-auth";
+import { signAccessToken } from "../../modules/auth/token";
 import { formatDate, isTradingDay, nowInShanghai } from "../../utils/time";
 import { registerWatchlistRoutes } from "../watchlist";
 
@@ -16,6 +19,7 @@ interface TestCtx {
 }
 
 const tempRoots: string[] = [];
+const TEST_JWT_SECRET = "digmo-test-jwt-secret";
 
 function createTempCtx(): TestCtx {
   const root = mkdtempSync(join(tmpdir(), "digmo-watchlist-test-"));
@@ -66,7 +70,13 @@ function buildSnapshot(
   };
 }
 
-async function createRouteApp(store: SqliteWatchlistStore, estimates: Record<string, number | EstimateSeed>) {
+async function createRouteApp(
+  store: SqliteWatchlistStore,
+  estimates: Record<string, number | EstimateSeed>,
+  options?: {
+    autoAuth?: boolean;
+  }
+) {
   const app = Fastify({ logger: false });
 
   const service = {
@@ -87,9 +97,22 @@ async function createRouteApp(store: SqliteWatchlistStore, estimates: Record<str
     }
   } as unknown as ValuationService;
 
+  const requireAuth = createRequireAuth({
+    store,
+    jwtSecret: TEST_JWT_SECRET
+  });
+
+  registerAuthRoutes(app, {
+    store,
+    jwtSecret: TEST_JWT_SECRET,
+    accessTokenExpiresInSec: 3600,
+    requireAuth
+  });
+
   registerWatchlistRoutes(app, {
     store,
     service,
+    requireAuth,
     v2EstimateFetcher: async (fundCode: string) => {
       const seed = estimates[fundCode];
       if (seed === undefined) {
@@ -98,6 +121,33 @@ async function createRouteApp(store: SqliteWatchlistStore, estimates: Record<str
       return toEstimateSeed(seed).estimateChangePct;
     }
   });
+
+  if (options?.autoAuth !== false) {
+    const admin = await store.getUserByUsername("admin");
+    if (!admin) {
+      throw new Error("bootstrap admin not found");
+    }
+    const token = signAccessToken(
+      {
+        sub: admin.id,
+        username: admin.username,
+        role: admin.role
+      },
+      TEST_JWT_SECRET,
+      3600
+    );
+
+    app.addHook("onRequest", async (request) => {
+      const isProtectedRoute =
+        request.url.startsWith("/v1/portfolios") ||
+        request.url.startsWith("/v1/funds/flat") ||
+        request.url.startsWith("/v2/portfolios");
+
+      if (isProtectedRoute && !request.headers.authorization) {
+        request.headers.authorization = `Bearer ${token}`;
+      }
+    });
+  }
 
   await app.ready();
   return app;
@@ -113,6 +163,146 @@ afterEach(() => {
 });
 
 describe("watchlist routes", () => {
+  test("requires authentication for watchlist routes", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.01
+    }, { autoAuth: false });
+
+    const unauthorizedResp = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios"
+    });
+    expect(unauthorizedResp.statusCode).toBe(401);
+
+    const loginResp = await app.inject({
+      method: "POST",
+      url: "/v1/auth/login",
+      payload: {
+        username: "admin",
+        password: "admin123456"
+      }
+    });
+    expect(loginResp.statusCode).toBe(200);
+    const loginPayload = loginResp.json() as { accessToken: string };
+    expect(typeof loginPayload.accessToken).toBe("string");
+    expect(loginPayload.accessToken.length).toBeGreaterThan(20);
+
+    const authedResp = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios",
+      headers: {
+        authorization: `Bearer ${loginPayload.accessToken}`
+      }
+    });
+    expect(authedResp.statusCode).toBe(200);
+
+    await app.close();
+  });
+
+  test("isolates portfolio data between different users", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(
+      store,
+      {
+        "161725": 0.01
+      },
+      { autoAuth: false }
+    );
+
+    await store.createUser({
+      username: "alice",
+      password: "alice123456",
+      role: "user"
+    });
+
+    const adminLogin = await app.inject({
+      method: "POST",
+      url: "/v1/auth/login",
+      payload: {
+        username: "admin",
+        password: "admin123456"
+      }
+    });
+    expect(adminLogin.statusCode).toBe(200);
+    const adminToken = (adminLogin.json() as { accessToken: string }).accessToken;
+
+    const aliceLogin = await app.inject({
+      method: "POST",
+      url: "/v1/auth/login",
+      payload: {
+        username: "alice",
+        password: "alice123456"
+      }
+    });
+    expect(aliceLogin.statusCode).toBe(200);
+    const aliceToken = (aliceLogin.json() as { accessToken: string }).accessToken;
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      headers: {
+        authorization: `Bearer ${adminToken}`
+      },
+      payload: {
+        name: "管理员组合",
+        type: "FREE"
+      }
+    });
+    expect(createResp.statusCode).toBe(201);
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    const aliceListResp = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios",
+      headers: {
+        authorization: `Bearer ${aliceToken}`
+      }
+    });
+    expect(aliceListResp.statusCode).toBe(200);
+    const aliceListPayload = aliceListResp.json() as { portfolios: Array<{ id: string }> };
+    expect(aliceListPayload.portfolios.length).toBe(0);
+
+    const alicePatchResp = await app.inject({
+      method: "PATCH",
+      url: `/v1/portfolios/${portfolioId}`,
+      headers: {
+        authorization: `Bearer ${aliceToken}`
+      },
+      payload: {
+        name: "越权修改"
+      }
+    });
+    expect(alicePatchResp.statusCode).toBe(404);
+
+    await app.close();
+  });
+
+  test("rejects invalid token for protected routes", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(
+      store,
+      {
+        "161725": 0.01
+      },
+      { autoAuth: false }
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios",
+      headers: {
+        authorization: "Bearer invalid.token.value"
+      }
+    });
+
+    expect(response.statusCode).toBe(401);
+    await app.close();
+  });
+
   test("migrates legacy watchlist into default portfolio and keeps migration idempotent", async () => {
     const ctx = createTempCtx();
 
@@ -145,20 +335,69 @@ describe("watchlist routes", () => {
     legacyDb.close();
 
     const firstStore = new SqliteWatchlistStore(ctx.dbPath);
-    const firstPortfolios = await firstStore.listPortfolios();
+    const firstAdmin = await firstStore.getUserByUsername("admin");
+    expect(firstAdmin).toBeDefined();
+    const firstPortfolios = await firstStore.listPortfolios(firstAdmin!.id);
     expect(firstPortfolios.length).toBe(1);
     expect(firstPortfolios[0].name).toBe("默认组合");
 
-    const migratedFunds = await firstStore.listPortfolioFunds(firstPortfolios[0].id);
+    const migratedFunds = await firstStore.listPortfolioFunds(firstAdmin!.id, firstPortfolios[0].id);
     expect(migratedFunds.length).toBe(1);
     expect(migratedFunds[0].fundCode).toBe("161725");
     expect(migratedFunds[0].holdingAmount).toBe(1000);
 
     const secondStore = new SqliteWatchlistStore(ctx.dbPath);
-    const secondPortfolios = await secondStore.listPortfolios();
+    const secondAdmin = await secondStore.getUserByUsername("admin");
+    expect(secondAdmin).toBeDefined();
+    const secondPortfolios = await secondStore.listPortfolios(secondAdmin!.id);
     expect(secondPortfolios.length).toBe(1);
-    const secondFunds = await secondStore.listPortfolioFunds(secondPortfolios[0].id);
+    const secondFunds = await secondStore.listPortfolioFunds(secondAdmin!.id, secondPortfolios[0].id);
     expect(secondFunds.length).toBe(1);
+  });
+
+  test("exports and imports user data payload", async () => {
+    const sourceCtx = createTempCtx();
+    const sourceStore = new SqliteWatchlistStore(sourceCtx.dbPath);
+    const sourceApp = await createRouteApp(sourceStore, {
+      "161725": 0.01
+    });
+
+    const createResp = await sourceApp.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "迁移组合", type: "FREE" }
+    });
+    expect(createResp.statusCode).toBe(201);
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    const addResp = await sourceApp.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 2000, holdingProfitAmount: 120 }
+    });
+    expect(addResp.statusCode).toBe(201);
+
+    const payload = await sourceStore.exportData({ username: "admin" });
+    expect(payload.users.length).toBe(1);
+    expect(payload.portfolios.length).toBe(1);
+    expect(payload.portfolioFunds.length).toBe(1);
+
+    const targetCtx = createTempCtx();
+    const targetStore = new SqliteWatchlistStore(targetCtx.dbPath);
+    await targetStore.importData(payload);
+
+    const targetAdmin = await targetStore.getUserByUsername("admin");
+    expect(targetAdmin).toBeDefined();
+    const targetPortfolios = await targetStore.listPortfolios(targetAdmin!.id);
+    expect(targetPortfolios.length).toBe(1);
+    expect(targetPortfolios[0].name).toBe("迁移组合");
+
+    const targetFunds = await targetStore.listPortfolioFunds(targetAdmin!.id, targetPortfolios[0].id);
+    expect(targetFunds.length).toBe(1);
+    expect(targetFunds[0].fundCode).toBe("161725");
+    expect(targetFunds[0].holdingAmount).toBe(2000);
+
+    await sourceApp.close();
   });
 
   test("rejects ratio portfolio when planned ratio sum exceeds 100%", async () => {

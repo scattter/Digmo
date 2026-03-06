@@ -158,12 +158,15 @@ export class ValuationService {
 
     const now = nowInShanghai();
     const bucketIso = floorToBucketIso(now, getBucketSeconds(now));
+    const tradingTimeNow = isTradingTime(now);
 
     try {
       const fresh = await this.computeAndPersist(fundCode, {
         now,
         bucketIso,
-        skipIfExists: true
+        // 仅在交易时段内做 bucket 幂等，非交易时段允许按缓存窗口重算，
+        // 以便收盘后官方净值一旦发布能快速反映到接口结果。
+        skipIfExists: tradingTimeNow
       });
       return toPublicSnapshot(fresh);
     } catch (error) {

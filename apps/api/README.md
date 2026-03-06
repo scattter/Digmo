@@ -4,6 +4,8 @@ Fastify API + 估值任务模块。
 
 ## API
 
+- `POST /v1/auth/login`
+- `GET /v1/auth/me`
 - `GET /v1/funds/:fundCode/estimate`
 - `POST /v1/funds/estimate/batch`
 - `GET /v1/funds/flat?expand=dedup|expanded&sortOrder=desc|asc`
@@ -22,6 +24,14 @@ Fastify API + 估值任务模块。
 
 ```bash
 pnpm --filter @digmo/api dev
+```
+
+## 用户与迁移 CLI
+
+```bash
+pnpm --filter @digmo/api user:create -- --username alice --password alice123456 --role user
+pnpm --filter @digmo/api data:export -- --username alice --out ./alice-export.json
+pnpm --filter @digmo/api data:import -- --in ./alice-export.json
 ```
 
 ## 说明

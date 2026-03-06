@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { MemoryCache } from "../../../infra/cache/memory-cache";
 import { InMemoryRepository } from "../../../infra/repo/in-memory-repository";
 import { McpSeedFundDataProvider } from "../../data/mcp-seed-provider";
@@ -236,5 +236,85 @@ describe("valuation service", () => {
 
     expect(snapshot.method).toBe("INDEX_TRACKING");
     expect(snapshot.estimateChangePct).toBeCloseTo(0, 6);
+  });
+
+  test("refreshes official NAV after close even within the same bucket", async () => {
+    vi.useFakeTimers();
+    try {
+      const fundCode = "999001";
+      const profile = {
+        fundCode,
+        fundName: "测试基金",
+        fundType: "混合型",
+        indexCode: "000300"
+      };
+
+      let latestNav = {
+        fundCode,
+        navDate: "2026-03-05",
+        nav: 1,
+        dailyReturn: 0.0006
+      };
+
+      const provider = {
+        async listTargetFundCodes() {
+          return [fundCode];
+        },
+        async getFundProfile() {
+          return profile;
+        },
+        async getLatestNavRecord() {
+          return latestNav;
+        },
+        async getRecentNavRecords() {
+          return [latestNav];
+        },
+        async getHoldingSnapshot() {
+          return {
+            fundCode,
+            reportDate: "2026-03-05",
+            stockRatio: 0,
+            bondRatio: 0,
+            cashRatio: 1,
+            holdings: []
+          };
+        },
+        async getLatestMarketQuotes() {
+          return [];
+        },
+        async getHistoricalIndexReturns() {
+          return [];
+        }
+      };
+
+      const service = new ValuationService({
+        provider: provider as any,
+        repository: new InMemoryRepository(),
+        cache: new MemoryCache(),
+        eastmoneyClient: createMockQuoteClient() as any,
+        realtimeEstimateFetcher: createEmptyRealtimeEstimateFetcher()
+      });
+
+      await service.bootstrap();
+
+      vi.setSystemTime(new Date("2026-03-06T15:10:00.000Z"));
+      const first = await service.getOrComputeEstimate(fundCode);
+      expect(first.baseNavDate).toBe("2026-03-05");
+      expect(first.officialDailyReturn).toBeCloseTo(0.0006, 6);
+
+      latestNav = {
+        fundCode,
+        navDate: "2026-03-06",
+        nav: 1.0013,
+        dailyReturn: 0.0013
+      };
+
+      vi.setSystemTime(new Date("2026-03-06T15:11:00.000Z"));
+      const second = await service.getOrComputeEstimate(fundCode);
+      expect(second.baseNavDate).toBe("2026-03-06");
+      expect(second.officialDailyReturn).toBeCloseTo(0.0013, 6);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

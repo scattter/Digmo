@@ -20,6 +20,12 @@ export interface AppConfig {
     baseUrl: string;
     timeoutMs: number;
   };
+  auth: {
+    jwtSecret: string;
+    accessTokenExpiresInSec: number;
+    bootstrapAdminUsername: string;
+    bootstrapAdminPassword: string;
+  };
 }
 
 export function getConfig(): AppConfig {
@@ -55,6 +61,12 @@ export function getConfig(): AppConfig {
       apiKey: process.env.TWELVEDATA_API_KEY,
       baseUrl: process.env.TWELVEDATA_BASE_URL ?? "https://api.twelvedata.com",
       timeoutMs: Number(process.env.TWELVEDATA_TIMEOUT_MS ?? 1800)
+    },
+    auth: {
+      jwtSecret: process.env.AUTH_JWT_SECRET ?? "digmo-dev-change-this-secret",
+      accessTokenExpiresInSec: Number(process.env.AUTH_ACCESS_TOKEN_EXPIRES_IN_SEC ?? 43200),
+      bootstrapAdminUsername: process.env.AUTH_BOOTSTRAP_ADMIN_USERNAME ?? "admin",
+      bootstrapAdminPassword: process.env.AUTH_BOOTSTRAP_ADMIN_PASSWORD ?? "admin123456"
     }
   };
 }

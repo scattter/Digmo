@@ -107,6 +107,24 @@ export interface JobRunLog {
   errors: Record<string, number>;
 }
 
+export type UserRole = "admin" | "user";
+
+export type UserStatus = "active" | "disabled";
+
+export interface AuthUser {
+  id: string;
+  username: string;
+  role: UserRole;
+  status: UserStatus;
+}
+
+export interface LoginResponse {
+  accessToken: string;
+  tokenType: "Bearer";
+  expiresIn: number;
+  user: AuthUser;
+}
+
 export type PortfolioType = "FREE" | "RATIO";
 
 export type TrendType = "UP" | "DOWN" | "FLAT";

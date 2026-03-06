@@ -192,8 +192,8 @@ function guessIndexCode(fundName: string): string | undefined {
   return undefined;
 }
 
-function toIsoDateFromMs(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
+export function toIsoDateFromMs(ms: number): string {
+  return formatDate(new Date(ms));
 }
 
 function parseJsVarLiteral(script: string, variableName: string): string | undefined {

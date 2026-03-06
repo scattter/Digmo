@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { PortfolioType } from "@digmo/shared";
+import { PortfolioType, UserRole, UserStatus } from "@digmo/shared";
+import { hashPassword } from "../../modules/auth/password";
 
 export interface PortfolioItem {
   id: string;
@@ -34,6 +35,26 @@ export interface PortfolioFundItem {
   updatedAt: string;
 }
 
+export interface AppUserItem {
+  id: string;
+  username: string;
+  role: UserRole;
+  status: UserStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppUserWithPasswordItem extends AppUserItem {
+  passwordHash: string;
+}
+
+export interface CreateUserInput {
+  username: string;
+  password: string;
+  role: UserRole;
+  status?: UserStatus;
+}
+
 export interface UpsertPortfolioFundInput {
   portfolioId: string;
   fundCode: string;
@@ -50,31 +71,81 @@ export interface UpdatePortfolioFundInput {
   plannedRatio?: number;
 }
 
+export interface ExportDataPayload {
+  meta: {
+    version: number;
+    exportedAt: string;
+  };
+  users: Array<{
+    id: string;
+    username: string;
+    passwordHash: string;
+    role: UserRole;
+    status: UserStatus;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  portfolios: Array<{
+    userId: string;
+    id: string;
+    name: string;
+    type: PortfolioType;
+    displayOrder: number;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  fundStates: Array<{
+    userId: string;
+    fundCode: string;
+    totalChangePct: number;
+    lastAccumulatedNavDate?: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  portfolioFunds: Array<{
+    userId: string;
+    portfolioId: string;
+    fundCode: string;
+    displayOrder: number;
+    holdingAmount: number;
+    holdingProfitAmount: number;
+    plannedRatio?: number;
+    lastHoldingRollNavDate?: string;
+    createdAt: string;
+    updatedAt: string;
+  }>;
+}
+
 export interface WatchlistStore {
-  listPortfolios(): Promise<PortfolioItem[]>;
-  getPortfolio(portfolioId: string): Promise<PortfolioItem | undefined>;
-  createPortfolio(name: string, type: PortfolioType): Promise<PortfolioItem>;
-  renamePortfolio(portfolioId: string, name: string): Promise<boolean>;
-  deletePortfolio(portfolioId: string): Promise<boolean>;
-  validatePortfolioSet(orderedPortfolioIds: string[]): Promise<boolean>;
-  reorderPortfolios(orderedPortfolioIds: string[]): Promise<void>;
+  listPortfolios(userId: string): Promise<PortfolioItem[]>;
+  getPortfolio(userId: string, portfolioId: string): Promise<PortfolioItem | undefined>;
+  createPortfolio(userId: string, name: string, type: PortfolioType): Promise<PortfolioItem>;
+  renamePortfolio(userId: string, portfolioId: string, name: string): Promise<boolean>;
+  deletePortfolio(userId: string, portfolioId: string): Promise<boolean>;
+  validatePortfolioSet(userId: string, orderedPortfolioIds: string[]): Promise<boolean>;
+  reorderPortfolios(userId: string, orderedPortfolioIds: string[]): Promise<void>;
 
-  listPortfolioFunds(portfolioId: string): Promise<PortfolioFundItem[]>;
-  listAllPortfolioFunds(): Promise<PortfolioFundItem[]>;
-  getPortfolioFund(portfolioId: string, fundCode: string): Promise<PortfolioFundItem | undefined>;
-  upsertPortfolioFund(input: UpsertPortfolioFundInput): Promise<void>;
-  updatePortfolioFund(input: UpdatePortfolioFundInput): Promise<boolean>;
-  rollPortfolioFundHoldingByNavDate(fundCode: string, navDate: string, dailyReturn: number): Promise<number>;
-  removePortfolioFund(portfolioId: string, fundCode: string): Promise<boolean>;
-  reorderPortfolioFunds(portfolioId: string, orderedFundCodes: string[]): Promise<void>;
-  validatePortfolioFundSet(portfolioId: string, orderedFundCodes: string[]): Promise<boolean>;
-  sumPlannedRatio(portfolioId: string, excludeFundCode?: string): Promise<number>;
+  listPortfolioFunds(userId: string, portfolioId: string): Promise<PortfolioFundItem[]>;
+  listAllPortfolioFunds(userId: string): Promise<PortfolioFundItem[]>;
+  getPortfolioFund(userId: string, portfolioId: string, fundCode: string): Promise<PortfolioFundItem | undefined>;
+  upsertPortfolioFund(userId: string, input: UpsertPortfolioFundInput): Promise<void>;
+  updatePortfolioFund(userId: string, input: UpdatePortfolioFundInput): Promise<boolean>;
+  rollPortfolioFundHoldingByNavDate(userId: string, fundCode: string, navDate: string, dailyReturn: number): Promise<number>;
+  removePortfolioFund(userId: string, portfolioId: string, fundCode: string): Promise<boolean>;
+  reorderPortfolioFunds(userId: string, portfolioId: string, orderedFundCodes: string[]): Promise<void>;
+  validatePortfolioFundSet(userId: string, portfolioId: string, orderedFundCodes: string[]): Promise<boolean>;
+  sumPlannedRatio(userId: string, portfolioId: string, excludeFundCode?: string): Promise<number>;
 
-  listUniqueFundCodes(): Promise<string[]>;
-  listFundStatesByCodes(fundCodes: string[]): Promise<Map<string, FundStateItem>>;
-  ensureFundState(fundCode: string): Promise<void>;
-  accumulateOfficialReturn(fundCode: string, navDate: string, dailyReturn: number): Promise<boolean>;
-  cleanupOrphanFundStates(): Promise<void>;
+  listUniqueFundCodes(userId: string): Promise<string[]>;
+  listFundStatesByCodes(userId: string, fundCodes: string[]): Promise<Map<string, FundStateItem>>;
+  ensureFundState(userId: string, fundCode: string): Promise<void>;
+  accumulateOfficialReturn(userId: string, fundCode: string, navDate: string, dailyReturn: number): Promise<boolean>;
+  cleanupOrphanFundStates(userId: string): Promise<void>;
+}
+
+export interface SqliteWatchlistStoreOptions {
+  bootstrapAdminUsername?: string;
+  bootstrapAdminPassword?: string;
 }
 
 interface SqliteRunResult {
@@ -90,7 +161,18 @@ interface LegacyWatchlistFundRow {
   lastAccumulatedNavDate: string | null;
 }
 
+interface AppUserRow {
+  id: string;
+  username: string;
+  passwordHash: string;
+  role: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface PortfolioRow {
+  userId: string;
   id: string;
   name: string;
   type: string;
@@ -100,6 +182,7 @@ interface PortfolioRow {
 }
 
 interface PortfolioFundRow {
+  userId: string;
   portfolioId: string;
   portfolioName: string;
   portfolioType: string;
@@ -114,6 +197,7 @@ interface PortfolioFundRow {
 }
 
 interface FundStateRow {
+  userId: string;
   fundCode: string;
   totalChangePct: number | null;
   lastAccumulatedNavDate: string | null;
@@ -122,26 +206,115 @@ interface FundStateRow {
 }
 
 const DEFAULT_PORTFOLIO_NAME = "默认组合";
+const DEFAULT_ADMIN_USERNAME = "admin";
+const DEFAULT_ADMIN_PASSWORD = "admin123456";
 
 function toPortfolioType(type: string): PortfolioType {
   return type === "RATIO" ? "RATIO" : "FREE";
+}
+
+function toUserRole(role: string): UserRole {
+  return role === "admin" ? "admin" : "user";
+}
+
+function toUserStatus(status: string): UserStatus {
+  return status === "disabled" ? "disabled" : "active";
 }
 
 function toChanges(result: SqliteRunResult): number {
   return typeof result.changes === "bigint" ? Number(result.changes) : (result.changes ?? 0);
 }
 
+function toIsoLike(value: string | null | undefined): string {
+  return value ?? new Date().toISOString();
+}
+
 export class SqliteWatchlistStore implements WatchlistStore {
   private readonly db: DatabaseSync;
 
-  constructor(dbPath: string) {
+  constructor(dbPath: string, options?: SqliteWatchlistStoreOptions) {
     mkdirSync(dirname(dbPath), { recursive: true });
     this.db = new DatabaseSync(dbPath);
     this.db.exec("PRAGMA foreign_keys = ON;");
 
+    this.ensureMetaTable();
     this.ensureLegacyTable();
-    this.ensurePortfolioTables();
-    this.migrateLegacyDataIfNeeded();
+    this.ensureUserTable();
+
+    const bootstrapUsername = (options?.bootstrapAdminUsername ?? DEFAULT_ADMIN_USERNAME).trim() || DEFAULT_ADMIN_USERNAME;
+    const bootstrapPassword = (options?.bootstrapAdminPassword ?? DEFAULT_ADMIN_PASSWORD).trim() || DEFAULT_ADMIN_PASSWORD;
+    const bootstrapAdmin = this.ensureBootstrapAdminUser(bootstrapUsername, bootstrapPassword);
+
+    this.ensureUserScopedSchema(bootstrapAdmin.id);
+  }
+
+  private ensureMetaTable(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS app_meta (
+        meta_key TEXT PRIMARY KEY,
+        meta_value TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }
+
+  private getMetaValue(metaKey: string): string | undefined {
+    const row = this.db
+      .prepare(
+        `
+          SELECT meta_value AS metaValue
+          FROM app_meta
+          WHERE meta_key = ?
+        `
+      )
+      .get(metaKey) as { metaValue: string } | undefined;
+
+    return row?.metaValue;
+  }
+
+  private setMetaValue(metaKey: string, metaValue: string): void {
+    this.db
+      .prepare(
+        `
+          INSERT INTO app_meta (meta_key, meta_value, updated_at)
+          VALUES (?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(meta_key) DO UPDATE SET
+            meta_value = excluded.meta_value,
+            updated_at = CURRENT_TIMESTAMP
+        `
+      )
+      .run(metaKey, metaValue);
+  }
+
+  private tableExists(tableName: string): boolean {
+    const row = this.db
+      .prepare(
+        `
+          SELECT 1 AS exists_flag
+          FROM sqlite_master
+          WHERE type = 'table' AND name = ?
+          LIMIT 1
+        `
+      )
+      .get(tableName) as { exists_flag: number } | undefined;
+
+    return Boolean(row?.exists_flag);
+  }
+
+  private hasColumn(tableName: string, columnName: string): boolean {
+    if (!this.tableExists(tableName)) {
+      return false;
+    }
+
+    const columns = this.db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+    return columns.some((column) => column.name === columnName);
+  }
+
+  private renameTableIfNeeded(from: string, to: string): void {
+    if (!this.tableExists(from) || this.tableExists(to)) {
+      return;
+    }
+    this.db.exec(`ALTER TABLE ${from} RENAME TO ${to};`);
   }
 
   private ensureLegacyTable(): void {
@@ -156,19 +329,21 @@ export class SqliteWatchlistStore implements WatchlistStore {
       );
     `);
 
-    this.ensureColumn("user_watchlist_fund", "holding_amount", "ALTER TABLE user_watchlist_fund ADD COLUMN holding_amount REAL NOT NULL DEFAULT 0;");
-    this.ensureColumn(
-      "user_watchlist_fund",
-      "total_change_pct",
-      "ALTER TABLE user_watchlist_fund ADD COLUMN total_change_pct REAL NOT NULL DEFAULT 0;"
-    );
-    this.ensureColumn(
-      "user_watchlist_fund",
-      "last_accumulated_nav_date",
-      "ALTER TABLE user_watchlist_fund ADD COLUMN last_accumulated_nav_date TEXT;"
-    );
-    this.ensureColumn("user_watchlist_fund", "created_at", "ALTER TABLE user_watchlist_fund ADD COLUMN created_at TEXT;");
-    this.ensureColumn("user_watchlist_fund", "updated_at", "ALTER TABLE user_watchlist_fund ADD COLUMN updated_at TEXT;");
+    if (!this.hasColumn("user_watchlist_fund", "holding_amount")) {
+      this.db.exec("ALTER TABLE user_watchlist_fund ADD COLUMN holding_amount REAL NOT NULL DEFAULT 0;");
+    }
+    if (!this.hasColumn("user_watchlist_fund", "total_change_pct")) {
+      this.db.exec("ALTER TABLE user_watchlist_fund ADD COLUMN total_change_pct REAL NOT NULL DEFAULT 0;");
+    }
+    if (!this.hasColumn("user_watchlist_fund", "last_accumulated_nav_date")) {
+      this.db.exec("ALTER TABLE user_watchlist_fund ADD COLUMN last_accumulated_nav_date TEXT;");
+    }
+    if (!this.hasColumn("user_watchlist_fund", "created_at")) {
+      this.db.exec("ALTER TABLE user_watchlist_fund ADD COLUMN created_at TEXT;");
+    }
+    if (!this.hasColumn("user_watchlist_fund", "updated_at")) {
+      this.db.exec("ALTER TABLE user_watchlist_fund ADD COLUMN updated_at TEXT;");
+    }
 
     this.db.exec(`
       UPDATE user_watchlist_fund
@@ -180,28 +355,125 @@ export class SqliteWatchlistStore implements WatchlistStore {
     `);
   }
 
-  private ensurePortfolioTables(): void {
+  private ensureUserTable(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS app_user (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('admin', 'user')),
+        status TEXT NOT NULL CHECK(status IN ('active', 'disabled')),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_app_user_username_ci ON app_user(username COLLATE NOCASE);
+    `);
+  }
+
+  private toAppUser(row: AppUserRow): AppUserWithPasswordItem {
+    return {
+      id: row.id,
+      username: row.username,
+      passwordHash: row.passwordHash,
+      role: toUserRole(row.role),
+      status: toUserStatus(row.status),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    };
+  }
+
+  private ensureBootstrapAdminUser(username: string, password: string): AppUserWithPasswordItem {
+    const existing = this.getUserByUsernameSync(username);
+    if (existing) {
+      return existing;
+    }
+
+    const id = randomUUID();
+    const passwordHash = hashPassword(password);
+    this.db
+      .prepare(
+        `
+          INSERT INTO app_user (id, username, password_hash, role, status, created_at, updated_at)
+          VALUES (?, ?, ?, 'admin', 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `
+      )
+      .run(id, username, passwordHash);
+
+    const created = this.getUserByIdSync(id);
+    if (!created) {
+      throw new Error("failed to create bootstrap admin user");
+    }
+
+    return created;
+  }
+
+  private ensureUserScopedSchema(defaultUserId: string): void {
+    const schemaVersion = this.getMetaValue("schema_version");
+    const hasUserScopedPortfolio = this.tableExists("user_portfolio") && this.hasColumn("user_portfolio", "user_id");
+
+    if (schemaVersion === "2" && hasUserScopedPortfolio) {
+      this.ensureUserScopedTables();
+      this.normalizePortfolioDisplayOrder();
+      this.normalizePortfolioFundDisplayOrder();
+      return;
+    }
+
+    this.db.exec("BEGIN TRANSACTION;");
+    try {
+      if (this.tableExists("user_portfolio") && !this.hasColumn("user_portfolio", "user_id")) {
+        this.renameTableIfNeeded("user_portfolio", "user_portfolio_legacy");
+      }
+      if (this.tableExists("user_fund_state") && !this.hasColumn("user_fund_state", "user_id")) {
+        this.renameTableIfNeeded("user_fund_state", "user_fund_state_legacy");
+      }
+      if (this.tableExists("user_portfolio_fund") && !this.hasColumn("user_portfolio_fund", "user_id")) {
+        this.renameTableIfNeeded("user_portfolio_fund", "user_portfolio_fund_legacy");
+      }
+
+      this.ensureUserScopedTables();
+      this.migrateLegacyPortfolioTables(defaultUserId);
+      this.migrateLegacyWatchlistIfNeeded(defaultUserId);
+      this.normalizePortfolioDisplayOrder();
+      this.normalizePortfolioFundDisplayOrder();
+      this.setMetaValue("schema_version", "2");
+
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  private ensureUserScopedTables(): void {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS user_portfolio (
-        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        id TEXT NOT NULL,
         name TEXT NOT NULL,
         type TEXT NOT NULL CHECK(type IN ('FREE', 'RATIO')),
         display_order INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, id),
+        FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE CASCADE
       );
 
-      CREATE UNIQUE INDEX IF NOT EXISTS ux_user_portfolio_name_ci ON user_portfolio(name COLLATE NOCASE);
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_user_portfolio_name_ci ON user_portfolio(user_id, name COLLATE NOCASE);
 
       CREATE TABLE IF NOT EXISTS user_fund_state (
-        fund_code TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        fund_code TEXT NOT NULL,
         total_change_pct REAL NOT NULL DEFAULT 0,
         last_accumulated_nav_date TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, fund_code),
+        FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE CASCADE
       );
 
       CREATE TABLE IF NOT EXISTS user_portfolio_fund (
+        user_id TEXT NOT NULL,
         portfolio_id TEXT NOT NULL,
         fund_code TEXT NOT NULL,
         display_order INTEGER NOT NULL DEFAULT 0,
@@ -211,132 +483,249 @@ export class SqliteWatchlistStore implements WatchlistStore {
         last_holding_roll_nav_date TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (portfolio_id, fund_code),
-        FOREIGN KEY (portfolio_id) REFERENCES user_portfolio(id) ON DELETE CASCADE,
-        FOREIGN KEY (fund_code) REFERENCES user_fund_state(fund_code) ON DELETE CASCADE
+        PRIMARY KEY (user_id, portfolio_id, fund_code),
+        FOREIGN KEY (user_id, portfolio_id) REFERENCES user_portfolio(user_id, id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id, fund_code) REFERENCES user_fund_state(user_id, fund_code) ON DELETE CASCADE
       );
 
-      CREATE INDEX IF NOT EXISTS idx_user_portfolio_fund_portfolio_id ON user_portfolio_fund(portfolio_id);
-      CREATE INDEX IF NOT EXISTS idx_user_portfolio_fund_fund_code ON user_portfolio_fund(fund_code);
+      CREATE INDEX IF NOT EXISTS idx_user_portfolio_fund_user_portfolio ON user_portfolio_fund(user_id, portfolio_id);
+      CREATE INDEX IF NOT EXISTS idx_user_portfolio_fund_user_fund ON user_portfolio_fund(user_id, fund_code);
     `);
 
-    this.ensureColumn(
-      "user_portfolio",
-      "display_order",
-      "ALTER TABLE user_portfolio ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0;"
-    );
-    this.normalizePortfolioDisplayOrder();
-    this.ensureColumn(
-      "user_portfolio_fund",
-      "display_order",
-      "ALTER TABLE user_portfolio_fund ADD COLUMN display_order INTEGER NOT NULL DEFAULT 0;"
-    );
-    this.ensureColumn(
-      "user_portfolio_fund",
-      "holding_profit_amount",
-      "ALTER TABLE user_portfolio_fund ADD COLUMN holding_profit_amount REAL NOT NULL DEFAULT 0;"
-    );
-    this.ensureColumn(
-      "user_portfolio_fund",
-      "last_holding_roll_nav_date",
-      "ALTER TABLE user_portfolio_fund ADD COLUMN last_holding_roll_nav_date TEXT;"
-    );
-    this.db.exec(`
-      UPDATE user_portfolio_fund
-      SET holding_profit_amount = COALESCE(holding_profit_amount, 0);
-    `);
-    this.normalizePortfolioFundDisplayOrder();
-  }
-
-  private ensureColumn(tableName: string, name: string, alterSql: string): void {
-    const columns = this.db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
-    const exists = columns.some((column) => column.name === name);
-    if (!exists) {
-      this.db.exec(alterSql);
+    if (this.hasColumn("user_portfolio_fund", "holding_profit_amount")) {
+      this.db.exec(`
+        UPDATE user_portfolio_fund
+        SET holding_profit_amount = COALESCE(holding_profit_amount, 0);
+      `);
     }
   }
 
-  private normalizePortfolioFundDisplayOrder(): void {
-    const hasDuplicateOrder = this.db
-      .prepare(
-        `
-          SELECT 1
-          FROM user_portfolio_fund
-          GROUP BY portfolio_id, display_order
-          HAVING COUNT(1) > 1
-          LIMIT 1
-        `
-      )
-      .get();
+  private migrateLegacyPortfolioTables(defaultUserId: string): void {
+    if (this.tableExists("user_portfolio_legacy")) {
+      const rows = this.db
+        .prepare(
+          `
+            SELECT
+              id,
+              name,
+              type,
+              display_order AS displayOrder,
+              created_at AS createdAt,
+              updated_at AS updatedAt
+            FROM user_portfolio_legacy
+            ORDER BY display_order ASC, updated_at DESC
+          `
+        )
+        .all() as Array<{
+        id: string;
+        name: string;
+        type: string;
+        displayOrder: number | null;
+        createdAt: string | null;
+        updatedAt: string | null;
+      }>;
 
-    if (!hasDuplicateOrder) {
-      return;
+      const insert = this.db.prepare(
+        `
+          INSERT INTO user_portfolio (
+            user_id,
+            id,
+            name,
+            type,
+            display_order,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, id) DO UPDATE SET
+            name = excluded.name,
+            type = excluded.type,
+            display_order = excluded.display_order,
+            updated_at = excluded.updated_at
+        `
+      );
+
+      for (const row of rows) {
+        insert.run(
+          defaultUserId,
+          row.id,
+          row.name,
+          row.type === "RATIO" ? "RATIO" : "FREE",
+          row.displayOrder ?? 0,
+          toIsoLike(row.createdAt),
+          toIsoLike(row.updatedAt)
+        );
+      }
+    }
+
+    if (this.tableExists("user_fund_state_legacy")) {
+      const rows = this.db
+        .prepare(
+          `
+            SELECT
+              fund_code AS fundCode,
+              total_change_pct AS totalChangePct,
+              last_accumulated_nav_date AS lastAccumulatedNavDate,
+              created_at AS createdAt,
+              updated_at AS updatedAt
+            FROM user_fund_state_legacy
+          `
+        )
+        .all() as Array<{
+        fundCode: string;
+        totalChangePct: number | null;
+        lastAccumulatedNavDate: string | null;
+        createdAt: string | null;
+        updatedAt: string | null;
+      }>;
+
+      const insert = this.db.prepare(
+        `
+          INSERT INTO user_fund_state (
+            user_id,
+            fund_code,
+            total_change_pct,
+            last_accumulated_nav_date,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, fund_code) DO UPDATE SET
+            total_change_pct = excluded.total_change_pct,
+            last_accumulated_nav_date = excluded.last_accumulated_nav_date,
+            updated_at = excluded.updated_at
+        `
+      );
+
+      for (const row of rows) {
+        insert.run(
+          defaultUserId,
+          row.fundCode,
+          Number((row.totalChangePct ?? 0).toFixed(6)),
+          row.lastAccumulatedNavDate,
+          toIsoLike(row.createdAt),
+          toIsoLike(row.updatedAt)
+        );
+      }
+    }
+
+    if (this.tableExists("user_portfolio_fund_legacy")) {
+      const rows = this.db
+        .prepare(
+          `
+            SELECT
+              portfolio_id AS portfolioId,
+              fund_code AS fundCode,
+              display_order AS displayOrder,
+              holding_amount AS holdingAmount,
+              holding_profit_amount AS holdingProfitAmount,
+              planned_ratio AS plannedRatio,
+              last_holding_roll_nav_date AS lastHoldingRollNavDate,
+              created_at AS createdAt,
+              updated_at AS updatedAt
+            FROM user_portfolio_fund_legacy
+          `
+        )
+        .all() as Array<{
+        portfolioId: string;
+        fundCode: string;
+        displayOrder: number | null;
+        holdingAmount: number | null;
+        holdingProfitAmount: number | null;
+        plannedRatio: number | null;
+        lastHoldingRollNavDate: string | null;
+        createdAt: string | null;
+        updatedAt: string | null;
+      }>;
+
+      const ensureFundState = this.db.prepare(
+        `
+          INSERT INTO user_fund_state (user_id, fund_code, total_change_pct, created_at, updated_at)
+          VALUES (?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(user_id, fund_code) DO NOTHING
+        `
+      );
+
+      const insert = this.db.prepare(
+        `
+          INSERT INTO user_portfolio_fund (
+            user_id,
+            portfolio_id,
+            fund_code,
+            display_order,
+            holding_amount,
+            holding_profit_amount,
+            planned_ratio,
+            last_holding_roll_nav_date,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, portfolio_id, fund_code) DO UPDATE SET
+            display_order = excluded.display_order,
+            holding_amount = excluded.holding_amount,
+            holding_profit_amount = excluded.holding_profit_amount,
+            planned_ratio = excluded.planned_ratio,
+            last_holding_roll_nav_date = excluded.last_holding_roll_nav_date,
+            updated_at = excluded.updated_at
+        `
+      );
+
+      for (const row of rows) {
+        ensureFundState.run(defaultUserId, row.fundCode);
+        insert.run(
+          defaultUserId,
+          row.portfolioId,
+          row.fundCode,
+          row.displayOrder ?? 0,
+          Number((row.holdingAmount ?? 0).toFixed(2)),
+          Number((row.holdingProfitAmount ?? 0).toFixed(2)),
+          row.plannedRatio,
+          row.lastHoldingRollNavDate,
+          toIsoLike(row.createdAt),
+          toIsoLike(row.updatedAt)
+        );
+      }
     }
 
     this.db.exec(`
-      WITH ranked AS (
-        SELECT
-          rowid AS rid,
-          ROW_NUMBER() OVER (
-            PARTITION BY portfolio_id
-            ORDER BY created_at DESC, rowid DESC
-          ) - 1 AS next_order
-        FROM user_portfolio_fund
+      INSERT INTO user_fund_state (
+        user_id,
+        fund_code,
+        total_change_pct,
+        created_at,
+        updated_at
       )
-      UPDATE user_portfolio_fund
-      SET display_order = (
-        SELECT ranked.next_order
-        FROM ranked
-        WHERE ranked.rid = user_portfolio_fund.rowid
-      );
+      SELECT
+        pf.user_id,
+        pf.fund_code,
+        0,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+      FROM user_portfolio_fund pf
+      LEFT JOIN user_fund_state fs
+        ON fs.user_id = pf.user_id AND fs.fund_code = pf.fund_code
+      WHERE fs.fund_code IS NULL;
     `);
   }
 
-  private normalizePortfolioDisplayOrder(): void {
-    const hasDuplicateOrder = this.db
+  private migrateLegacyWatchlistIfNeeded(defaultUserId: string): void {
+    const portfolioCountRow = this.db
       .prepare(
         `
-          SELECT 1
+          SELECT COUNT(1) AS count
           FROM user_portfolio
-          GROUP BY display_order
-          HAVING COUNT(1) > 1
-          LIMIT 1
+          WHERE user_id = ?
         `
       )
-      .get();
+      .get(defaultUserId) as { count: number } | undefined;
 
-    if (!hasDuplicateOrder) {
-      return;
-    }
-
-    this.db.exec(`
-      WITH ranked AS (
-        SELECT
-          rowid AS rid,
-          ROW_NUMBER() OVER (
-            ORDER BY created_at DESC, rowid DESC
-          ) - 1 AS next_order
-        FROM user_portfolio
-      )
-      UPDATE user_portfolio
-      SET display_order = (
-        SELECT ranked.next_order
-        FROM ranked
-        WHERE ranked.rid = user_portfolio.rowid
-      );
-    `);
-  }
-
-  private migrateLegacyDataIfNeeded(): void {
-    const portfolioCountRow = this.db.prepare("SELECT COUNT(1) AS count FROM user_portfolio").get() as { count: number } | undefined;
-    const portfolioCount = portfolioCountRow?.count ?? 0;
-    if (portfolioCount > 0) {
+    if ((portfolioCountRow?.count ?? 0) > 0) {
       return;
     }
 
     const legacyCountRow = this.db.prepare("SELECT COUNT(1) AS count FROM user_watchlist_fund").get() as { count: number } | undefined;
-    const legacyCount = legacyCountRow?.count ?? 0;
-    if (legacyCount === 0) {
+    if ((legacyCountRow?.count ?? 0) === 0) {
       return;
     }
 
@@ -362,121 +751,142 @@ export class SqliteWatchlistStore implements WatchlistStore {
 
     const portfolioId = randomUUID();
 
-    this.db.exec("BEGIN TRANSACTION;");
-    try {
-      this.db
-        .prepare(
-          `
-            INSERT INTO user_portfolio (id, name, type, display_order, created_at, updated_at)
-            VALUES (?, ?, 'FREE', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          `
+    this.db
+      .prepare(
+        `
+          INSERT INTO user_portfolio (user_id, id, name, type, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, 'FREE', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `
+      )
+      .run(defaultUserId, portfolioId, DEFAULT_PORTFOLIO_NAME);
+
+    const insertFundState = this.db.prepare(
+      `
+        INSERT INTO user_fund_state (user_id, fund_code, total_change_pct, last_accumulated_nav_date, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, fund_code) DO UPDATE SET
+          total_change_pct = excluded.total_change_pct,
+          last_accumulated_nav_date = excluded.last_accumulated_nav_date,
+          updated_at = excluded.updated_at
+      `
+    );
+
+    const insertPortfolioFund = this.db.prepare(
+      `
+        INSERT INTO user_portfolio_fund (
+          user_id,
+          portfolio_id,
+          fund_code,
+          display_order,
+          holding_amount,
+          planned_ratio,
+          created_at,
+          updated_at
         )
-        .run(portfolioId, DEFAULT_PORTFOLIO_NAME);
+        VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
+        ON CONFLICT(user_id, portfolio_id, fund_code) DO UPDATE SET
+          holding_amount = excluded.holding_amount,
+          planned_ratio = NULL,
+          updated_at = excluded.updated_at
+      `
+    );
 
-      const insertFundStateStmt = this.db.prepare(
-        `
-          INSERT INTO user_fund_state (fund_code, total_change_pct, last_accumulated_nav_date, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(fund_code) DO UPDATE SET
-            total_change_pct = excluded.total_change_pct,
-            last_accumulated_nav_date = excluded.last_accumulated_nav_date,
-            updated_at = excluded.updated_at
-        `
+    for (const [index, row] of legacyRows.entries()) {
+      const createdAt = row.createdAt ?? new Date().toISOString();
+      const updatedAt = row.updatedAt ?? createdAt;
+      insertFundState.run(
+        defaultUserId,
+        row.fundCode,
+        Number((row.totalChangePct ?? 0).toFixed(6)),
+        row.lastAccumulatedNavDate,
+        createdAt,
+        updatedAt
       );
-
-      const insertPortfolioFundStmt = this.db.prepare(
-        `
-          INSERT INTO user_portfolio_fund (
-            portfolio_id,
-            fund_code,
-            display_order,
-            holding_amount,
-            planned_ratio,
-            created_at,
-            updated_at
-          )
-          VALUES (?, ?, ?, ?, NULL, ?, ?)
-          ON CONFLICT(portfolio_id, fund_code) DO UPDATE SET
-            holding_amount = excluded.holding_amount,
-            planned_ratio = NULL,
-            updated_at = excluded.updated_at
-        `
+      insertPortfolioFund.run(
+        defaultUserId,
+        portfolioId,
+        row.fundCode,
+        index,
+        Number((row.holdingAmount ?? 0).toFixed(2)),
+        createdAt,
+        updatedAt
       );
-
-      for (const [index, row] of legacyRows.entries()) {
-        const createdAt = row.createdAt ?? new Date().toISOString();
-        const updatedAt = row.updatedAt ?? createdAt;
-        insertFundStateStmt.run(
-          row.fundCode,
-          Number((row.totalChangePct ?? 0).toFixed(6)),
-          row.lastAccumulatedNavDate,
-          createdAt,
-          updatedAt
-        );
-        insertPortfolioFundStmt.run(
-          portfolioId,
-          row.fundCode,
-          index,
-          Number((row.holdingAmount ?? 0).toFixed(2)),
-          createdAt,
-          updatedAt
-        );
-      }
-
-      this.db.exec("COMMIT;");
-    } catch (error) {
-      this.db.exec("ROLLBACK;");
-      throw error;
     }
   }
 
-  async listPortfolios(): Promise<PortfolioItem[]> {
-    const rows = this.db
+  private normalizePortfolioFundDisplayOrder(): void {
+    const hasDuplicateOrder = this.db
       .prepare(
         `
-          SELECT
-            id,
-            name,
-            type,
-            display_order AS displayOrder,
-            created_at AS createdAt,
-            updated_at AS updatedAt
-          FROM user_portfolio
-          ORDER BY display_order ASC, updated_at DESC
+          SELECT 1
+          FROM user_portfolio_fund
+          GROUP BY user_id, portfolio_id, display_order
+          HAVING COUNT(1) > 1
+          LIMIT 1
         `
       )
-      .all() as PortfolioRow[];
+      .get();
 
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      type: toPortfolioType(row.type),
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt
-    }));
-  }
-
-  async getPortfolio(portfolioId: string): Promise<PortfolioItem | undefined> {
-    const row = this.db
-      .prepare(
-        `
-          SELECT
-            id,
-            name,
-            type,
-            display_order AS displayOrder,
-            created_at AS createdAt,
-            updated_at AS updatedAt
-          FROM user_portfolio
-          WHERE id = ?
-        `
-      )
-      .get(portfolioId) as PortfolioRow | undefined;
-
-    if (!row) {
-      return undefined;
+    if (!hasDuplicateOrder) {
+      return;
     }
 
+    this.db.exec(`
+      WITH ranked AS (
+        SELECT
+          rowid AS rid,
+          ROW_NUMBER() OVER (
+            PARTITION BY user_id, portfolio_id
+            ORDER BY created_at DESC, rowid DESC
+          ) - 1 AS next_order
+        FROM user_portfolio_fund
+      )
+      UPDATE user_portfolio_fund
+      SET display_order = (
+        SELECT ranked.next_order
+        FROM ranked
+        WHERE ranked.rid = user_portfolio_fund.rowid
+      );
+    `);
+  }
+
+  private normalizePortfolioDisplayOrder(): void {
+    const hasDuplicateOrder = this.db
+      .prepare(
+        `
+          SELECT 1
+          FROM user_portfolio
+          GROUP BY user_id, display_order
+          HAVING COUNT(1) > 1
+          LIMIT 1
+        `
+      )
+      .get();
+
+    if (!hasDuplicateOrder) {
+      return;
+    }
+
+    this.db.exec(`
+      WITH ranked AS (
+        SELECT
+          rowid AS rid,
+          ROW_NUMBER() OVER (
+            PARTITION BY user_id
+            ORDER BY created_at DESC, rowid DESC
+          ) - 1 AS next_order
+        FROM user_portfolio
+      )
+      UPDATE user_portfolio
+      SET display_order = (
+        SELECT ranked.next_order
+        FROM ranked
+        WHERE ranked.rid = user_portfolio.rowid
+      );
+    `);
+  }
+
+  private toPortfolio(row: PortfolioRow): PortfolioItem {
     return {
       id: row.id,
       name: row.name,
@@ -486,65 +896,558 @@ export class SqliteWatchlistStore implements WatchlistStore {
     };
   }
 
-  async createPortfolio(name: string, type: PortfolioType): Promise<PortfolioItem> {
+  private toPortfolioFund(row: PortfolioFundRow): PortfolioFundItem {
+    return {
+      portfolioId: row.portfolioId,
+      portfolioName: row.portfolioName,
+      portfolioType: toPortfolioType(row.portfolioType),
+      fundCode: row.fundCode,
+      displayOrder: row.displayOrder ?? 0,
+      holdingAmount: Number((row.holdingAmount ?? 0).toFixed(2)),
+      holdingProfitAmount: Number((row.holdingProfitAmount ?? 0).toFixed(2)),
+      plannedRatio: typeof row.plannedRatio === "number" ? Number(row.plannedRatio.toFixed(6)) : undefined,
+      lastHoldingRollNavDate: row.lastHoldingRollNavDate ?? undefined,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    };
+  }
+
+  private getUserByIdSync(userId: string): AppUserWithPasswordItem | undefined {
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            username,
+            password_hash AS passwordHash,
+            role,
+            status,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM app_user
+          WHERE id = ?
+        `
+      )
+      .get(userId) as AppUserRow | undefined;
+
+    if (!row) {
+      return undefined;
+    }
+
+    return this.toAppUser(row);
+  }
+
+  private getUserByUsernameSync(username: string): AppUserWithPasswordItem | undefined {
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            username,
+            password_hash AS passwordHash,
+            role,
+            status,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM app_user
+          WHERE username = ? COLLATE NOCASE
+        `
+      )
+      .get(username) as AppUserRow | undefined;
+
+    if (!row) {
+      return undefined;
+    }
+
+    return this.toAppUser(row);
+  }
+
+  async listUsers(): Promise<AppUserItem[]> {
+    const rows = this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            username,
+            role,
+            status,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM app_user
+          ORDER BY created_at ASC
+        `
+      )
+      .all() as Array<Omit<AppUserRow, "passwordHash">>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      role: toUserRole(row.role),
+      status: toUserStatus(row.status),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    }));
+  }
+
+  async getUserById(userId: string): Promise<AppUserWithPasswordItem | undefined> {
+    return this.getUserByIdSync(userId);
+  }
+
+  async getUserByUsername(username: string): Promise<AppUserWithPasswordItem | undefined> {
+    return this.getUserByUsernameSync(username.trim());
+  }
+
+  async createUser(input: CreateUserInput): Promise<AppUserItem> {
+    const username = input.username.trim();
+    if (!username) {
+      throw new Error("username is required");
+    }
+
+    const id = randomUUID();
+    const passwordHash = hashPassword(input.password);
+    this.db
+      .prepare(
+        `
+          INSERT INTO app_user (id, username, password_hash, role, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `
+      )
+      .run(id, username, passwordHash, input.role, input.status ?? "active");
+
+    const row = await this.getUserById(id);
+    if (!row) {
+      throw new Error("failed to create user");
+    }
+
+    return {
+      id: row.id,
+      username: row.username,
+      role: row.role,
+      status: row.status,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    };
+  }
+
+  async exportData(options: { username?: string; all?: boolean }): Promise<ExportDataPayload> {
+    let users: AppUserWithPasswordItem[] = [];
+
+    if (options.username) {
+      const user = await this.getUserByUsername(options.username);
+      if (!user) {
+        throw new Error(`user ${options.username} not found`);
+      }
+      users = [user];
+    } else if (options.all) {
+      const rows = this.db
+        .prepare(
+          `
+            SELECT
+              id,
+              username,
+              password_hash AS passwordHash,
+              role,
+              status,
+              created_at AS createdAt,
+              updated_at AS updatedAt
+            FROM app_user
+            ORDER BY created_at ASC
+          `
+        )
+        .all() as AppUserRow[];
+      users = rows.map((row) => this.toAppUser(row));
+    }
+
+    const userIds = users.map((user) => user.id);
+    const placeholders = userIds.map(() => "?").join(", ");
+
+    const portfolios =
+      userIds.length === 0
+        ? []
+        : (this.db
+            .prepare(
+              `
+                SELECT
+                  user_id AS userId,
+                  id,
+                  name,
+                  type,
+                  display_order AS displayOrder,
+                  created_at AS createdAt,
+                  updated_at AS updatedAt
+                FROM user_portfolio
+                WHERE user_id IN (${placeholders})
+                ORDER BY user_id ASC, display_order ASC, updated_at DESC
+              `
+            )
+            .all(...userIds) as ExportDataPayload["portfolios"]);
+
+    const fundStates =
+      userIds.length === 0
+        ? []
+        : (this.db
+            .prepare(
+              `
+                SELECT
+                  user_id AS userId,
+                  fund_code AS fundCode,
+                  total_change_pct AS totalChangePct,
+                  last_accumulated_nav_date AS lastAccumulatedNavDate,
+                  created_at AS createdAt,
+                  updated_at AS updatedAt
+                FROM user_fund_state
+                WHERE user_id IN (${placeholders})
+                ORDER BY user_id ASC, fund_code ASC
+              `
+            )
+            .all(...userIds) as ExportDataPayload["fundStates"]);
+
+    const portfolioFunds =
+      userIds.length === 0
+        ? []
+        : (this.db
+            .prepare(
+              `
+                SELECT
+                  user_id AS userId,
+                  portfolio_id AS portfolioId,
+                  fund_code AS fundCode,
+                  display_order AS displayOrder,
+                  holding_amount AS holdingAmount,
+                  holding_profit_amount AS holdingProfitAmount,
+                  planned_ratio AS plannedRatio,
+                  last_holding_roll_nav_date AS lastHoldingRollNavDate,
+                  created_at AS createdAt,
+                  updated_at AS updatedAt
+                FROM user_portfolio_fund
+                WHERE user_id IN (${placeholders})
+                ORDER BY user_id ASC, portfolio_id ASC, display_order ASC, updated_at DESC
+              `
+            )
+            .all(...userIds) as ExportDataPayload["portfolioFunds"]);
+
+    return {
+      meta: {
+        version: 1,
+        exportedAt: new Date().toISOString()
+      },
+      users: users.map((user) => ({
+        id: user.id,
+        username: user.username,
+        passwordHash: user.passwordHash,
+        role: user.role,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      })),
+      portfolios,
+      fundStates,
+      portfolioFunds
+    };
+  }
+
+  async importData(payload: ExportDataPayload): Promise<void> {
+    this.db.exec("BEGIN TRANSACTION;");
+    try {
+      const findUserByUsername = this.db.prepare(
+        `
+          SELECT id
+          FROM app_user
+          WHERE username = ? COLLATE NOCASE
+        `
+      );
+
+      const findUserById = this.db.prepare(
+        `
+          SELECT id
+          FROM app_user
+          WHERE id = ?
+        `
+      );
+
+      const insertUser = this.db.prepare(
+        `
+          INSERT INTO app_user (id, username, password_hash, role, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `
+      );
+
+      const updateUserById = this.db.prepare(
+        `
+          UPDATE app_user
+          SET
+            username = ?,
+            password_hash = ?,
+            role = ?,
+            status = ?,
+            updated_at = ?
+          WHERE id = ?
+        `
+      );
+
+      const userIdMap = new Map<string, string>();
+      for (const user of payload.users ?? []) {
+        const existingByUsername = findUserByUsername.get(user.username) as { id: string } | undefined;
+        const updatedAt = toIsoLike(user.updatedAt);
+        if (existingByUsername) {
+          updateUserById.run(user.username, user.passwordHash, user.role, user.status, updatedAt, existingByUsername.id);
+          userIdMap.set(user.id, existingByUsername.id);
+          continue;
+        }
+
+        const existingById = findUserById.get(user.id) as { id: string } | undefined;
+        if (existingById) {
+          updateUserById.run(user.username, user.passwordHash, user.role, user.status, updatedAt, user.id);
+          userIdMap.set(user.id, user.id);
+          continue;
+        }
+
+        insertUser.run(
+          user.id,
+          user.username,
+          user.passwordHash,
+          user.role,
+          user.status,
+          toIsoLike(user.createdAt),
+          updatedAt
+        );
+        userIdMap.set(user.id, user.id);
+      }
+
+      const upsertPortfolio = this.db.prepare(
+        `
+          INSERT INTO user_portfolio (user_id, id, name, type, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, id) DO UPDATE SET
+            name = excluded.name,
+            type = excluded.type,
+            display_order = excluded.display_order,
+            updated_at = excluded.updated_at
+        `
+      );
+
+      for (const row of payload.portfolios ?? []) {
+        const mappedUserId = userIdMap.get(row.userId) ?? row.userId;
+        upsertPortfolio.run(
+          mappedUserId,
+          row.id,
+          row.name,
+          row.type,
+          row.displayOrder,
+          toIsoLike(row.createdAt),
+          toIsoLike(row.updatedAt)
+        );
+      }
+
+      const upsertFundState = this.db.prepare(
+        `
+          INSERT INTO user_fund_state (
+            user_id,
+            fund_code,
+            total_change_pct,
+            last_accumulated_nav_date,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, fund_code) DO UPDATE SET
+            total_change_pct = excluded.total_change_pct,
+            last_accumulated_nav_date = excluded.last_accumulated_nav_date,
+            updated_at = excluded.updated_at
+        `
+      );
+
+      for (const row of payload.fundStates ?? []) {
+        const mappedUserId = userIdMap.get(row.userId) ?? row.userId;
+        upsertFundState.run(
+          mappedUserId,
+          row.fundCode,
+          Number((row.totalChangePct ?? 0).toFixed(6)),
+          row.lastAccumulatedNavDate ?? null,
+          toIsoLike(row.createdAt),
+          toIsoLike(row.updatedAt)
+        );
+      }
+
+      const ensureFundState = this.db.prepare(
+        `
+          INSERT INTO user_fund_state (user_id, fund_code, total_change_pct, created_at, updated_at)
+          VALUES (?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(user_id, fund_code) DO NOTHING
+        `
+      );
+
+      const upsertPortfolioFund = this.db.prepare(
+        `
+          INSERT INTO user_portfolio_fund (
+            user_id,
+            portfolio_id,
+            fund_code,
+            display_order,
+            holding_amount,
+            holding_profit_amount,
+            planned_ratio,
+            last_holding_roll_nav_date,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(user_id, portfolio_id, fund_code) DO UPDATE SET
+            display_order = excluded.display_order,
+            holding_amount = excluded.holding_amount,
+            holding_profit_amount = excluded.holding_profit_amount,
+            planned_ratio = excluded.planned_ratio,
+            last_holding_roll_nav_date = excluded.last_holding_roll_nav_date,
+            updated_at = excluded.updated_at
+        `
+      );
+
+      for (const row of payload.portfolioFunds ?? []) {
+        const mappedUserId = userIdMap.get(row.userId) ?? row.userId;
+        ensureFundState.run(mappedUserId, row.fundCode);
+        upsertPortfolioFund.run(
+          mappedUserId,
+          row.portfolioId,
+          row.fundCode,
+          row.displayOrder,
+          Number((row.holdingAmount ?? 0).toFixed(2)),
+          Number((row.holdingProfitAmount ?? 0).toFixed(2)),
+          row.plannedRatio ?? null,
+          row.lastHoldingRollNavDate ?? null,
+          toIsoLike(row.createdAt),
+          toIsoLike(row.updatedAt)
+        );
+      }
+
+      this.normalizePortfolioDisplayOrder();
+      this.normalizePortfolioFundDisplayOrder();
+
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  async listPortfolios(userId: string): Promise<PortfolioItem[]> {
+    const rows = this.db
+      .prepare(
+        `
+          SELECT
+            user_id AS userId,
+            id,
+            name,
+            type,
+            display_order AS displayOrder,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM user_portfolio
+          WHERE user_id = ?
+          ORDER BY display_order ASC, updated_at DESC
+        `
+      )
+      .all(userId) as PortfolioRow[];
+
+    return rows.map((row) => this.toPortfolio(row));
+  }
+
+  async getPortfolio(userId: string, portfolioId: string): Promise<PortfolioItem | undefined> {
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            user_id AS userId,
+            id,
+            name,
+            type,
+            display_order AS displayOrder,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM user_portfolio
+          WHERE user_id = ? AND id = ?
+        `
+      )
+      .get(userId, portfolioId) as PortfolioRow | undefined;
+
+    if (!row) {
+      return undefined;
+    }
+
+    return this.toPortfolio(row);
+  }
+
+  async createPortfolio(userId: string, name: string, type: PortfolioType): Promise<PortfolioItem> {
     const id = randomUUID();
     const row = this.db
       .prepare(
         `
           SELECT COALESCE(MAX(display_order), -1) AS maxDisplayOrder
           FROM user_portfolio
+          WHERE user_id = ?
         `
       )
-      .get() as { maxDisplayOrder: number | null } | undefined;
+      .get(userId) as { maxDisplayOrder: number | null } | undefined;
+
     const nextDisplayOrder = (row?.maxDisplayOrder ?? -1) + 1;
     this.db
       .prepare(
         `
-          INSERT INTO user_portfolio (id, name, type, display_order, created_at, updated_at)
-          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO user_portfolio (user_id, id, name, type, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `
       )
-      .run(id, name, type, nextDisplayOrder);
+      .run(userId, id, name, type, nextDisplayOrder);
 
-    const created = await this.getPortfolio(id);
+    const created = await this.getPortfolio(userId, id);
     if (!created) {
       throw new Error("failed to create portfolio");
     }
+
     return created;
   }
 
-  async renamePortfolio(portfolioId: string, name: string): Promise<boolean> {
+  async renamePortfolio(userId: string, portfolioId: string, name: string): Promise<boolean> {
     const result = this.db
       .prepare(
         `
           UPDATE user_portfolio
           SET name = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
+          WHERE user_id = ? AND id = ?
         `
       )
-      .run(name, portfolioId) as SqliteRunResult;
+      .run(name, userId, portfolioId) as SqliteRunResult;
 
     return toChanges(result) > 0;
   }
 
-  async deletePortfolio(portfolioId: string): Promise<boolean> {
-    const result = this.db.prepare("DELETE FROM user_portfolio WHERE id = ?").run(portfolioId) as SqliteRunResult;
+  async deletePortfolio(userId: string, portfolioId: string): Promise<boolean> {
+    const result = this.db
+      .prepare(
+        `
+          DELETE FROM user_portfolio
+          WHERE user_id = ? AND id = ?
+        `
+      )
+      .run(userId, portfolioId) as SqliteRunResult;
+
     const removed = toChanges(result) > 0;
     if (removed) {
-      await this.cleanupOrphanFundStates();
+      await this.cleanupOrphanFundStates(userId);
     }
+
     return removed;
   }
 
-  async validatePortfolioSet(orderedPortfolioIds: string[]): Promise<boolean> {
+  async validatePortfolioSet(userId: string, orderedPortfolioIds: string[]): Promise<boolean> {
     const rows = this.db
       .prepare(
         `
           SELECT id
           FROM user_portfolio
+          WHERE user_id = ?
         `
       )
-      .all() as Array<{ id: string }>;
+      .all(userId) as Array<{ id: string }>;
 
     if (rows.length !== orderedPortfolioIds.length) {
       return false;
@@ -569,19 +1472,19 @@ export class SqliteWatchlistStore implements WatchlistStore {
     return true;
   }
 
-  async reorderPortfolios(orderedPortfolioIds: string[]): Promise<void> {
+  async reorderPortfolios(userId: string, orderedPortfolioIds: string[]): Promise<void> {
     this.db.exec("BEGIN TRANSACTION;");
     try {
       const updateStmt = this.db.prepare(
         `
           UPDATE user_portfolio
           SET display_order = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
+          WHERE user_id = ? AND id = ?
         `
       );
 
       for (const [index, portfolioId] of orderedPortfolioIds.entries()) {
-        const result = updateStmt.run(index, portfolioId) as SqliteRunResult;
+        const result = updateStmt.run(index, userId, portfolioId) as SqliteRunResult;
         if (toChanges(result) === 0) {
           throw new Error(`portfolio ${portfolioId} is not found`);
         }
@@ -594,11 +1497,12 @@ export class SqliteWatchlistStore implements WatchlistStore {
     }
   }
 
-  async listPortfolioFunds(portfolioId: string): Promise<PortfolioFundItem[]> {
+  async listPortfolioFunds(userId: string, portfolioId: string): Promise<PortfolioFundItem[]> {
     const rows = this.db
       .prepare(
         `
           SELECT
+            pf.user_id AS userId,
             pf.portfolio_id AS portfolioId,
             p.name AS portfolioName,
             p.type AS portfolioType,
@@ -611,33 +1515,24 @@ export class SqliteWatchlistStore implements WatchlistStore {
             pf.created_at AS createdAt,
             pf.updated_at AS updatedAt
           FROM user_portfolio_fund pf
-          JOIN user_portfolio p ON p.id = pf.portfolio_id
-          WHERE pf.portfolio_id = ?
+          JOIN user_portfolio p
+            ON p.user_id = pf.user_id
+           AND p.id = pf.portfolio_id
+          WHERE pf.user_id = ? AND pf.portfolio_id = ?
           ORDER BY pf.display_order ASC, pf.updated_at DESC
         `
       )
-      .all(portfolioId) as PortfolioFundRow[];
+      .all(userId, portfolioId) as PortfolioFundRow[];
 
-    return rows.map((row) => ({
-      portfolioId: row.portfolioId,
-      portfolioName: row.portfolioName,
-      portfolioType: toPortfolioType(row.portfolioType),
-      fundCode: row.fundCode,
-      displayOrder: row.displayOrder ?? 0,
-      holdingAmount: Number((row.holdingAmount ?? 0).toFixed(2)),
-      holdingProfitAmount: Number((row.holdingProfitAmount ?? 0).toFixed(2)),
-      plannedRatio: typeof row.plannedRatio === "number" ? Number(row.plannedRatio.toFixed(6)) : undefined,
-      lastHoldingRollNavDate: row.lastHoldingRollNavDate ?? undefined,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt
-    }));
+    return rows.map((row) => this.toPortfolioFund(row));
   }
 
-  async listAllPortfolioFunds(): Promise<PortfolioFundItem[]> {
+  async listAllPortfolioFunds(userId: string): Promise<PortfolioFundItem[]> {
     const rows = this.db
       .prepare(
         `
           SELECT
+            pf.user_id AS userId,
             pf.portfolio_id AS portfolioId,
             p.name AS portfolioName,
             p.type AS portfolioType,
@@ -650,32 +1545,24 @@ export class SqliteWatchlistStore implements WatchlistStore {
             pf.created_at AS createdAt,
             pf.updated_at AS updatedAt
           FROM user_portfolio_fund pf
-          JOIN user_portfolio p ON p.id = pf.portfolio_id
+          JOIN user_portfolio p
+            ON p.user_id = pf.user_id
+           AND p.id = pf.portfolio_id
+          WHERE pf.user_id = ?
           ORDER BY pf.created_at DESC, pf.rowid DESC
         `
       )
-      .all() as PortfolioFundRow[];
+      .all(userId) as PortfolioFundRow[];
 
-    return rows.map((row) => ({
-      portfolioId: row.portfolioId,
-      portfolioName: row.portfolioName,
-      portfolioType: toPortfolioType(row.portfolioType),
-      fundCode: row.fundCode,
-      displayOrder: row.displayOrder ?? 0,
-      holdingAmount: Number((row.holdingAmount ?? 0).toFixed(2)),
-      holdingProfitAmount: Number((row.holdingProfitAmount ?? 0).toFixed(2)),
-      plannedRatio: typeof row.plannedRatio === "number" ? Number(row.plannedRatio.toFixed(6)) : undefined,
-      lastHoldingRollNavDate: row.lastHoldingRollNavDate ?? undefined,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt
-    }));
+    return rows.map((row) => this.toPortfolioFund(row));
   }
 
-  async getPortfolioFund(portfolioId: string, fundCode: string): Promise<PortfolioFundItem | undefined> {
+  async getPortfolioFund(userId: string, portfolioId: string, fundCode: string): Promise<PortfolioFundItem | undefined> {
     const row = this.db
       .prepare(
         `
           SELECT
+            pf.user_id AS userId,
             pf.portfolio_id AS portfolioId,
             p.name AS portfolioName,
             p.type AS portfolioType,
@@ -688,54 +1575,45 @@ export class SqliteWatchlistStore implements WatchlistStore {
             pf.created_at AS createdAt,
             pf.updated_at AS updatedAt
           FROM user_portfolio_fund pf
-          JOIN user_portfolio p ON p.id = pf.portfolio_id
-          WHERE pf.portfolio_id = ? AND pf.fund_code = ?
+          JOIN user_portfolio p
+            ON p.user_id = pf.user_id
+           AND p.id = pf.portfolio_id
+          WHERE pf.user_id = ? AND pf.portfolio_id = ? AND pf.fund_code = ?
         `
       )
-      .get(portfolioId, fundCode) as PortfolioFundRow | undefined;
+      .get(userId, portfolioId, fundCode) as PortfolioFundRow | undefined;
 
     if (!row) {
       return undefined;
     }
 
-    return {
-      portfolioId: row.portfolioId,
-      portfolioName: row.portfolioName,
-      portfolioType: toPortfolioType(row.portfolioType),
-      fundCode: row.fundCode,
-      displayOrder: row.displayOrder ?? 0,
-      holdingAmount: Number((row.holdingAmount ?? 0).toFixed(2)),
-      holdingProfitAmount: Number((row.holdingProfitAmount ?? 0).toFixed(2)),
-      plannedRatio: typeof row.plannedRatio === "number" ? Number(row.plannedRatio.toFixed(6)) : undefined,
-      lastHoldingRollNavDate: row.lastHoldingRollNavDate ?? undefined,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt
-    };
+    return this.toPortfolioFund(row);
   }
 
-  private async getNextDisplayOrder(portfolioId: string): Promise<number> {
+  private async getNextDisplayOrder(userId: string, portfolioId: string): Promise<number> {
     const row = this.db
       .prepare(
         `
           SELECT COALESCE(MAX(display_order), -1) AS maxDisplayOrder
           FROM user_portfolio_fund
-          WHERE portfolio_id = ?
+          WHERE user_id = ? AND portfolio_id = ?
         `
       )
-      .get(portfolioId) as { maxDisplayOrder: number | null } | undefined;
+      .get(userId, portfolioId) as { maxDisplayOrder: number | null } | undefined;
 
     return (row?.maxDisplayOrder ?? -1) + 1;
   }
 
-  async upsertPortfolioFund(input: UpsertPortfolioFundInput): Promise<void> {
-    await this.ensureFundState(input.fundCode);
-    const nextDisplayOrder = await this.getNextDisplayOrder(input.portfolioId);
+  async upsertPortfolioFund(userId: string, input: UpsertPortfolioFundInput): Promise<void> {
+    await this.ensureFundState(userId, input.fundCode);
+    const nextDisplayOrder = await this.getNextDisplayOrder(userId, input.portfolioId);
     const holdingProfitAmount = typeof input.holdingProfitAmount === "number" ? input.holdingProfitAmount : null;
 
     this.db
       .prepare(
         `
           INSERT INTO user_portfolio_fund (
+            user_id,
             portfolio_id,
             fund_code,
             display_order,
@@ -745,8 +1623,8 @@ export class SqliteWatchlistStore implements WatchlistStore {
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, COALESCE(?, 0), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          ON CONFLICT(portfolio_id, fund_code) DO UPDATE SET
+          VALUES (?, ?, ?, ?, ?, COALESCE(?, 0), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(user_id, portfolio_id, fund_code) DO UPDATE SET
             holding_amount = excluded.holding_amount,
             holding_profit_amount = CASE
               WHEN ? IS NULL THEN user_portfolio_fund.holding_profit_amount
@@ -757,6 +1635,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
         `
       )
       .run(
+        userId,
         input.portfolioId,
         input.fundCode,
         nextDisplayOrder,
@@ -768,8 +1647,8 @@ export class SqliteWatchlistStore implements WatchlistStore {
       );
   }
 
-  async updatePortfolioFund(input: UpdatePortfolioFundInput): Promise<boolean> {
-    const current = await this.getPortfolioFund(input.portfolioId, input.fundCode);
+  async updatePortfolioFund(userId: string, input: UpdatePortfolioFundInput): Promise<boolean> {
+    const current = await this.getPortfolioFund(userId, input.portfolioId, input.fundCode);
     if (!current) {
       return false;
     }
@@ -788,15 +1667,15 @@ export class SqliteWatchlistStore implements WatchlistStore {
             holding_profit_amount = ?,
             planned_ratio = ?,
             updated_at = CURRENT_TIMESTAMP
-          WHERE portfolio_id = ? AND fund_code = ?
+          WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
         `
       )
-      .run(nextHoldingAmount, nextHoldingProfitAmount, nextPlannedRatio ?? null, input.portfolioId, input.fundCode);
+      .run(nextHoldingAmount, nextHoldingProfitAmount, nextPlannedRatio ?? null, userId, input.portfolioId, input.fundCode);
 
     return true;
   }
 
-  async rollPortfolioFundHoldingByNavDate(fundCode: string, navDate: string, dailyReturn: number): Promise<number> {
+  async rollPortfolioFundHoldingByNavDate(userId: string, fundCode: string, navDate: string, dailyReturn: number): Promise<number> {
     const result = this.db
       .prepare(
         `
@@ -807,37 +1686,44 @@ export class SqliteWatchlistStore implements WatchlistStore {
             last_holding_roll_nav_date = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE
-            fund_code = ?
+            user_id = ?
+            AND fund_code = ?
             AND (last_holding_roll_nav_date IS NULL OR last_holding_roll_nav_date <> ?)
         `
       )
-      .run(dailyReturn, dailyReturn, navDate, fundCode, navDate) as SqliteRunResult;
+      .run(dailyReturn, dailyReturn, navDate, userId, fundCode, navDate) as SqliteRunResult;
 
     return toChanges(result);
   }
 
-  async removePortfolioFund(portfolioId: string, fundCode: string): Promise<boolean> {
+  async removePortfolioFund(userId: string, portfolioId: string, fundCode: string): Promise<boolean> {
     const result = this.db
-      .prepare("DELETE FROM user_portfolio_fund WHERE portfolio_id = ? AND fund_code = ?")
-      .run(portfolioId, fundCode) as SqliteRunResult;
+      .prepare(
+        `
+          DELETE FROM user_portfolio_fund
+          WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
+        `
+      )
+      .run(userId, portfolioId, fundCode) as SqliteRunResult;
 
     const removed = toChanges(result) > 0;
     if (removed) {
-      await this.cleanupOrphanFundStates();
+      await this.cleanupOrphanFundStates(userId);
     }
+
     return removed;
   }
 
-  async validatePortfolioFundSet(portfolioId: string, orderedFundCodes: string[]): Promise<boolean> {
+  async validatePortfolioFundSet(userId: string, portfolioId: string, orderedFundCodes: string[]): Promise<boolean> {
     const rows = this.db
       .prepare(
         `
           SELECT fund_code AS fundCode
           FROM user_portfolio_fund
-          WHERE portfolio_id = ?
+          WHERE user_id = ? AND portfolio_id = ?
         `
       )
-      .all(portfolioId) as Array<{ fundCode: string }>;
+      .all(userId, portfolioId) as Array<{ fundCode: string }>;
 
     if (rows.length !== orderedFundCodes.length) {
       return false;
@@ -862,19 +1748,19 @@ export class SqliteWatchlistStore implements WatchlistStore {
     return true;
   }
 
-  async reorderPortfolioFunds(portfolioId: string, orderedFundCodes: string[]): Promise<void> {
+  async reorderPortfolioFunds(userId: string, portfolioId: string, orderedFundCodes: string[]): Promise<void> {
     this.db.exec("BEGIN TRANSACTION;");
     try {
       const updateStmt = this.db.prepare(
         `
           UPDATE user_portfolio_fund
           SET display_order = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE portfolio_id = ? AND fund_code = ?
+          WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
         `
       );
 
       for (const [index, fundCode] of orderedFundCodes.entries()) {
-        const result = updateStmt.run(index, portfolioId, fundCode) as SqliteRunResult;
+        const result = updateStmt.run(index, userId, portfolioId, fundCode) as SqliteRunResult;
         if (toChanges(result) === 0) {
           throw new Error(`fund ${fundCode} is not found in portfolio ${portfolioId}`);
         }
@@ -887,17 +1773,17 @@ export class SqliteWatchlistStore implements WatchlistStore {
     }
   }
 
-  async sumPlannedRatio(portfolioId: string, excludeFundCode?: string): Promise<number> {
+  async sumPlannedRatio(userId: string, portfolioId: string, excludeFundCode?: string): Promise<number> {
     if (excludeFundCode) {
       const row = this.db
         .prepare(
           `
             SELECT COALESCE(SUM(COALESCE(planned_ratio, 0)), 0) AS sumRatio
             FROM user_portfolio_fund
-            WHERE portfolio_id = ? AND fund_code <> ?
+            WHERE user_id = ? AND portfolio_id = ? AND fund_code <> ?
           `
         )
-        .get(portfolioId, excludeFundCode) as { sumRatio: number | null } | undefined;
+        .get(userId, portfolioId, excludeFundCode) as { sumRatio: number | null } | undefined;
 
       return Number((row?.sumRatio ?? 0).toFixed(6));
     }
@@ -907,29 +1793,30 @@ export class SqliteWatchlistStore implements WatchlistStore {
         `
           SELECT COALESCE(SUM(COALESCE(planned_ratio, 0)), 0) AS sumRatio
           FROM user_portfolio_fund
-          WHERE portfolio_id = ?
+          WHERE user_id = ? AND portfolio_id = ?
         `
       )
-      .get(portfolioId) as { sumRatio: number | null } | undefined;
+      .get(userId, portfolioId) as { sumRatio: number | null } | undefined;
 
     return Number((row?.sumRatio ?? 0).toFixed(6));
   }
 
-  async listUniqueFundCodes(): Promise<string[]> {
+  async listUniqueFundCodes(userId: string): Promise<string[]> {
     const rows = this.db
       .prepare(
         `
           SELECT DISTINCT fund_code AS fundCode
           FROM user_portfolio_fund
+          WHERE user_id = ?
           ORDER BY fund_code ASC
         `
       )
-      .all() as Array<{ fundCode: string }>;
+      .all(userId) as Array<{ fundCode: string }>;
 
     return rows.map((row) => row.fundCode);
   }
 
-  async listFundStatesByCodes(fundCodes: string[]): Promise<Map<string, FundStateItem>> {
+  async listFundStatesByCodes(userId: string, fundCodes: string[]): Promise<Map<string, FundStateItem>> {
     if (fundCodes.length === 0) {
       return new Map();
     }
@@ -939,16 +1826,17 @@ export class SqliteWatchlistStore implements WatchlistStore {
       .prepare(
         `
           SELECT
+            user_id AS userId,
             fund_code AS fundCode,
             total_change_pct AS totalChangePct,
             last_accumulated_nav_date AS lastAccumulatedNavDate,
             created_at AS createdAt,
             updated_at AS updatedAt
           FROM user_fund_state
-          WHERE fund_code IN (${placeholders})
+          WHERE user_id = ? AND fund_code IN (${placeholders})
         `
       )
-      .all(...fundCodes) as FundStateRow[];
+      .all(userId, ...fundCodes) as FundStateRow[];
 
     return new Map(
       rows.map((row) => [
@@ -964,19 +1852,19 @@ export class SqliteWatchlistStore implements WatchlistStore {
     );
   }
 
-  async ensureFundState(fundCode: string): Promise<void> {
+  async ensureFundState(userId: string, fundCode: string): Promise<void> {
     this.db
       .prepare(
         `
-          INSERT INTO user_fund_state (fund_code, total_change_pct, last_accumulated_nav_date, created_at, updated_at)
-          VALUES (?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          ON CONFLICT(fund_code) DO NOTHING
+          INSERT INTO user_fund_state (user_id, fund_code, total_change_pct, last_accumulated_nav_date, created_at, updated_at)
+          VALUES (?, ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(user_id, fund_code) DO NOTHING
         `
       )
-      .run(fundCode);
+      .run(userId, fundCode);
   }
 
-  async accumulateOfficialReturn(fundCode: string, navDate: string, dailyReturn: number): Promise<boolean> {
+  async accumulateOfficialReturn(userId: string, fundCode: string, navDate: string, dailyReturn: number): Promise<boolean> {
     if (!navDate || !Number.isFinite(dailyReturn)) {
       return false;
     }
@@ -990,21 +1878,29 @@ export class SqliteWatchlistStore implements WatchlistStore {
             last_accumulated_nav_date = ?,
             updated_at = CURRENT_TIMESTAMP
           WHERE
-            fund_code = ?
+            user_id = ?
+            AND fund_code = ?
             AND (last_accumulated_nav_date IS NULL OR last_accumulated_nav_date <> ?)
         `
       )
-      .run(dailyReturn, navDate, fundCode, navDate) as SqliteRunResult;
+      .run(dailyReturn, navDate, userId, fundCode, navDate) as SqliteRunResult;
 
     return toChanges(result) > 0;
   }
 
-  async cleanupOrphanFundStates(): Promise<void> {
-    this.db.exec(`
-      DELETE FROM user_fund_state
-      WHERE fund_code NOT IN (
-        SELECT DISTINCT fund_code FROM user_portfolio_fund
-      );
-    `);
+  async cleanupOrphanFundStates(userId: string): Promise<void> {
+    this.db
+      .prepare(
+        `
+          DELETE FROM user_fund_state
+          WHERE user_id = ?
+            AND fund_code NOT IN (
+              SELECT DISTINCT fund_code
+              FROM user_portfolio_fund
+              WHERE user_id = ?
+            )
+        `
+      )
+      .run(userId, userId);
   }
 }
