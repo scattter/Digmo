@@ -18,6 +18,11 @@
   --success: 152 76% 30%;
   --warning: 32 95% 44%;
   --danger: 0 72% 43%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 221 39% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 221 39% 11%;
 }
 
 :root[data-ui-mode="professional"] {
@@ -34,6 +39,11 @@
   --success: 152 76% 30%;
   --warning: 32 95% 44%;
   --danger: 0 72% 43%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 12%;
 }
 
 :root[data-ui-mode="minimal"] {
@@ -50,6 +60,11 @@
   --success: 152 60% 30%;
   --warning: 35 84% 42%;
   --danger: 0 63% 41%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 210 15% 16%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 210 15% 16%;
 }
 
 @layer base {

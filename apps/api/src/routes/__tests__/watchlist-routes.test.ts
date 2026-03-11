@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { FundEstimateSnapshot } from "@digmo/shared";
 import Fastify, { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, test } from "vitest";
+import { SqliteDecisionStore } from "../../infra/decision/sqlite-decision-store";
 import { SqliteWatchlistStore } from "../../infra/watchlist/sqlite-watchlist-store";
 import { ValuationService } from "../../modules/valuation/service";
 import { registerAuthRoutes } from "../auth";
@@ -70,11 +71,48 @@ function buildSnapshot(
   };
 }
 
+async function seedDailyDecision(input: {
+  decisionStore: SqliteDecisionStore;
+  userId: string;
+  portfolioId: string;
+  tradeDate: string;
+  summary?: string;
+  actionFundCode?: string;
+}) {
+  const actionFundCode = input.actionFundCode ?? "161725";
+  return input.decisionStore.saveDecisionRun({
+    userId: input.userId,
+    portfolioId: input.portfolioId,
+    tradeDate: input.tradeDate,
+    summary: input.summary ?? "测试建议",
+    overallRiskLevel: "MEDIUM",
+    provider: "stub-provider",
+    model: "stub-model",
+    status: "SUCCESS",
+    latencyMs: 10,
+    actions: [
+      {
+        actionType: "BUY",
+        fundCode: actionFundCode,
+        fundName: `基金${actionFundCode}`,
+        rationale: "分批执行",
+        triggerCondition: "盘中波动",
+        validUntil: new Date().toISOString(),
+        confidence: 0.76,
+        riskLevel: "MEDIUM",
+        requiresSecondConfirm: false,
+        citations: [{ title: "策略文档", snippet: "测试", sourceType: "portfolio_doc" }]
+      }
+    ]
+  });
+}
+
 async function createRouteApp(
   store: SqliteWatchlistStore,
   estimates: Record<string, number | EstimateSeed>,
   options?: {
     autoAuth?: boolean;
+    decisionStore?: SqliteDecisionStore;
   }
 ) {
   const app = Fastify({ logger: false });
@@ -111,15 +149,9 @@ async function createRouteApp(
 
   registerWatchlistRoutes(app, {
     store,
+    decisionStore: options?.decisionStore,
     service,
-    requireAuth,
-    v2EstimateFetcher: async (fundCode: string) => {
-      const seed = estimates[fundCode];
-      if (seed === undefined) {
-        return undefined;
-      }
-      return toEstimateSeed(seed).estimateChangePct;
-    }
+    requireAuth
   });
 
   if (options?.autoAuth !== false) {
@@ -140,8 +172,7 @@ async function createRouteApp(
     app.addHook("onRequest", async (request) => {
       const isProtectedRoute =
         request.url.startsWith("/v1/portfolios") ||
-        request.url.startsWith("/v1/funds/flat") ||
-        request.url.startsWith("/v2/portfolios");
+        request.url.startsWith("/v1/funds/flat");
 
       if (isProtectedRoute && !request.headers.authorization) {
         request.headers.authorization = `Bearer ${token}`;
@@ -556,7 +587,7 @@ describe("watchlist routes", () => {
     await app.close();
   });
 
-  test("returns v2 portfolio daily profit snapshots", async () => {
+  test("v2 portfolio daily profit endpoint is removed", async () => {
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);
     const app = await createRouteApp(store, {
@@ -597,39 +628,7 @@ describe("watchlist routes", () => {
       method: "GET",
       url: "/v2/portfolios/daily-profit"
     });
-    expect(response.statusCode).toBe(200);
-    const payload = response.json() as {
-      source: string;
-      tradeDate: string;
-      generatedAt: string;
-      portfolios: Array<{
-        id: string;
-        fundCount: number;
-        availableFundCount: number;
-        missingFundCount: number;
-        dailyProfitPct: number;
-        dailyProfitAmount: number;
-      }>;
-    };
-
-    expect(payload.source).toBe("TWELVE_DATA_FUNDGZ_HYBRID");
-    expect(typeof payload.tradeDate).toBe("string");
-    expect(typeof payload.generatedAt).toBe("string");
-    expect(payload.portfolios.length).toBe(2);
-
-    const p1 = payload.portfolios.find((item) => item.id === p1Id);
-    expect(p1).toBeDefined();
-    expect(p1?.fundCount).toBe(2);
-    expect(p1?.availableFundCount).toBe(2);
-    expect(p1?.missingFundCount).toBe(0);
-    expect(p1?.dailyProfitAmount).toBe(15);
-    expect(p1?.dailyProfitPct).toBe(0.01);
-
-    const p2 = payload.portfolios.find((item) => item.id === p2Id);
-    expect(p2).toBeDefined();
-    expect(p2?.fundCount).toBe(1);
-    expect(p2?.dailyProfitAmount).toBe(40);
-    expect(p2?.dailyProfitPct).toBe(0.02);
+    expect(response.statusCode).toBe(404);
 
     await app.close();
   });
@@ -1071,6 +1070,260 @@ describe("watchlist routes", () => {
       }
     });
     expect(crossPortfolioFundResp.statusCode).toBe(400);
+
+    await app.close();
+  });
+
+  test("creates increase operation and records history", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.01
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "操作组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000, holdingProfitAmount: 100 }
+    });
+
+    const operateResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: {
+        operationType: "INCREASE",
+        amount: 200
+      }
+    });
+    expect(operateResp.statusCode).toBe(201);
+
+    const fundsResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    expect(fundsResp.statusCode).toBe(200);
+    const fundsPayload = fundsResp.json() as { funds: Array<{ holdingAmount: number; holdingProfitAmount: number }> };
+    expect(fundsPayload.funds[0].holdingAmount).toBe(1200);
+    expect(fundsPayload.funds[0].holdingProfitAmount).toBe(100);
+
+    const historyResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/position-operations`
+    });
+    expect(historyResp.statusCode).toBe(200);
+    const historyPayload = historyResp.json() as {
+      items: Array<{ operationType: string; amount: number; beforeHoldingAmount: number; afterHoldingAmount: number }>;
+    };
+    expect(historyPayload.items.length).toBe(1);
+    expect(historyPayload.items[0].operationType).toBe("INCREASE");
+    expect(historyPayload.items[0].amount).toBe(200);
+    expect(historyPayload.items[0].beforeHoldingAmount).toBe(1000);
+    expect(historyPayload.items[0].afterHoldingAmount).toBe(1200);
+
+    await app.close();
+  });
+
+  test("creates decrease operation with proportional profit shrink and rejects overflow", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.01
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "减仓组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000, holdingProfitAmount: 100 }
+    });
+
+    const operateResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: {
+        operationType: "DECREASE",
+        amount: 200
+      }
+    });
+    expect(operateResp.statusCode).toBe(201);
+
+    const fundsResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    const fundsPayload = fundsResp.json() as { funds: Array<{ holdingAmount: number; holdingProfitAmount: number }> };
+    expect(fundsPayload.funds[0].holdingAmount).toBe(800);
+    expect(fundsPayload.funds[0].holdingProfitAmount).toBe(80);
+
+    const overflowResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: {
+        operationType: "DECREASE",
+        amount: 900
+      }
+    });
+    expect(overflowResp.statusCode).toBe(400);
+
+    await app.close();
+  });
+
+  test("supports optional binding to latest today decision and validates binding", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const decisionStore = new SqliteDecisionStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.01
+    }, { decisionStore });
+
+    const admin = await store.getUserByUsername("admin");
+    expect(admin).toBeDefined();
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "绑定组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000, holdingProfitAmount: 100 }
+    });
+
+    const today = formatDate(nowInShanghai());
+    const todayDecision = await seedDailyDecision({
+      decisionStore,
+      userId: admin!.id,
+      portfolioId,
+      tradeDate: today,
+      actionFundCode: "110011"
+    });
+
+    const bindResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: {
+        operationType: "INCREASE",
+        amount: 100,
+        bindSuggestion: {
+          decisionId: todayDecision.id,
+          actionOrder: 0
+        }
+      }
+    });
+    expect(bindResp.statusCode).toBe(201);
+
+    const historyResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/position-operations`
+    });
+    const historyPayload = historyResp.json() as {
+      items: Array<{ bindSuggestion?: { decisionId: string; actionOrder: number; fundCode: string } }>;
+    };
+    expect(historyPayload.items[0]?.bindSuggestion?.decisionId).toBe(todayDecision.id);
+    expect(historyPayload.items[0]?.bindSuggestion?.actionOrder).toBe(0);
+    expect(historyPayload.items[0]?.bindSuggestion?.fundCode).toBe("110011");
+
+    const invalidActionResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: {
+        operationType: "INCREASE",
+        amount: 100,
+        bindSuggestion: {
+          decisionId: todayDecision.id,
+          actionOrder: 999
+        }
+      }
+    });
+    expect(invalidActionResp.statusCode).toBe(400);
+
+    const yesterday = new Date(nowInShanghai().getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayDecision = await seedDailyDecision({
+      decisionStore,
+      userId: admin!.id,
+      portfolioId,
+      tradeDate: formatDate(yesterday),
+      summary: "昨日建议"
+    });
+
+    const invalidDateResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: {
+        operationType: "INCREASE",
+        amount: 100,
+        bindSuggestion: {
+          decisionId: yesterdayDecision.id,
+          actionOrder: 0
+        }
+      }
+    });
+    expect(invalidDateResp.statusCode).toBe(400);
+
+    await app.close();
+  });
+
+  test("supports operation history filter and limit", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.01,
+      "110011": 0.02
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "历史筛选组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000 }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "110011", holdingAmount: 1000 }
+    });
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: { operationType: "INCREASE", amount: 100 }
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/110011/position-operations`,
+      payload: { operationType: "DECREASE", amount: 50 }
+    });
+
+    const filteredResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/position-operations?fundCode=161725&limit=1`
+    });
+    expect(filteredResp.statusCode).toBe(200);
+    const payload = filteredResp.json() as { items: Array<{ fundCode: string }> };
+    expect(payload.items.length).toBe(1);
+    expect(payload.items[0].fundCode).toBe("161725");
 
     await app.close();
   });

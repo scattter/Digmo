@@ -12,7 +12,7 @@
 ### 3.1 后端 API
 - `POST /v1/auth/login`
 - `GET /v1/auth/me`
-- 受保护接口：`/v1/portfolios*`、`/v1/funds/flat`、`/v2/portfolios/daily-profit`
+- 受保护接口：`/v1/portfolios*`、`/v1/funds/flat`
 
 ### 3.2 数据层
 - `app_user`

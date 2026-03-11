@@ -33,6 +33,23 @@
 - 回测误差监控。
 - Web 与小程序交互优化。
 
+### M5（组合决策建议 MVP）
+
+- 单组合页新增“策略文档（Info）”绑定能力（文本粘贴 + Markdown/TXT 上传）。
+- 新增“生成今日建议”手动触发入口。
+- 输出结构化动作建议（`BUY/SELL/HOLD/REBALANCE`）并附来源依据。
+- 高风险动作二次确认提醒。
+- 建议历史留档与回看。
+- 详见：`prds/009-portfolio-daily-decision-mvp.md`。
+
+### M6（Web 信息架构重构 + V2 下线）
+
+- 首页切换为侧边栏导航：`概览` / `基金组合` / `基金列表` / `分析报表`（URL `view` 参数驱动）。
+- 组合页从“双标签头部结构”调整为“概览卡片 + 列表/详情分层”布局。
+- 下线 `v2` 当日收益对比能力：移除 `/v2/portfolios/daily-profit` 与前端 V1/V2 对比面板。
+- “分析报表”视图保留入口，当前作为占位说明（后续承载新分析能力）。
+- 详见：`prds/005-web-ui-ux-refactor-shadcn.md`、`prds/007-v2-daily-profit-hybrid-compare.md`。
+
 ## 统一规则
 
 1. 端侧只消费 `packages/shared` DTO，不做字段自行推断。

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { PortfolioType, UserRole, UserStatus } from "@digmo/shared";
+import { PortfolioType, PositionOperationType, UserRole, UserStatus } from "@digmo/shared";
 import { hashPassword } from "../../modules/auth/password";
 
 export interface PortfolioItem {
@@ -71,6 +71,38 @@ export interface UpdatePortfolioFundInput {
   plannedRatio?: number;
 }
 
+export interface PositionOperationBindSuggestionInput {
+  decisionId: string;
+  actionOrder: number;
+  actionType: "BUY" | "SELL" | "HOLD" | "REBALANCE";
+  fundCode: string;
+  fundName?: string;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH";
+  rationale: string;
+}
+
+export interface PositionOperationInput {
+  portfolioId: string;
+  fundCode: string;
+  operationType: PositionOperationType;
+  amount: number;
+  bindSuggestion?: PositionOperationBindSuggestionInput;
+}
+
+export interface PositionOperationItem {
+  id: string;
+  portfolioId: string;
+  fundCode: string;
+  operationType: PositionOperationType;
+  amount: number;
+  beforeHoldingAmount: number;
+  afterHoldingAmount: number;
+  beforeHoldingProfitAmount: number;
+  afterHoldingProfitAmount: number;
+  bindSuggestion?: PositionOperationBindSuggestionInput;
+  createdAt: string;
+}
+
 export interface ExportDataPayload {
   meta: {
     version: number;
@@ -130,6 +162,12 @@ export interface WatchlistStore {
   getPortfolioFund(userId: string, portfolioId: string, fundCode: string): Promise<PortfolioFundItem | undefined>;
   upsertPortfolioFund(userId: string, input: UpsertPortfolioFundInput): Promise<void>;
   updatePortfolioFund(userId: string, input: UpdatePortfolioFundInput): Promise<boolean>;
+  applyPositionOperation(userId: string, input: PositionOperationInput): Promise<PositionOperationItem | undefined>;
+  listPositionOperations(
+    userId: string,
+    portfolioId: string,
+    options?: { limit?: number; fundCode?: string }
+  ): Promise<PositionOperationItem[]>;
   rollPortfolioFundHoldingByNavDate(userId: string, fundCode: string, navDate: string, dailyReturn: number): Promise<number>;
   removePortfolioFund(userId: string, portfolioId: string, fundCode: string): Promise<boolean>;
   reorderPortfolioFunds(userId: string, portfolioId: string, orderedFundCodes: string[]): Promise<void>;
@@ -203,6 +241,26 @@ interface FundStateRow {
   lastAccumulatedNavDate: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface PositionOperationRow {
+  id: string;
+  portfolioId: string;
+  fundCode: string;
+  operationType: PositionOperationType;
+  amount: number;
+  beforeHoldingAmount: number;
+  afterHoldingAmount: number;
+  beforeHoldingProfitAmount: number;
+  afterHoldingProfitAmount: number;
+  bindDecisionId: string | null;
+  bindActionOrder: number | null;
+  bindActionType: "BUY" | "SELL" | "HOLD" | "REBALANCE" | null;
+  bindActionFundCode: string | null;
+  bindActionFundName: string | null;
+  bindActionRiskLevel: "LOW" | "MEDIUM" | "HIGH" | null;
+  bindActionRationale: string | null;
+  createdAt: string;
 }
 
 const DEFAULT_PORTFOLIO_NAME = "默认组合";
@@ -488,8 +546,34 @@ export class SqliteWatchlistStore implements WatchlistStore {
         FOREIGN KEY (user_id, fund_code) REFERENCES user_fund_state(user_id, fund_code) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS user_portfolio_fund_operation (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        portfolio_id TEXT NOT NULL,
+        fund_code TEXT NOT NULL,
+        operation_type TEXT NOT NULL CHECK(operation_type IN ('INCREASE', 'DECREASE')),
+        amount REAL NOT NULL,
+        before_holding_amount REAL NOT NULL,
+        after_holding_amount REAL NOT NULL,
+        before_holding_profit_amount REAL NOT NULL,
+        after_holding_profit_amount REAL NOT NULL,
+        bind_decision_id TEXT,
+        bind_action_order INTEGER,
+        bind_action_type TEXT CHECK(bind_action_type IN ('BUY', 'SELL', 'HOLD', 'REBALANCE')),
+        bind_action_fund_code TEXT,
+        bind_action_fund_name TEXT,
+        bind_action_risk_level TEXT CHECK(bind_action_risk_level IN ('LOW', 'MEDIUM', 'HIGH')),
+        bind_action_rationale TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id, portfolio_id) REFERENCES user_portfolio(user_id, id) ON DELETE CASCADE
+      );
+
       CREATE INDEX IF NOT EXISTS idx_user_portfolio_fund_user_portfolio ON user_portfolio_fund(user_id, portfolio_id);
       CREATE INDEX IF NOT EXISTS idx_user_portfolio_fund_user_fund ON user_portfolio_fund(user_id, fund_code);
+      CREATE INDEX IF NOT EXISTS idx_user_portfolio_fund_op_user_portfolio_created
+        ON user_portfolio_fund_operation(user_id, portfolio_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_user_portfolio_fund_op_user_portfolio_fund_created
+        ON user_portfolio_fund_operation(user_id, portfolio_id, fund_code, created_at DESC);
     `);
 
     if (this.hasColumn("user_portfolio_fund", "holding_profit_amount")) {
@@ -909,6 +993,34 @@ export class SqliteWatchlistStore implements WatchlistStore {
       lastHoldingRollNavDate: row.lastHoldingRollNavDate ?? undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
+    };
+  }
+
+  private toPositionOperation(row: PositionOperationRow): PositionOperationItem {
+    return {
+      id: row.id,
+      portfolioId: row.portfolioId,
+      fundCode: row.fundCode,
+      operationType: row.operationType,
+      amount: Number(row.amount.toFixed(2)),
+      beforeHoldingAmount: Number(row.beforeHoldingAmount.toFixed(2)),
+      afterHoldingAmount: Number(row.afterHoldingAmount.toFixed(2)),
+      beforeHoldingProfitAmount: Number(row.beforeHoldingProfitAmount.toFixed(2)),
+      afterHoldingProfitAmount: Number(row.afterHoldingProfitAmount.toFixed(2)),
+      ...(row.bindDecisionId && typeof row.bindActionOrder === "number" && row.bindActionType && row.bindActionFundCode
+        ? {
+            bindSuggestion: {
+              decisionId: row.bindDecisionId,
+              actionOrder: row.bindActionOrder,
+              actionType: row.bindActionType,
+              fundCode: row.bindActionFundCode,
+              ...(row.bindActionFundName ? { fundName: row.bindActionFundName } : {}),
+              riskLevel: row.bindActionRiskLevel ?? "MEDIUM",
+              rationale: row.bindActionRationale ?? ""
+            }
+          }
+        : {}),
+      createdAt: row.createdAt
     };
   }
 
@@ -1673,6 +1785,195 @@ export class SqliteWatchlistStore implements WatchlistStore {
       .run(nextHoldingAmount, nextHoldingProfitAmount, nextPlannedRatio ?? null, userId, input.portfolioId, input.fundCode);
 
     return true;
+  }
+
+  async applyPositionOperation(userId: string, input: PositionOperationInput): Promise<PositionOperationItem | undefined> {
+    const current = await this.getPortfolioFund(userId, input.portfolioId, input.fundCode);
+    if (!current) {
+      return undefined;
+    }
+
+    const amount = Number(input.amount.toFixed(2));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error("amount must be greater than 0");
+    }
+
+    if (input.operationType === "DECREASE" && amount > current.holdingAmount) {
+      throw new Error("decrease amount exceeds current holding amount");
+    }
+
+    const beforeHoldingAmount = Number(current.holdingAmount.toFixed(2));
+    const beforeHoldingProfitAmount = Number(current.holdingProfitAmount.toFixed(2));
+    const afterHoldingAmount = Number(
+      (input.operationType === "INCREASE" ? beforeHoldingAmount + amount : beforeHoldingAmount - amount).toFixed(2)
+    );
+    const afterHoldingProfitAmount = Number(
+      (
+        input.operationType === "INCREASE"
+          ? beforeHoldingProfitAmount
+          : beforeHoldingAmount > 0
+            ? beforeHoldingProfitAmount * (afterHoldingAmount / beforeHoldingAmount)
+            : 0
+      ).toFixed(2)
+    );
+
+    const operationId = randomUUID();
+    const now = new Date().toISOString();
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const updateResult = this.db
+        .prepare(
+          `
+            UPDATE user_portfolio_fund
+            SET
+              holding_amount = ?,
+              holding_profit_amount = ?,
+              updated_at = ?
+            WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
+          `
+        )
+        .run(afterHoldingAmount, afterHoldingProfitAmount, now, userId, input.portfolioId, input.fundCode) as SqliteRunResult;
+      if (toChanges(updateResult) === 0) {
+        this.db.exec("ROLLBACK;");
+        return undefined;
+      }
+
+      this.db
+        .prepare(
+          `
+            INSERT INTO user_portfolio_fund_operation (
+              id,
+              user_id,
+              portfolio_id,
+              fund_code,
+              operation_type,
+              amount,
+              before_holding_amount,
+              after_holding_amount,
+              before_holding_profit_amount,
+              after_holding_profit_amount,
+              bind_decision_id,
+              bind_action_order,
+              bind_action_type,
+              bind_action_fund_code,
+              bind_action_fund_name,
+              bind_action_risk_level,
+              bind_action_rationale,
+              created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `
+        )
+        .run(
+          operationId,
+          userId,
+          input.portfolioId,
+          input.fundCode,
+          input.operationType,
+          amount,
+          beforeHoldingAmount,
+          afterHoldingAmount,
+          beforeHoldingProfitAmount,
+          afterHoldingProfitAmount,
+          input.bindSuggestion?.decisionId ?? null,
+          input.bindSuggestion?.actionOrder ?? null,
+          input.bindSuggestion?.actionType ?? null,
+          input.bindSuggestion?.fundCode ?? null,
+          input.bindSuggestion?.fundName ?? null,
+          input.bindSuggestion?.riskLevel ?? null,
+          input.bindSuggestion?.rationale ?? null,
+          now
+        );
+
+      this.db.exec("COMMIT;");
+      return {
+        id: operationId,
+        portfolioId: input.portfolioId,
+        fundCode: input.fundCode,
+        operationType: input.operationType,
+        amount,
+        beforeHoldingAmount,
+        afterHoldingAmount,
+        beforeHoldingProfitAmount,
+        afterHoldingProfitAmount,
+        ...(input.bindSuggestion ? { bindSuggestion: input.bindSuggestion } : {}),
+        createdAt: now
+      };
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  async listPositionOperations(
+    userId: string,
+    portfolioId: string,
+    options?: { limit?: number; fundCode?: string }
+  ): Promise<PositionOperationItem[]> {
+    const limit = Math.max(1, Math.min(200, Math.floor(options?.limit ?? 50)));
+    const fundCode = options?.fundCode?.trim();
+
+    const rows = (
+      fundCode
+        ? this.db
+            .prepare(
+              `
+                SELECT
+                  id,
+                  portfolio_id AS portfolioId,
+                  fund_code AS fundCode,
+                  operation_type AS operationType,
+                  amount,
+                  before_holding_amount AS beforeHoldingAmount,
+                  after_holding_amount AS afterHoldingAmount,
+                  before_holding_profit_amount AS beforeHoldingProfitAmount,
+                  after_holding_profit_amount AS afterHoldingProfitAmount,
+                  bind_decision_id AS bindDecisionId,
+                  bind_action_order AS bindActionOrder,
+                  bind_action_type AS bindActionType,
+                  bind_action_fund_code AS bindActionFundCode,
+                  bind_action_fund_name AS bindActionFundName,
+                  bind_action_risk_level AS bindActionRiskLevel,
+                  bind_action_rationale AS bindActionRationale,
+                  created_at AS createdAt
+                FROM user_portfolio_fund_operation
+                WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+              `
+            )
+            .all(userId, portfolioId, fundCode, limit)
+        : this.db
+            .prepare(
+              `
+                SELECT
+                  id,
+                  portfolio_id AS portfolioId,
+                  fund_code AS fundCode,
+                  operation_type AS operationType,
+                  amount,
+                  before_holding_amount AS beforeHoldingAmount,
+                  after_holding_amount AS afterHoldingAmount,
+                  before_holding_profit_amount AS beforeHoldingProfitAmount,
+                  after_holding_profit_amount AS afterHoldingProfitAmount,
+                  bind_decision_id AS bindDecisionId,
+                  bind_action_order AS bindActionOrder,
+                  bind_action_type AS bindActionType,
+                  bind_action_fund_code AS bindActionFundCode,
+                  bind_action_fund_name AS bindActionFundName,
+                  bind_action_risk_level AS bindActionRiskLevel,
+                  bind_action_rationale AS bindActionRationale,
+                  created_at AS createdAt
+                FROM user_portfolio_fund_operation
+                WHERE user_id = ? AND portfolio_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+              `
+            )
+            .all(userId, portfolioId, limit)
+    ) as PositionOperationRow[];
+
+    return rows.map((row) => this.toPositionOperation(row));
   }
 
   async rollPortfolioFundHoldingByNavDate(userId: string, fundCode: string, navDate: string, dailyReturn: number): Promise<number> {

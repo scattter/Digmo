@@ -1,11 +1,15 @@
 import {
   AuthUser,
   BatchEstimateResponse,
+  DailyDecision,
+  DecisionDocFormat,
   FlatFundItem,
   FundEstimateSnapshot,
   LoginResponse,
-  PortfolioDailyProfitV2Response,
+  PortfolioDecisionDoc,
   PortfolioFundItem,
+  PositionOperationRecord,
+  PositionOperationType,
   PortfolioSummary,
   PortfolioType
 } from "@digmo/shared";
@@ -135,15 +139,6 @@ export async function fetchPortfolios(): Promise<PortfolioSummary[]> {
   await ensureOk(response, "Fetch portfolios failed");
   const data = (await response.json()) as { portfolios?: PortfolioSummary[] };
   return data.portfolios ?? [];
-}
-
-export async function fetchPortfoliosDailyProfitV2(): Promise<PortfolioDailyProfitV2Response> {
-  const response = await apiRequest("/v2/portfolios/daily-profit", {
-    auth: true
-  });
-
-  await ensureOk(response, "Fetch v2 portfolios daily profit failed");
-  return response.json() as Promise<PortfolioDailyProfitV2Response>;
 }
 
 export async function createPortfolio(name: string, type: PortfolioType): Promise<PortfolioSummary> {
@@ -282,6 +277,55 @@ export async function removePortfolioFund(portfolioId: string, fundCode: string)
   await ensureOk(response, "Remove portfolio fund failed");
 }
 
+export async function createPositionOperation(params: {
+  portfolioId: string;
+  fundCode: string;
+  operationType: PositionOperationType;
+  amount: number;
+  bindSuggestion?: {
+    decisionId: string;
+    actionOrder: number;
+  };
+}): Promise<PositionOperationRecord> {
+  const response = await apiRequest(`/v1/portfolios/${params.portfolioId}/funds/${params.fundCode}/position-operations`, {
+    method: "POST",
+    auth: true,
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      operationType: params.operationType,
+      amount: params.amount,
+      bindSuggestion: params.bindSuggestion
+    })
+  });
+
+  await ensureOk(response, "Create position operation failed");
+  const data = (await response.json()) as { operation: PositionOperationRecord };
+  return data.operation;
+}
+
+export async function fetchPositionOperations(
+  portfolioId: string,
+  options?: { limit?: number; fundCode?: string }
+): Promise<PositionOperationRecord[]> {
+  const search = new URLSearchParams();
+  if (typeof options?.limit === "number") {
+    search.set("limit", String(options.limit));
+  }
+  if (options?.fundCode) {
+    search.set("fundCode", options.fundCode);
+  }
+  const query = search.toString();
+  const path = query ? `/v1/portfolios/${portfolioId}/position-operations?${query}` : `/v1/portfolios/${portfolioId}/position-operations`;
+  const response = await apiRequest(path, {
+    auth: true
+  });
+  await ensureOk(response, "Fetch position operations failed");
+  const data = (await response.json()) as { items?: PositionOperationRecord[] };
+  return data.items ?? [];
+}
+
 export async function reorderPortfolioFunds(portfolioId: string, fundCodes: string[]): Promise<void> {
   const response = await apiRequest(`/v1/portfolios/${portfolioId}/funds/order`, {
     method: "PATCH",
@@ -303,5 +347,72 @@ export async function fetchFlatFunds(expand: FlatExpandMode, sortOrder: SortOrde
   await ensureOk(response, "Fetch flat funds failed");
 
   const data = (await response.json()) as { items?: FlatFundItem[] };
+  return data.items ?? [];
+}
+
+export async function fetchDecisionDoc(portfolioId: string): Promise<PortfolioDecisionDoc | null> {
+  const response = await apiRequest(`/v1/portfolios/${portfolioId}/decision-doc`, {
+    auth: true
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+  await ensureOk(response, "Fetch decision doc failed");
+  const data = (await response.json()) as { doc: PortfolioDecisionDoc };
+  return data.doc;
+}
+
+export async function upsertDecisionDoc(params: {
+  portfolioId: string;
+  title?: string;
+  content: string;
+  format: DecisionDocFormat;
+  sourceFileName?: string;
+}): Promise<PortfolioDecisionDoc> {
+  const response = await apiRequest(`/v1/portfolios/${params.portfolioId}/decision-doc`, {
+    method: "PUT",
+    auth: true,
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      title: params.title,
+      content: params.content,
+      format: params.format,
+      sourceFileName: params.sourceFileName
+    })
+  });
+
+  await ensureOk(response, "Save decision doc failed");
+  const data = (await response.json()) as { doc: PortfolioDecisionDoc };
+  return data.doc;
+}
+
+export async function generateDailyDecision(portfolioId: string): Promise<DailyDecision> {
+  const response = await apiRequest(`/v1/portfolios/${portfolioId}/daily-decision:generate`, {
+    method: "POST",
+    auth: true
+  });
+  await ensureOk(response, "Generate daily decision failed");
+  const data = (await response.json()) as { decision: DailyDecision };
+  return data.decision;
+}
+
+export async function fetchLatestDailyDecision(portfolioId: string): Promise<DailyDecision | null> {
+  const response = await apiRequest(`/v1/portfolios/${portfolioId}/daily-decision/latest`, {
+    auth: true
+  });
+  await ensureOk(response, "Fetch latest daily decision failed");
+  const data = (await response.json()) as { decision: DailyDecision | null };
+  return data.decision;
+}
+
+export async function fetchDailyDecisionHistory(portfolioId: string, limit = 10): Promise<DailyDecision[]> {
+  const response = await apiRequest(`/v1/portfolios/${portfolioId}/daily-decision/history?limit=${limit}`, {
+    auth: true
+  });
+  await ensureOk(response, "Fetch daily decision history failed");
+  const data = (await response.json()) as { items?: DailyDecision[] };
   return data.items ?? [];
 }

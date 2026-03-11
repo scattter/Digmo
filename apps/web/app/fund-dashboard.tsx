@@ -1,22 +1,42 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AuthUser, PortfolioFundItem, PortfolioSummary, PortfolioType } from "@digmo/shared";
+import {
+  AuthUser,
+  DailyDecision,
+  DecisionDocFormat,
+  PortfolioFundItem,
+  PortfolioSummary,
+  PortfolioType,
+} from "@digmo/shared";
 import { Loader2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { DashboardShell } from "@/components/dashboard/dashboard-shell";
-import { DailyProfitComparePanel } from "@/components/dashboard/daily-profit-compare-panel";
-import { EstimateAnalysisPanel } from "@/components/dashboard/estimate-analysis-panel";
-import { FlatFundsTable } from "@/components/dashboard/flat-funds-table";
-import { MainViewTabs } from "@/components/dashboard/main-view-tabs";
-import { PortfolioFundsTable } from "@/components/dashboard/portfolio-funds-table";
-import { PortfolioOverviewTable } from "@/components/dashboard/portfolio-overview-table";
-import { PortfolioToolbar } from "@/components/dashboard/portfolio-toolbar";
-import { RatioAnalysisPanel } from "@/components/dashboard/ratio-analysis-panel";
-import { StatusFeedback } from "@/components/dashboard/status-feedback";
+
+// Layout & Overview
+import { DashboardLayout } from "@/components/dashboard/layout/dashboard-layout";
+import { DashboardOverview } from "@/components/dashboard/layout/dashboard-overview";
+
+// Dialogs
+import { CreatePortfolioDialog } from "@/components/dashboard/dialogs/create-portfolio-dialog";
+import { FlatAddFundDialog } from "@/components/dashboard/dialogs/flat-add-fund-dialog";
+import { PortfolioAddFundDialog } from "@/components/dashboard/dialogs/portfolio-add-fund-dialog";
+import { DecisionHistoryDialog } from "@/components/dashboard/dialogs/decision-history-dialog";
+
+// Panels & Widgets
+import { DailyDecisionPanel } from "@/components/dashboard/features/decision/daily-decision-panel";
+import { EstimateAnalysisPanel } from "@/components/dashboard/features/analytics/estimate-analysis-panel";
+import { RatioAnalysisPanel } from "@/components/dashboard/features/analytics/ratio-analysis-panel";
+
+// Tables
+import { FlatFundsTable } from "@/components/dashboard/features/funds/flat-funds-table";
+import { PortfolioFundsTable } from "@/components/dashboard/features/portfolios/portfolio-funds-table";
+import { PortfolioOverviewTable } from "@/components/dashboard/features/portfolios/portfolio-overview-table";
+import { PortfolioToolbar } from "@/components/dashboard/features/navigation/portfolio-toolbar";
+
+// Shadcn UI
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,71 +45,69 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
-  DialogTitle
-} from "@/components/ui/dialog";
+  DialogTitle,
+} from "@/components/ui/dialog-official";
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getFlatSortButtonLabel, nextSortOrder, useDashboardData } from "@/hooks/use-dashboard-data";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+// Hooks & Utils
+import {
+  getFlatSortButtonLabel,
+  nextSortOrder,
+  useDashboardData,
+  MainView,
+} from "@/hooks/use-dashboard-data";
 import { useFundReorder } from "@/hooks/use-fund-reorder";
 import { usePortfolioReorder } from "@/hooks/use-portfolio-reorder";
 import { usePortfolioActions } from "@/hooks/use-portfolio-actions";
-import { fetchMe, getAuthRequiredEventName } from "@/lib/api";
+import {
+  fetchDailyDecisionHistory,
+  fetchDecisionDoc,
+  fetchLatestDailyDecision,
+  fetchMe,
+  generateDailyDecision,
+  getAuthRequiredEventName,
+  upsertDecisionDoc,
+} from "@/lib/api";
 import { clearAccessToken, getAccessToken } from "@/lib/auth-session";
 import { FundEditState } from "@/lib/format";
 
-const renameSchema = z.string().min(1, "请输入新的组合名称").max(32, "组合名称长度不能超过 32");
+const renameSchema = z
+  .string()
+  .min(1, "请输入新的组合名称")
+  .max(32, "组合名称长度不能超过 32");
 
-const createPortfolioDialogSchema = z.object({
-  name: z.string().min(1, "请输入组合名称").max(32, "组合名称长度不能超过 32"),
-  type: z.enum(["FREE", "RATIO"])
-});
-
-const flatAddFundDialogSchema = z.object({
-  portfolioId: z.string().min(1, "请选择目标组合"),
-  fundCode: z.string().regex(/^\d{6}$/, "请输入 6 位基金代码"),
-  holdingAmount: z.string().min(1, "请输入持仓金额"),
-  holdingProfitAmount: z.string().optional(),
-  plannedRatio: z.string().optional()
-});
-
-const portfolioAddFundDialogSchema = z.object({
-  fundCode: z.string().regex(/^\d{6}$/, "请输入 6 位基金代码"),
-  holdingAmount: z.string().min(1, "请输入持仓金额"),
-  holdingProfitAmount: z.string().optional(),
-  plannedRatio: z.string().optional()
-});
+function getShanghaiTradeDate(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(
+    new Date()
+  );
+}
 
 export default function FundDashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const authRequiredEventName = getAuthRequiredEventName();
 
+  // Auth Check Effect
   useEffect(() => {
     let active = true;
     const jumpToLogin = () => {
       clearAccessToken();
-      if (!active) {
-        return;
-      }
+      if (!active) return;
       setIsAuthChecking(false);
       router.replace("/login");
     };
 
-    const onAuthRequired = () => {
-      jumpToLogin();
-    };
-
+    const onAuthRequired = () => jumpToLogin();
     window.addEventListener(authRequiredEventName, onAuthRequired);
 
     const token = getAccessToken();
@@ -103,15 +121,11 @@ export default function FundDashboard() {
 
     void fetchMe()
       .then(({ user }) => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         setCurrentUser(user);
         setIsAuthChecking(false);
       })
-      .catch(() => {
-        jumpToLogin();
-      });
+      .catch(() => jumpToLogin());
 
     return () => {
       active = false;
@@ -120,6 +134,18 @@ export default function FundDashboard() {
   }, [authRequiredEventName, router]);
 
   const dashboard = useDashboardData();
+  
+  // Sync View from URL
+  const viewParam = searchParams.get("view");
+  useEffect(() => {
+    if (viewParam && ["overview", "portfolios", "funds", "analysis"].includes(viewParam)) {
+      dashboard.setMainView(viewParam as MainView);
+    } else if (!viewParam) {
+      dashboard.setMainView("overview");
+    }
+  }, [viewParam, dashboard.setMainView]);
+
+
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null);
   const [editingPortfolioName, setEditingPortfolioName] = useState("");
 
@@ -129,37 +155,24 @@ export default function FundDashboard() {
   const [isCreatePortfolioDialogOpen, setIsCreatePortfolioDialogOpen] = useState(false);
   const [isFlatAddFundDialogOpen, setIsFlatAddFundDialogOpen] = useState(false);
   const [isPortfolioAddFundDialogOpen, setIsPortfolioAddFundDialogOpen] = useState(false);
+  
+  // Analysis Panels State
   const [isRatioPanelExpanded, setIsRatioPanelExpanded] = useState(false);
   const [isEstimatePanelExpanded, setIsEstimatePanelExpanded] = useState(false);
 
-  const createPortfolioForm = useForm<z.infer<typeof createPortfolioDialogSchema>>({
-    resolver: zodResolver(createPortfolioDialogSchema),
-    defaultValues: {
-      name: "",
-      type: "FREE"
-    }
-  });
-
-  const flatAddFundForm = useForm<z.infer<typeof flatAddFundDialogSchema>>({
-    resolver: zodResolver(flatAddFundDialogSchema),
-    defaultValues: {
-      portfolioId: "",
-      fundCode: "",
-      holdingAmount: "",
-      holdingProfitAmount: "",
-      plannedRatio: ""
-    }
-  });
-
-  const portfolioAddFundForm = useForm<z.infer<typeof portfolioAddFundDialogSchema>>({
-    resolver: zodResolver(portfolioAddFundDialogSchema),
-    defaultValues: {
-      fundCode: "",
-      holdingAmount: "",
-      holdingProfitAmount: "",
-      plannedRatio: ""
-    }
-  });
+  // Decision State
+  const [decisionDocSourceFileName, setDecisionDocSourceFileName] = useState<string | undefined>(undefined);
+  const [decisionDocContent, setDecisionDocContent] = useState("");
+  const [decisionDocFormat, setDecisionDocFormat] = useState<DecisionDocFormat>("TEXT");
+  const [decisionDocVersion, setDecisionDocVersion] = useState<number | undefined>(undefined);
+  const [latestDecision, setLatestDecision] = useState<DailyDecision | null>(null);
+  const [decisionHistory, setDecisionHistory] = useState<DailyDecision[]>([]);
+  const [isDecisionHistoryDialogOpen, setIsDecisionHistoryDialogOpen] = useState(false);
+  const [isDecisionHistoryLoading, setIsDecisionHistoryLoading] = useState(false);
+  const [isDecisionLoading, setIsDecisionLoading] = useState(false);
+  const [isDecisionDocSubmitting, setIsDecisionDocSubmitting] = useState(false);
+  const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
+  const [isDecisionDrawerOpen, setIsDecisionDrawerOpen] = useState(false);
 
   const actions = usePortfolioActions({
     refreshData: dashboard.refreshData,
@@ -167,7 +180,7 @@ export default function FundDashboard() {
     setSelectedPortfolioId: dashboard.setSelectedPortfolioId,
     setIsLoading: dashboard.setIsLoading,
     setErrorText: dashboard.setErrorText,
-    setStatusText: dashboard.setStatusText
+    setStatusText: dashboard.setStatusText,
   });
 
   const reorder = useFundReorder({
@@ -176,57 +189,40 @@ export default function FundDashboard() {
     setPortfolioFunds: dashboard.setPortfolioFunds,
     setIsReordering: dashboard.setIsReordering,
     setErrorText: dashboard.setErrorText,
-    setStatusText: dashboard.setStatusText
+    setStatusText: dashboard.setStatusText,
   });
+  
   const portfolioReorder = usePortfolioReorder({
     portfolios: dashboard.portfolios,
     setPortfolios: dashboard.setPortfolios,
     setIsReordering: dashboard.setIsReordering,
     setErrorText: dashboard.setErrorText,
-    setStatusText: dashboard.setStatusText
+    setStatusText: dashboard.setStatusText,
   });
 
   const selectedPortfolioName = useMemo(
-    () => dashboard.selectedPortfolioMeta?.name ?? dashboard.selectedPortfolioSummary?.name ?? "当前组合",
+    () =>
+      dashboard.selectedPortfolioMeta?.name ??
+      dashboard.selectedPortfolioSummary?.name ??
+      "当前组合",
     [dashboard.selectedPortfolioMeta?.name, dashboard.selectedPortfolioSummary?.name]
   );
 
   const selectedPortfolioType = useMemo(
-    () => (dashboard.selectedPortfolioMeta?.type ?? dashboard.selectedPortfolioSummary?.type ?? "FREE") as PortfolioType,
+    () =>
+      (dashboard.selectedPortfolioMeta?.type ??
+        dashboard.selectedPortfolioSummary?.type ??
+        "FREE") as PortfolioType,
     [dashboard.selectedPortfolioMeta?.type, dashboard.selectedPortfolioSummary?.type]
   );
 
   const isRatioPortfolio = selectedPortfolioType === "RATIO";
-
-  const dailyProfitCompareRows = useMemo(() => {
-    const v2ById = new Map(dashboard.portfolioDailyProfitV2.map((item) => [item.id, item] as const));
-
-    return dashboard.portfolios.map((v1) => {
-      const v2 = v2ById.get(v1.id);
-      const v1DailyProfitAmount = Number((v1.totalAmount * v1.dailyProfitPct).toFixed(2));
-      const v2DailyProfitPct = v2?.dailyProfitPct ?? 0;
-      const v2DailyProfitAmount =
-        typeof v2?.dailyProfitAmount === "number" ? v2.dailyProfitAmount : Number((v1.totalAmount * v2DailyProfitPct).toFixed(2));
-      const diffPct = Number((v2DailyProfitPct - v1.dailyProfitPct).toFixed(6));
-      const diffAmount = Number((v2DailyProfitAmount - v1DailyProfitAmount).toFixed(2));
-
-      return {
-        portfolioId: v1.id,
-        portfolioName: v1.name,
-        portfolioType: v1.type,
-        v1DailyProfitPct: v1.dailyProfitPct,
-        v2DailyProfitPct,
-        v1DailyProfitAmount,
-        v2DailyProfitAmount,
-        diffPct,
-        diffAmount,
-        missingFundCount: v2?.missingFundCount ?? 0
-      };
-    });
-  }, [dashboard.portfolioDailyProfitV2, dashboard.portfolios]);
+  const analysisPanelHeightClass = "h-[240px] md:h-[200px]";
 
   const mergedRatioEstimateRows = useMemo(() => {
-    const ratioByFund = new Map(dashboard.ratioAnalysisRows.map((row) => [row.fundCode, row] as const));
+    const ratioByFund = new Map(
+      dashboard.ratioAnalysisRows.map((row) => [row.fundCode, row] as const)
+    );
     const usedFundCodes = new Set<string>();
 
     const merged = dashboard.estimateAnalysisRows.flatMap((estimate) => {
@@ -239,8 +235,8 @@ export default function FundDashboard() {
         {
           ...ratio,
           estimateChangePct: estimate.estimateChangePct,
-          intradayAmount: estimate.intradayAmount
-        }
+          intradayAmount: estimate.intradayAmount,
+        },
       ];
     });
 
@@ -249,39 +245,196 @@ export default function FundDashboard() {
       .map((row) => ({
         ...row,
         estimateChangePct: 0,
-        intradayAmount: 0
+        intradayAmount: 0,
       }));
 
     return merged.concat(rest);
   }, [dashboard.estimateAnalysisRows, dashboard.ratioAnalysisRows]);
 
-  const flatTargetPortfolioId = flatAddFundForm.watch("portfolioId");
-  const flatTargetPortfolio = useMemo(
-    () => dashboard.portfolios.find((portfolio) => portfolio.id === flatTargetPortfolioId),
-    [dashboard.portfolios, flatTargetPortfolioId]
-  );
   const portfolioTotalAmount = useMemo(
-    () => dashboard.portfolios.reduce((sum, portfolio) => sum + portfolio.totalAmount, 0),
+    () =>
+      dashboard.portfolios.reduce((sum, portfolio) => sum + portfolio.totalAmount, 0),
     [dashboard.portfolios]
   );
+  
   const portfolioTotalDailyAmount = useMemo(
-    () => dashboard.portfolios.reduce((sum, portfolio) => sum + portfolio.totalAmount * portfolio.dailyProfitPct, 0),
+    () =>
+      dashboard.portfolios.reduce(
+        (sum, portfolio) => sum + portfolio.totalAmount * portfolio.dailyProfitPct,
+        0
+      ),
     [dashboard.portfolios]
   );
-  const isFlatAddFundSubmitting = flatAddFundForm.formState.isSubmitting;
-  const isPortfolioAddFundSubmitting = portfolioAddFundForm.formState.isSubmitting;
 
-  function onEditFieldChange(fundCode: string, key: keyof FundEditState, value: string) {
+  const isDecisionBusy =
+    dashboard.isBusy || isDecisionDocSubmitting || isGeneratingSuggestion;
+  const todayInShanghai = useMemo(() => getShanghaiTradeDate(), []);
+  
+  const latestDecisionForBinding = useMemo(() => {
+    if (!latestDecision) {
+      return null;
+    }
+    return latestDecision.tradeDate === todayInShanghai ? latestDecision : null;
+  }, [latestDecision, todayInShanghai]);
+
+  const loadDecisionArtifacts = useCallback(
+    async (portfolioId: string) => {
+      setIsDecisionLoading(true);
+      try {
+        const [doc, latest] = await Promise.all([
+          fetchDecisionDoc(portfolioId),
+          fetchLatestDailyDecision(portfolioId),
+        ]);
+        setDecisionDocSourceFileName(doc?.sourceFileName);
+        setDecisionDocContent(doc?.content ?? "");
+        setDecisionDocFormat(doc?.format ?? "TEXT");
+        setDecisionDocVersion(doc?.version);
+        setLatestDecision(latest);
+      } catch (error) {
+        dashboard.setErrorText(
+          error instanceof Error ? error.message : "加载决策数据失败"
+        );
+      } finally {
+        setIsDecisionLoading(false);
+      }
+    },
+    [dashboard.setErrorText]
+  );
+
+  useEffect(() => {
+    if (
+      dashboard.mainView !== "portfolios" ||
+      dashboard.selectedPortfolioId === "all"
+    ) {
+      setDecisionDocSourceFileName(undefined);
+      setDecisionDocContent("");
+      setDecisionDocFormat("TEXT");
+      setDecisionDocVersion(undefined);
+      setLatestDecision(null);
+      setDecisionHistory([]);
+      setIsDecisionLoading(false);
+      return;
+    }
+
+    void loadDecisionArtifacts(dashboard.selectedPortfolioId);
+  }, [dashboard.mainView, dashboard.selectedPortfolioId, loadDecisionArtifacts]);
+
+  async function onUploadDecisionDoc(file: File) {
+    const content = await file.text();
+    const normalized = content.trim();
+    if (!normalized) {
+      dashboard.setErrorText("上传文件内容为空");
+      return;
+    }
+
+    setDecisionDocContent(normalized);
+    setDecisionDocSourceFileName(file.name);
+    const lower = file.name.toLowerCase();
+    setDecisionDocFormat(
+      lower.endsWith(".md") || lower.endsWith(".markdown") ? "MARKDOWN" : "TEXT"
+    );
+  }
+
+  async function onSaveDecisionDoc() {
+    if (dashboard.selectedPortfolioId === "all") {
+      dashboard.setErrorText("请先选择具体组合");
+      return;
+    }
+
+    if (!decisionDocContent.trim()) {
+      dashboard.setErrorText("请先上传或填写策略文档");
+      return;
+    }
+
+    setIsDecisionDocSubmitting(true);
+    try {
+      const doc = await upsertDecisionDoc({
+        portfolioId: dashboard.selectedPortfolioId,
+        content: decisionDocContent.trim(),
+        format: decisionDocFormat,
+        sourceFileName: decisionDocSourceFileName,
+      });
+      setDecisionDocSourceFileName(doc.sourceFileName);
+      setDecisionDocContent(doc.content);
+      setDecisionDocFormat(doc.format);
+      setDecisionDocVersion(doc.version);
+      dashboard.setStatusText("策略文档已保存");
+    } catch (error) {
+      dashboard.setErrorText(
+        error instanceof Error ? error.message : "保存策略文档失败"
+      );
+    } finally {
+      setIsDecisionDocSubmitting(false);
+    }
+  }
+
+  async function onGenerateDecision() {
+    if (dashboard.selectedPortfolioId === "all") {
+      dashboard.setErrorText("请先选择具体组合");
+      return;
+    }
+
+    if (!decisionDocContent.trim()) {
+      dashboard.setErrorText("请先保存策略文档");
+      return;
+    }
+
+    setIsGeneratingSuggestion(true);
+    try {
+      const decision = await generateDailyDecision(dashboard.selectedPortfolioId);
+      setLatestDecision(decision);
+      setDecisionHistory((prev) => [
+        decision,
+        ...prev.filter((item) => item.id !== decision.id),
+      ]);
+      dashboard.setStatusText("今日建议已生成");
+    } catch (error) {
+      dashboard.setErrorText(
+        error instanceof Error ? error.message : "生成今日建议失败"
+      );
+    } finally {
+      setIsGeneratingSuggestion(false);
+    }
+  }
+
+  async function loadDecisionHistory(portfolioId: string) {
+    setIsDecisionHistoryLoading(true);
+    try {
+      const history = await fetchDailyDecisionHistory(portfolioId, 100);
+      setDecisionHistory(history);
+    } catch (error) {
+      dashboard.setErrorText(
+        error instanceof Error ? error.message : "加载建议历史失败"
+      );
+    } finally {
+      setIsDecisionHistoryLoading(false);
+    }
+  }
+
+  async function onOpenDecisionHistoryDialog() {
+    if (dashboard.selectedPortfolioId === "all") {
+      dashboard.setErrorText("请先选择具体组合");
+      return;
+    }
+    setIsDecisionHistoryDialogOpen(true);
+    await loadDecisionHistory(dashboard.selectedPortfolioId);
+  }
+
+  function onEditFieldChange(
+    fundCode: string,
+    key: keyof FundEditState,
+    value: string
+  ) {
     dashboard.setEditStateMap((prev) => {
       const next = new Map(prev);
       const current = next.get(fundCode) ?? {
         holdingAmount: "",
         plannedRatio: "",
-        holdingProfitAmount: ""
+        holdingProfitAmount: "",
       };
       next.set(fundCode, {
         ...current,
-        [key]: value
+        [key]: value,
       });
       return next;
     });
@@ -292,7 +445,43 @@ export default function FundDashboard() {
     if (!edit) {
       return;
     }
-    await actions.updateFundAction(item, edit.holdingAmount, edit.plannedRatio, edit.holdingProfitAmount);
+    await actions.updateFundAction(
+      item,
+      edit.holdingAmount,
+      edit.plannedRatio,
+      edit.holdingProfitAmount
+    );
+  }
+
+  async function onOperateFund(
+    item: PortfolioFundItem,
+    input: {
+      operationType: "INCREASE" | "DECREASE";
+      amountRaw: string;
+      bindActionOrder?: number;
+    }
+  ) {
+    const bindSuggestion =
+      typeof input.bindActionOrder === "number"
+        ? latestDecisionForBinding
+          ? {
+              decisionId: latestDecisionForBinding.id,
+              actionOrder: input.bindActionOrder,
+            }
+          : undefined
+        : undefined;
+
+    if (typeof input.bindActionOrder === "number" && !bindSuggestion) {
+      dashboard.setErrorText("当前无可绑定的今日建议");
+      throw new Error("当前无可绑定的今日建议");
+    }
+
+    await actions.operatePositionAction(
+      item,
+      input.operationType,
+      input.amountRaw,
+      bindSuggestion
+    );
   }
 
   function onStartRenamePortfolio(portfolio: PortfolioSummary) {
@@ -330,72 +519,6 @@ export default function FundDashboard() {
     await actions.manualRefreshAction(dashboard.markManualRefresh);
   }
 
-  async function submitCreatePortfolio(values: z.infer<typeof createPortfolioDialogSchema>) {
-    await actions.createPortfolioAction(values.name, values.type as PortfolioType);
-    setIsCreatePortfolioDialogOpen(false);
-    createPortfolioForm.reset({ name: "", type: "FREE" });
-  }
-
-  async function submitFlatAddFund(values: z.infer<typeof flatAddFundDialogSchema>) {
-    const targetPortfolio = dashboard.portfolios.find((portfolio) => portfolio.id === values.portfolioId);
-    if (!targetPortfolio) {
-      flatAddFundForm.setError("portfolioId", { message: "请选择目标组合" });
-      return;
-    }
-
-    if (targetPortfolio.type === "RATIO" && !(values.plannedRatio ?? "").trim()) {
-      flatAddFundForm.setError("plannedRatio", { message: "按比例组合请填写计划比例" });
-      return;
-    }
-
-    await actions.addFundAction({
-      portfolioId: targetPortfolio.id,
-      portfolioType: targetPortfolio.type,
-      fundCode: values.fundCode,
-      holdingAmount: values.holdingAmount,
-      holdingProfitAmount: values.holdingProfitAmount,
-      plannedRatio: values.plannedRatio ?? ""
-    });
-
-    setIsFlatAddFundDialogOpen(false);
-    flatAddFundForm.reset({
-      portfolioId: "",
-      fundCode: "",
-      holdingAmount: "",
-      holdingProfitAmount: "",
-      plannedRatio: ""
-    });
-  }
-
-  async function submitPortfolioAddFund(values: z.infer<typeof portfolioAddFundDialogSchema>) {
-    if (!dashboard.selectedPortfolioMeta) {
-      dashboard.setErrorText("请先选择具体组合");
-      return;
-    }
-
-    if (dashboard.selectedPortfolioMeta.type === "RATIO" && !(values.plannedRatio ?? "").trim()) {
-      portfolioAddFundForm.setError("plannedRatio", { message: "按比例组合请填写计划比例" });
-      return;
-    }
-
-    await actions.addFundAction({
-      portfolioId: dashboard.selectedPortfolioMeta.id,
-      portfolioType: dashboard.selectedPortfolioMeta.type,
-      fundCode: values.fundCode,
-      holdingAmount: values.holdingAmount,
-      holdingProfitAmount: values.holdingProfitAmount,
-      plannedRatio: values.plannedRatio ?? ""
-    });
-
-    setIsPortfolioAddFundDialogOpen(false);
-    portfolioAddFundForm.reset({
-      fundCode: "",
-      holdingAmount: "",
-      holdingProfitAmount: "",
-      plannedRatio: ""
-    });
-  }
-
   function handleLogout(): void {
     clearAccessToken();
     router.replace("/login");
@@ -416,421 +539,272 @@ export default function FundDashboard() {
     return null;
   }
 
+  // --- Main Render Logic ---
+
   return (
-    <DashboardShell
-      totalAmount={portfolioTotalAmount}
-      totalIntradayAmount={portfolioTotalDailyAmount}
+    <DashboardLayout
       username={currentUser.username}
       onLogout={handleLogout}
     >
-      <section className="mb-4 space-y-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <MainViewTabs value={dashboard.mainView} onChange={dashboard.setMainView} />
-          {dashboard.mainView === "portfolios" ? (
-            <Button type="button" onClick={() => setIsCreatePortfolioDialogOpen(true)} disabled={dashboard.isBusy}>
-              创建组合
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              onClick={() => setIsFlatAddFundDialogOpen(true)}
-              disabled={dashboard.isBusy || dashboard.portfolios.length === 0}
-              aria-label="添加基金"
-            >
-              添加基金
-            </Button>
-          )}
-        </div>
-
-        <PortfolioToolbar
-          mainView={dashboard.mainView}
-          isBusy={dashboard.isBusy}
-          portfolios={dashboard.portfolios}
-          selectedPortfolioId={dashboard.selectedPortfolioId}
-          onSelectPortfolio={dashboard.setSelectedPortfolioId}
-          flatExpand={dashboard.flatExpand}
-          onFlatExpandChange={dashboard.setFlatExpand}
-          flatSortOrder={dashboard.flatSortOrder}
-          onFlatSortToggle={() => dashboard.setFlatSortOrder((prev) => nextSortOrder(prev))}
-          flatSortLabel={getFlatSortButtonLabel(dashboard.flatSortOrder)}
-          onDeletePortfolioTab={(portfolio) => setDeletePortfolioTarget(portfolio)}
-          onPortfolioDragEnd={(event) => portfolioReorder.onPortfolioTabsDragEnd(event, dashboard.isReordering)}
+      {dashboard.mainView === "overview" && (
+        <DashboardOverview
+          totalAmount={portfolioTotalAmount}
+          totalIntradayAmount={portfolioTotalDailyAmount}
+          onAddFund={() => setIsFlatAddFundDialogOpen(true)}
+          onCreatePortfolio={() => setIsCreatePortfolioDialogOpen(true)}
         />
+      )}
 
-        <StatusFeedback lastManualRefreshAt={dashboard.lastManualRefreshAt} />
-      </section>
-
-      {dashboard.mainView === "portfolios" && dashboard.selectedPortfolioId === "all" ? (
-        <section className="mb-4">
-          <DailyProfitComparePanel
-            rows={dailyProfitCompareRows}
-            isLoading={dashboard.isLoadingPortfolioDailyProfitV2}
-            generatedAt={dashboard.portfolioDailyProfitV2Meta?.generatedAt}
-            tradeDate={dashboard.portfolioDailyProfitV2Meta?.tradeDate}
-            source={dashboard.portfolioDailyProfitV2Meta?.source}
-          />
-        </section>
-      ) : null}
-
-      {dashboard.mainView === "funds" ? (
-        <FlatFundsTable
-          data={dashboard.flatFunds}
-          expand={dashboard.flatExpand}
-          isLoading={dashboard.isLoadingFlatFunds}
-          isBusy={dashboard.isBusy}
-          onRefresh={handleManualRefresh}
-        />
-      ) : null}
-
-      {dashboard.mainView === "portfolios" && dashboard.selectedPortfolioId === "all" ? (
-        <PortfolioOverviewTable
-          portfolios={dashboard.portfolios}
-          isLoading={dashboard.isLoadingPortfolios}
-          isBusy={dashboard.isBusy}
-          editingPortfolioId={editingPortfolioId}
-          editingPortfolioName={editingPortfolioName}
-          onDelete={(portfolio) => setDeletePortfolioTarget(portfolio)}
-          onOpen={(portfolio) => dashboard.setSelectedPortfolioId(portfolio.id)}
-          onStartRename={onStartRenamePortfolio}
-          onRenameInputChange={setEditingPortfolioName}
-          onCommitRename={onCommitRenamePortfolio}
-          onCancelRename={onCancelRenamePortfolio}
-          onRefresh={handleManualRefresh}
-        />
-      ) : null}
-
-      {dashboard.mainView === "portfolios" && dashboard.selectedPortfolioId !== "all" ? (
-        <section className="space-y-4">
-          {isRatioPortfolio ? (
-            <RatioAnalysisPanel
-              rows={mergedRatioEstimateRows}
-              sortOrder={dashboard.estimateSortOrder}
-              onToggleSort={() => dashboard.setEstimateSortOrder((prev) => nextSortOrder(prev))}
-              expanded={isRatioPanelExpanded}
-              onToggleExpanded={() => setIsRatioPanelExpanded((prev) => !prev)}
-              disabled={dashboard.isBusy}
-            />
-          ) : (
-            <EstimateAnalysisPanel
-              rows={dashboard.estimateAnalysisRows}
-              sortOrder={dashboard.estimateSortOrder}
-              onToggleSort={() => dashboard.setEstimateSortOrder((prev) => nextSortOrder(prev))}
-              expanded={isEstimatePanelExpanded}
-              onToggleExpanded={() => setIsEstimatePanelExpanded((prev) => !prev)}
-              disabled={dashboard.isBusy}
-              compact
-            />
-          )}
-
-          <PortfolioFundsTable
-            portfolioName={selectedPortfolioName}
-            portfolioType={selectedPortfolioType}
-            funds={dashboard.portfolioFunds}
-            editStateMap={dashboard.editStateMap}
+      {dashboard.mainView === "funds" && (
+        <>
+          <PortfolioToolbar
+            mainView={dashboard.mainView}
             isBusy={dashboard.isBusy}
-            isLoading={dashboard.isLoadingPortfolioFunds}
-            onEditFieldChange={onEditFieldChange}
-            onUpdateFund={onUpdateFund}
-            onDeleteFund={(item) => setDeleteFundTarget(item)}
-            onDragEnd={(event) => reorder.onPortfolioFundsDragEnd(event, dashboard.isReordering)}
-            onRefresh={handleManualRefresh}
-            onOpenAddFundDialog={() => setIsPortfolioAddFundDialogOpen(true)}
+            portfolios={dashboard.portfolios}
+            selectedPortfolioId={dashboard.selectedPortfolioId}
+            onSelectPortfolio={dashboard.setSelectedPortfolioId}
+            flatExpand={dashboard.flatExpand}
+            onFlatExpandChange={dashboard.setFlatExpand}
+            flatSortOrder={dashboard.flatSortOrder}
+            onFlatSortToggle={() => dashboard.setFlatSortOrder((prev) => nextSortOrder(prev))}
+            flatSortLabel={getFlatSortButtonLabel(dashboard.flatSortOrder)}
+            onDeletePortfolioTab={(portfolio) => setDeletePortfolioTarget(portfolio)}
+            onPortfolioDragEnd={(event) => portfolioReorder.onPortfolioTabsDragEnd(event, dashboard.isReordering)}
           />
-        </section>
-      ) : null}
+          <FlatFundsTable
+            data={dashboard.flatFunds}
+            expand={dashboard.flatExpand}
+            isLoading={dashboard.isLoadingFlatFunds}
+            isBusy={dashboard.isBusy}
+            onRefresh={handleManualRefresh}
+          />
+        </>
+      )}
 
-      <Dialog
+      {dashboard.mainView === "portfolios" && (
+        <>
+           {/* If "all" is selected, show Overview Table (List of Portfolios) */}
+           {dashboard.selectedPortfolioId === "all" ? (
+             <div className="space-y-4">
+               <PortfolioToolbar
+                  mainView={dashboard.mainView}
+                  isBusy={dashboard.isBusy}
+                  portfolios={dashboard.portfolios}
+                  selectedPortfolioId={dashboard.selectedPortfolioId}
+                  onSelectPortfolio={dashboard.setSelectedPortfolioId}
+                  flatExpand={dashboard.flatExpand}
+                  onFlatExpandChange={dashboard.setFlatExpand}
+                  flatSortOrder={dashboard.flatSortOrder}
+                  onFlatSortToggle={() => dashboard.setFlatSortOrder((prev) => nextSortOrder(prev))}
+                  flatSortLabel={getFlatSortButtonLabel(dashboard.flatSortOrder)}
+                  onDeletePortfolioTab={(portfolio) => setDeletePortfolioTarget(portfolio)}
+                  onPortfolioDragEnd={(event) => portfolioReorder.onPortfolioTabsDragEnd(event, dashboard.isReordering)}
+                />
+                <PortfolioOverviewTable
+                  portfolios={dashboard.portfolios}
+                  isLoading={dashboard.isLoadingPortfolios}
+                  isBusy={dashboard.isBusy}
+                  editingPortfolioId={editingPortfolioId}
+                  editingPortfolioName={editingPortfolioName}
+                  onDelete={(portfolio) => setDeletePortfolioTarget(portfolio)}
+                  onOpen={(portfolio) => dashboard.setSelectedPortfolioId(portfolio.id)}
+                  onStartRename={onStartRenamePortfolio}
+                  onRenameInputChange={setEditingPortfolioName}
+                  onCommitRename={onCommitRenamePortfolio}
+                  onCancelRename={onCancelRenamePortfolio}
+                  onRefresh={handleManualRefresh}
+                />
+             </div>
+           ) : (
+             // Specific Portfolio View
+             <div className="space-y-2">
+                <Button variant="ghost" onClick={() => dashboard.setSelectedPortfolioId("all")}>
+                  ← 返回组合列表
+                </Button>
+                
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="min-w-0">
+                    {isRatioPortfolio ? (
+                      <RatioAnalysisPanel
+                        rows={mergedRatioEstimateRows}
+                        sortOrder={dashboard.estimateSortOrder}
+                        onToggleSort={() => dashboard.setEstimateSortOrder((prev) => nextSortOrder(prev))}
+                        expanded={isRatioPanelExpanded}
+                        onToggleExpanded={() => setIsRatioPanelExpanded((prev) => !prev)}
+                        disabled={dashboard.isBusy}
+                        className={analysisPanelHeightClass}
+                      />
+                    ) : (
+                      <EstimateAnalysisPanel
+                        rows={dashboard.estimateAnalysisRows}
+                        sortOrder={dashboard.estimateSortOrder}
+                        onToggleSort={() => dashboard.setEstimateSortOrder((prev) => nextSortOrder(prev))}
+                        expanded={isEstimatePanelExpanded}
+                        onToggleExpanded={() => setIsEstimatePanelExpanded((prev) => !prev)}
+                        disabled={dashboard.isBusy}
+                        compact
+                        className={analysisPanelHeightClass}
+                      />
+                    )}
+                  </div>
+
+                  <Card className={`flex min-h-0 flex-col ${analysisPanelHeightClass}`}>
+                    <CardHeader className="py-3 pb-2">
+                      <CardTitle className="text-base font-medium">决策与操作</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pb-3">
+                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+                        <p className="whitespace-pre-line text-xs text-muted-foreground">
+                          {latestDecision
+                            ? latestDecision.summary
+                            : "暂无今日建议，可在此更新建议并管理策略文档"}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => void onGenerateDecision()}
+                          disabled={isDecisionBusy}
+                        >
+                          更新建议
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => setIsDecisionDrawerOpen(true)}
+                          disabled={isDecisionBusy}
+                        >
+                          管理文档
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => void onOpenDecisionHistoryDialog()}
+                          disabled={isDecisionBusy}
+                        >
+                          历史
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <PortfolioFundsTable
+                  portfolioName={selectedPortfolioName}
+                  portfolioType={selectedPortfolioType}
+                  funds={dashboard.portfolioFunds}
+                  editStateMap={dashboard.editStateMap}
+                  isBusy={dashboard.isBusy}
+                  isLoading={dashboard.isLoadingPortfolioFunds}
+                  onEditFieldChange={onEditFieldChange}
+                  onUpdateFund={onUpdateFund}
+                  onOperateFund={onOperateFund}
+                  latestDecisionForBinding={latestDecisionForBinding}
+                  onDeleteFund={(item) => setDeleteFundTarget(item)}
+                  onDragEnd={(event) => reorder.onPortfolioFundsDragEnd(event, dashboard.isReordering)}
+                  onRefresh={handleManualRefresh}
+                  onOpenAddFundDialog={() => setIsPortfolioAddFundDialogOpen(true)}
+                />
+             </div>
+           )}
+        </>
+      )}
+
+      {dashboard.mainView === "analysis" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">分析报表</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            V2 视图已下线，当前暂无可展示的分析内容。
+          </CardContent>
+        </Card>
+      )}
+
+      <Dialog open={isDecisionDrawerOpen} onOpenChange={setIsDecisionDrawerOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>决策与操作</DialogTitle>
+            <DialogDescription>策略文档管理。</DialogDescription>
+          </DialogHeader>
+          <DailyDecisionPanel
+            isBusy={isDecisionBusy}
+            isLoading={isDecisionLoading}
+            isGeneratingSuggestion={isGeneratingSuggestion}
+            docContent={decisionDocContent}
+            docFormat={decisionDocFormat}
+            docVersion={decisionDocVersion}
+            docFileName={decisionDocSourceFileName}
+            onDocContentChange={setDecisionDocContent}
+            onDocUpload={onUploadDecisionDoc}
+            onSaveDoc={onSaveDecisionDoc}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <DecisionHistoryDialog
+        open={isDecisionHistoryDialogOpen}
+        onOpenChange={setIsDecisionHistoryDialogOpen}
+        isBusy={isDecisionBusy}
+        isLoading={isDecisionHistoryLoading}
+        items={decisionHistory}
+      />
+
+      <CreatePortfolioDialog
         open={isCreatePortfolioDialogOpen}
-        onOpenChange={(open) => {
-          setIsCreatePortfolioDialogOpen(open);
-          if (!open) {
-            createPortfolioForm.reset({ name: "", type: "FREE" });
-          }
+        onOpenChange={setIsCreatePortfolioDialogOpen}
+        onSubmit={async (values) => {
+           await actions.createPortfolioAction(values.name, values.type as PortfolioType);
+           setIsCreatePortfolioDialogOpen(false);
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>创建组合</DialogTitle>
-            <DialogDescription>填写组合名称并选择类型。</DialogDescription>
-          </DialogHeader>
-          <Form {...createPortfolioForm}>
-            <form className="space-y-4" onSubmit={createPortfolioForm.handleSubmit(submitCreatePortfolio)}>
-              <FormField
-                control={createPortfolioForm.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>组合名称</FormLabel>
-                    <FormControl>
-                      <Input placeholder="例如：稳健组合" disabled={dashboard.isBusy} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        isBusy={dashboard.isBusy}
+      />
 
-              <FormField
-                control={createPortfolioForm.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>组合类型</FormLabel>
-                    <FormControl>
-                      <Select value={field.value} onValueChange={field.onChange} disabled={dashboard.isBusy}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="请选择组合类型" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="FREE">自由组合</SelectItem>
-                          <SelectItem value="RATIO">按比例组合</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <DialogFooter>
-                <Button type="button" variant="secondary" onClick={() => setIsCreatePortfolioDialogOpen(false)}>
-                  取消
-                </Button>
-                <Button type="submit" disabled={dashboard.isBusy}>
-                  确认创建
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
+      <FlatAddFundDialog
         open={isFlatAddFundDialogOpen}
-        onOpenChange={(open) => {
-          setIsFlatAddFundDialogOpen(open);
-          if (!open) {
-            flatAddFundForm.reset({
-              portfolioId: "",
-              fundCode: "",
-              holdingAmount: "",
-              holdingProfitAmount: "",
-              plannedRatio: ""
+        onOpenChange={setIsFlatAddFundDialogOpen}
+        onSubmit={async (values) => {
+           const targetPortfolio = dashboard.portfolios.find((portfolio) => portfolio.id === values.portfolioId);
+           if (!targetPortfolio) return; // Should handle error
+           
+           await actions.addFundAction({
+              portfolioId: targetPortfolio.id,
+              portfolioType: targetPortfolio.type,
+              fundCode: values.fundCode,
+              holdingAmount: values.holdingAmount,
+              holdingProfitAmount: values.holdingProfitAmount,
+              plannedRatio: values.plannedRatio ?? ""
             });
-          }
+            setIsFlatAddFundDialogOpen(false);
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>添加基金</DialogTitle>
-            <DialogDescription>先选择目标组合，再填写基金信息。</DialogDescription>
-          </DialogHeader>
-          <Form {...flatAddFundForm}>
-            <form className="space-y-4" onSubmit={flatAddFundForm.handleSubmit(submitFlatAddFund)}>
-              <FormField
-                control={flatAddFundForm.control}
-                name="portfolioId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>目标组合</FormLabel>
-                    <FormControl>
-                      <Select value={field.value} onValueChange={field.onChange} disabled={dashboard.isBusy}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="请选择目标组合" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {dashboard.portfolios.map((portfolio) => (
-                            <SelectItem key={portfolio.id} value={portfolio.id}>
-                              {portfolio.name}（{portfolio.type === "FREE" ? "自由" : "按比例"}）
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        portfolios={dashboard.portfolios}
+        isBusy={dashboard.isBusy}
+      />
 
-              <FormField
-                control={flatAddFundForm.control}
-                name="fundCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>基金代码</FormLabel>
-                    <FormControl>
-                      <Input inputMode="numeric" placeholder="000000" disabled={dashboard.isBusy} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={flatAddFundForm.control}
-                name="holdingAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>持仓金额</FormLabel>
-                    <FormControl>
-                      <Input inputMode="decimal" placeholder="例如：5000" disabled={dashboard.isBusy} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={flatAddFundForm.control}
-                name="holdingProfitAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>持有收益金额（可正可负）</FormLabel>
-                    <FormControl>
-                      <Input inputMode="decimal" placeholder="例如：-88.36（不填默认为 0）" disabled={dashboard.isBusy} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {flatTargetPortfolio?.type === "RATIO" ? (
-                <FormField
-                  control={flatAddFundForm.control}
-                  name="plannedRatio"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>计划比例(%)</FormLabel>
-                      <FormControl>
-                        <Input inputMode="decimal" placeholder="例如：25" disabled={dashboard.isBusy} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : null}
-
-              <DialogFooter>
-                <Button type="button" variant="secondary" onClick={() => setIsFlatAddFundDialogOpen(false)}>
-                  取消
-                </Button>
-                <Button type="submit" disabled={dashboard.isBusy || isFlatAddFundSubmitting} aria-busy={isFlatAddFundSubmitting}>
-                  {isFlatAddFundSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      添加中...
-                    </>
-                  ) : (
-                    "确认添加"
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
+      <PortfolioAddFundDialog
         open={isPortfolioAddFundDialogOpen}
-        onOpenChange={(open) => {
-          setIsPortfolioAddFundDialogOpen(open);
-          if (!open) {
-            portfolioAddFundForm.reset({
-              fundCode: "",
-              holdingAmount: "",
-              holdingProfitAmount: "",
-              plannedRatio: ""
+        onOpenChange={setIsPortfolioAddFundDialogOpen}
+        targetPortfolio={dashboard.selectedPortfolioSummary ?? null}
+        onSubmit={async (values) => {
+           if (!dashboard.selectedPortfolioMeta) return;
+           await actions.addFundAction({
+              portfolioId: dashboard.selectedPortfolioMeta.id,
+              portfolioType: dashboard.selectedPortfolioMeta.type,
+              fundCode: values.fundCode,
+              holdingAmount: values.holdingAmount,
+              holdingProfitAmount: values.holdingProfitAmount,
+              plannedRatio: values.plannedRatio ?? ""
             });
-          }
+            setIsPortfolioAddFundDialogOpen(false);
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>添加基金到当前组合</DialogTitle>
-            <DialogDescription>{dashboard.selectedPortfolioMeta ? `目标组合：${dashboard.selectedPortfolioMeta.name}` : ""}</DialogDescription>
-          </DialogHeader>
-          <Form {...portfolioAddFundForm}>
-            <form className="space-y-4" onSubmit={portfolioAddFundForm.handleSubmit(submitPortfolioAddFund)}>
-              <FormField
-                control={portfolioAddFundForm.control}
-                name="fundCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>基金代码</FormLabel>
-                    <FormControl>
-                      <Input inputMode="numeric" placeholder="000000" disabled={dashboard.isBusy} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={portfolioAddFundForm.control}
-                name="holdingAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>持仓金额</FormLabel>
-                    <FormControl>
-                      <Input inputMode="decimal" placeholder="例如：5000" disabled={dashboard.isBusy} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={portfolioAddFundForm.control}
-                name="holdingProfitAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>持有收益金额（可正可负）</FormLabel>
-                    <FormControl>
-                      <Input inputMode="decimal" placeholder="例如：-88.36（不填默认为 0）" disabled={dashboard.isBusy} {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {dashboard.selectedPortfolioMeta?.type === "RATIO" ? (
-                <FormField
-                  control={portfolioAddFundForm.control}
-                  name="plannedRatio"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>计划比例(%)</FormLabel>
-                      <FormControl>
-                        <Input inputMode="decimal" placeholder="例如：25" disabled={dashboard.isBusy} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : null}
-
-              <DialogFooter>
-                <Button type="button" variant="secondary" onClick={() => setIsPortfolioAddFundDialogOpen(false)}>
-                  取消
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={dashboard.isBusy || isPortfolioAddFundSubmitting}
-                  aria-busy={isPortfolioAddFundSubmitting}
-                >
-                  {isPortfolioAddFundSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      添加中...
-                    </>
-                  ) : (
-                    "确认添加"
-                  )}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+        isBusy={dashboard.isBusy}
+      />
 
       <AlertDialog open={Boolean(deletePortfolioTarget)} onOpenChange={(open) => (!open ? setDeletePortfolioTarget(null) : undefined)}>
         <AlertDialogContent>
@@ -844,9 +818,7 @@ export default function FundDashboard() {
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (!deletePortfolioTarget) {
-                  return;
-                }
+                if (!deletePortfolioTarget) return;
                 void actions.deletePortfolioAction(deletePortfolioTarget);
                 setDeletePortfolioTarget(null);
               }}
@@ -869,9 +841,7 @@ export default function FundDashboard() {
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (!deleteFundTarget) {
-                  return;
-                }
+                if (!deleteFundTarget) return;
                 void actions.deleteFundAction(deleteFundTarget);
                 setDeleteFundTarget(null);
               }}
@@ -881,6 +851,6 @@ export default function FundDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </DashboardShell>
+    </DashboardLayout>
   );
 }

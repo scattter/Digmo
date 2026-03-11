@@ -151,25 +151,6 @@ export interface PortfolioSummary {
   intradayEstimatePct: number;
 }
 
-export interface PortfolioDailyProfitV2Item {
-  id: string;
-  name: string;
-  type: PortfolioType;
-  fundCount: number;
-  availableFundCount: number;
-  missingFundCount: number;
-  totalAmount: number;
-  dailyProfitAmount: number;
-  dailyProfitPct: number;
-}
-
-export interface PortfolioDailyProfitV2Response {
-  tradeDate: string;
-  generatedAt: string;
-  source: "TWELVE_DATA_FUNDGZ_HYBRID";
-  portfolios: PortfolioDailyProfitV2Item[];
-}
-
 export interface PortfolioFundItem {
   portfolioId: string;
   portfolioName: string;
@@ -206,4 +187,97 @@ export interface FlatFundItem {
   portfolioType?: PortfolioType;
   plannedRatio?: number;
   actualRatio?: number;
+}
+
+export type DecisionDocFormat = "TEXT" | "MARKDOWN";
+
+export type DecisionActionType = "BUY" | "SELL" | "HOLD" | "REBALANCE";
+
+export type DecisionRiskLevel = "LOW" | "MEDIUM" | "HIGH";
+
+export type DecisionCitationSourceType =
+  | "portfolio_doc"
+  | "market_context"
+  | "world_context"
+  | "portfolio_data"
+  | "other";
+
+export interface DecisionCitation {
+  title: string;
+  url?: string;
+  snippet: string;
+  sourceType: DecisionCitationSourceType;
+}
+
+export interface PortfolioDecisionDoc {
+  id: string;
+  portfolioId: string;
+  version: number;
+  title?: string;
+  format: DecisionDocFormat;
+  content: string;
+  sourceFileName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DailyDecisionAction {
+  actionType: DecisionActionType;
+  fundCode: string;
+  fundName?: string;
+  rationale: string;
+  targetPositionPct?: number;
+  targetAmount?: number;
+  triggerCondition: string;
+  validUntil: string;
+  confidence: number;
+  riskLevel: DecisionRiskLevel;
+  requiresSecondConfirm: boolean;
+  citations: DecisionCitation[];
+}
+
+export interface DailyDecision {
+  id: string;
+  portfolioId: string;
+  tradeDate: string;
+  summary: string;
+  overallRiskLevel: DecisionRiskLevel;
+  actions: DailyDecisionAction[];
+  provider: string;
+  model: string;
+  status: "SUCCESS" | "FAILED";
+  errorMessage?: string;
+  latencyMs: number;
+  usage: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  createdAt: string;
+}
+
+export type PositionOperationType = "INCREASE" | "DECREASE";
+
+export interface PositionOperationBindSuggestion {
+  decisionId: string;
+  actionOrder: number;
+  actionType: DecisionActionType;
+  fundCode: string;
+  fundName?: string;
+  riskLevel: DecisionRiskLevel;
+  rationale: string;
+}
+
+export interface PositionOperationRecord {
+  id: string;
+  portfolioId: string;
+  fundCode: string;
+  operationType: PositionOperationType;
+  amount: number;
+  beforeHoldingAmount: number;
+  afterHoldingAmount: number;
+  beforeHoldingProfitAmount: number;
+  afterHoldingProfitAmount: number;
+  bindSuggestion?: PositionOperationBindSuggestion;
+  createdAt: string;
 }

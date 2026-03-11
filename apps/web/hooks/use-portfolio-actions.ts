@@ -1,9 +1,10 @@
 "use client";
 
-import { PortfolioFundItem, PortfolioSummary, PortfolioType } from "@digmo/shared";
+import { PortfolioFundItem, PortfolioSummary, PortfolioType, PositionOperationType } from "@digmo/shared";
 import { toast } from "sonner";
 import {
   addPortfolioFund,
+  createPositionOperation,
   createPortfolio,
   deletePortfolio,
   removePortfolioFund,
@@ -248,6 +249,46 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
     }
   }
 
+  async function operatePositionAction(
+    item: PortfolioFundItem,
+    operationType: PositionOperationType,
+    amountRaw: string,
+    bindSuggestion?: { decisionId: string; actionOrder: number }
+  ) {
+    const amount = parseNonNegativeNumber(amountRaw);
+    if (amount === undefined || amount <= 0) {
+      const message = "操作金额格式错误，请输入大于 0 的数字";
+      setErrorText(message);
+      throw new Error(message);
+    }
+
+    setIsLoading(true);
+    setErrorText("");
+    setStatusText("");
+
+    try {
+      await createPositionOperation({
+        portfolioId: item.portfolioId,
+        fundCode: item.fundCode,
+        operationType,
+        amount,
+        bindSuggestion
+      });
+      await refreshData();
+      const actionText = operationType === "INCREASE" ? "加仓" : "减仓";
+      const message = `已${actionText}基金 ${item.fundCode}`;
+      setStatusText(message);
+      toast.success(message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "仓位操作失败";
+      setErrorText(message);
+      toast.error(message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return {
     createPortfolioAction,
     renamePortfolioAction,
@@ -255,6 +296,7 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
     addFundAction,
     updateFundAction,
     deleteFundAction,
-    manualRefreshAction
+    manualRefreshAction,
+    operatePositionAction
   };
 }

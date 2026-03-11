@@ -1,0 +1,4 @@
+- [x] Status Feedback component uses updated style (e.g. Alert)
+- [x] Portfolio Detail View uses a grid/split layout for secondary info
+- [x] Decision Panel is compact and does not dominate the screen
+- [x] Fund List Table is visible and prominent

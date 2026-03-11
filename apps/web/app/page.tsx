@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import FundDashboard from "./fund-dashboard";
 
 export default function Page() {
-  return <FundDashboard />;
+  return (
+    <Suspense fallback={null}>
+      <FundDashboard />
+    </Suspense>
+  );
 }

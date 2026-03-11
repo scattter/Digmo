@@ -1,16 +1,19 @@
 import {
+  DecisionActionType,
+  DecisionRiskLevel,
   ERROR_CODES,
   FlatFundItem,
   FundEstimateSnapshot,
-  PortfolioDailyProfitV2Item,
-  PortfolioDailyProfitV2Response,
   PortfolioFundItem,
+  PositionOperationType,
   PortfolioSummary,
   PortfolioType,
   TrendType
 } from "@digmo/shared";
+import { DecisionStore } from "../infra/decision/sqlite-decision-store";
 import {
   PortfolioItem,
+  PositionOperationInput,
   SqliteWatchlistStore,
   UpdatePortfolioFundInput,
   WatchlistStore
@@ -22,21 +25,19 @@ import { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify"
 
 interface RegisterWatchlistRoutesDeps {
   store: WatchlistStore;
+  decisionStore?: DecisionStore;
   service: ValuationService;
   requireAuth: preHandlerHookHandler;
-  v2EstimateFetcher?: V2EstimateFetcher;
-  twelveData?: {
-    apiKey?: string;
-    baseUrl?: string;
-    timeoutMs?: number;
-  };
 }
-
-type V2EstimateFetcher = (fundCode: string) => Promise<number | undefined>;
 
 interface FlatQuery {
   expand?: "dedup" | "expanded";
   sortOrder?: "default" | "asc" | "desc";
+}
+
+interface PositionOperationQuery {
+  limit?: unknown;
+  fundCode?: unknown;
 }
 
 function ensureFundCode(fundCode: string): void {
@@ -143,6 +144,56 @@ function parsePortfolioIds(raw: unknown): string[] {
   return portfolioIds;
 }
 
+function parsePositionOperationType(raw: unknown): PositionOperationType {
+  if (raw === "INCREASE" || raw === "DECREASE") {
+    return raw;
+  }
+  throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "operationType must be INCREASE or DECREASE", 400);
+}
+
+function parsePositiveAmount(raw: unknown): number {
+  const value = typeof raw === "string" ? Number(raw.trim()) : Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "amount must be a positive number", 400);
+  }
+  return Number(value.toFixed(2));
+}
+
+function parseOptionalActionOrder(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null || raw === "") {
+    return undefined;
+  }
+  const value = typeof raw === "string" ? Number(raw.trim()) : Number(raw);
+  if (!Number.isFinite(value) || value < 0 || Math.floor(value) !== value) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "actionOrder must be a non-negative integer", 400);
+  }
+  return value;
+}
+
+function parseBindSuggestion(raw: unknown): { decisionId: string; actionOrder: number } | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+  if (typeof raw !== "object") {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion must be an object", 400);
+  }
+
+  const payload = raw as { decisionId?: unknown; actionOrder?: unknown };
+  const decisionId = typeof payload.decisionId === "string" ? payload.decisionId.trim() : "";
+  if (!decisionId) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion.decisionId is required", 400);
+  }
+  const actionOrder = parseOptionalActionOrder(payload.actionOrder);
+  if (actionOrder === undefined) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion.actionOrder is required", 400);
+  }
+
+  return {
+    decisionId,
+    actionOrder
+  };
+}
+
 function trendFromEstimate(estimateChangePct: number | undefined): TrendType {
   if (typeof estimateChangePct !== "number") {
     return "FLAT";
@@ -154,166 +205,6 @@ function trendFromEstimate(estimateChangePct: number | undefined): TrendType {
     return "DOWN";
   }
   return "FLAT";
-}
-
-function toFiniteNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
-  }
-
-  return undefined;
-}
-
-async function fetchTextWithTimeout(
-  url: string,
-  timeoutMs: number,
-  headers?: Record<string, string>
-): Promise<string | undefined> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers,
-      signal: controller.signal
-    });
-    if (!response.ok) {
-      return undefined;
-    }
-    return await response.text();
-  } catch {
-    return undefined;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function fetchJsonWithTimeout<T>(
-  url: string,
-  timeoutMs: number,
-  headers?: Record<string, string>
-): Promise<T | undefined> {
-  const text = await fetchTextWithTimeout(url, timeoutMs, headers);
-  if (!text) {
-    return undefined;
-  }
-
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    return undefined;
-  }
-}
-
-async function fetchTwelveDataEstimateChangePct(
-  fundCode: string,
-  options: {
-    apiKey?: string;
-    baseUrl: string;
-    timeoutMs: number;
-  }
-): Promise<number | undefined> {
-  if (!options.apiKey) {
-    return undefined;
-  }
-
-  const code = fundCode.trim();
-  if (!/^\d{6}$/.test(code)) {
-    return undefined;
-  }
-
-  const baseUrl = options.baseUrl.replace(/\/$/, "");
-  const symbols = [`${code}.OF`, code, `${code}.SZ`, `${code}.SS`];
-
-  for (const symbol of symbols) {
-    const url =
-      `${baseUrl}/quote?symbol=${encodeURIComponent(symbol)}` +
-      `&apikey=${encodeURIComponent(options.apiKey)}`;
-    const payload = await fetchJsonWithTimeout<
-      Record<string, unknown> & {
-        status?: string;
-        percent_change?: string | number;
-        close?: string | number;
-        previous_close?: string | number;
-      }
-    >(url, options.timeoutMs, {
-      Accept: "application/json",
-      "User-Agent": "Mozilla/5.0"
-    });
-
-    if (!payload || payload.status === "error") {
-      continue;
-    }
-
-    const percentChange = toFiniteNumber(payload.percent_change);
-    if (typeof percentChange === "number") {
-      return Number((percentChange / 100).toFixed(6));
-    }
-
-    const close = toFiniteNumber(payload.close);
-    const previousClose = toFiniteNumber(payload.previous_close);
-    if (typeof close === "number" && typeof previousClose === "number" && previousClose > 0) {
-      return Number(((close - previousClose) / previousClose).toFixed(6));
-    }
-  }
-
-  return undefined;
-}
-
-async function fetchFundGzEstimateChangePct(fundCode: string): Promise<number | undefined> {
-  const code = fundCode.trim();
-  if (!/^\d{6}$/.test(code)) {
-    return undefined;
-  }
-
-  const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
-
-  try {
-    const text = await fetchTextWithTimeout(url, 4500, {
-      Accept: "*/*",
-      "User-Agent": "Mozilla/5.0",
-      Referer: "http://fund.eastmoney.com/"
-    });
-    if (!text) {
-      return undefined;
-    }
-
-    const match = text.match(/jsonpgz\((\{.*?\})\)/);
-    if (!match?.[1]) {
-      return undefined;
-    }
-
-    const payload = JSON.parse(match[1]) as { gszzl?: string | number };
-    const changePctPercent = toFiniteNumber(payload.gszzl);
-    if (typeof changePctPercent !== "number") {
-      return undefined;
-    }
-
-    return Number((changePctPercent / 100).toFixed(6));
-  } catch {
-    return undefined;
-  }
-}
-
-function createTwelveDataFundGzHybridFetcher(options: {
-  apiKey?: string;
-  baseUrl: string;
-  timeoutMs: number;
-}): V2EstimateFetcher {
-  return async (fundCode: string) => {
-    const fromTwelveData = await fetchTwelveDataEstimateChangePct(fundCode, options);
-    if (typeof fromTwelveData === "number") {
-      return fromTwelveData;
-    }
-    return fetchFundGzEstimateChangePct(fundCode);
-  };
 }
 
 function formatSignedAmount(value: number): string {
@@ -438,6 +329,55 @@ function requireUserId(request: FastifyRequest): string {
   return userId;
 }
 
+async function resolveBindSuggestion(input: {
+  decisionStore?: DecisionStore;
+  userId: string;
+  portfolioId: string;
+  bindSuggestion?: { decisionId: string; actionOrder: number };
+}): Promise<
+  | {
+      decisionId: string;
+      actionOrder: number;
+      actionType: DecisionActionType;
+      fundCode: string;
+      fundName?: string;
+      riskLevel: DecisionRiskLevel;
+      rationale: string;
+    }
+  | undefined
+> {
+  if (!input.bindSuggestion) {
+    return undefined;
+  }
+  if (!input.decisionStore) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion is unavailable", 400);
+  }
+
+  const today = formatDate(nowInShanghai());
+  const latestToday = await input.decisionStore.getLatestDecisionByTradeDate(input.userId, input.portfolioId, today);
+  if (!latestToday) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "today latest decision is required for bindSuggestion", 400);
+  }
+  if (latestToday.id !== input.bindSuggestion.decisionId) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion.decisionId must be latest decision of today", 400);
+  }
+
+  const action = latestToday.actions[input.bindSuggestion.actionOrder];
+  if (!action) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion.actionOrder is invalid", 400);
+  }
+
+  return {
+    decisionId: latestToday.id,
+    actionOrder: input.bindSuggestion.actionOrder,
+    actionType: action.actionType,
+    fundCode: action.fundCode,
+    ...(action.fundName ? { fundName: action.fundName } : {}),
+    riskLevel: action.riskLevel,
+    rationale: action.rationale
+  };
+}
+
 async function buildPortfolioSummaries(
   store: WatchlistStore,
   userId: string,
@@ -558,118 +498,7 @@ async function buildPortfolioSummaries(
   };
 }
 
-async function chunkGetV2Estimates(
-  fundCodes: string[],
-  estimateFetcher: V2EstimateFetcher
-): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
-  const chunkSize = 8;
-
-  for (let i = 0; i < fundCodes.length; i += chunkSize) {
-    const chunk = fundCodes.slice(i, i + chunkSize);
-    const rows = await Promise.all(
-      chunk.map(async (fundCode) => ({
-        fundCode,
-        estimateChangePct: await estimateFetcher(fundCode)
-      }))
-    );
-
-    for (const row of rows) {
-      if (typeof row.estimateChangePct === "number") {
-        map.set(row.fundCode, row.estimateChangePct);
-      }
-    }
-  }
-
-  return map;
-}
-
-async function buildPortfolioDailyProfitV2(
-  store: WatchlistStore,
-  userId: string,
-  estimateFetcher: V2EstimateFetcher
-): Promise<PortfolioDailyProfitV2Response> {
-  const [portfolios, portfolioFunds] = await Promise.all([store.listPortfolios(userId), store.listAllPortfolioFunds(userId)]);
-  const fundCodes = Array.from(new Set(portfolioFunds.map((item) => item.fundCode)));
-  const estimateMap = await chunkGetV2Estimates(fundCodes, estimateFetcher);
-
-  const grouped = new Map<string, PortfolioFundItem[]>();
-  for (const item of portfolioFunds) {
-    const estimateChangePct = estimateMap.get(item.fundCode);
-    const vm: PortfolioFundItem = {
-      portfolioId: item.portfolioId,
-      portfolioName: item.portfolioName,
-      portfolioType: item.portfolioType,
-      fundCode: item.fundCode,
-      displayOrder: item.displayOrder,
-      holdingAmount: item.holdingAmount,
-      estimateChangePct,
-      totalChangePct: 0,
-      totalProfitAmount: item.holdingProfitAmount,
-      holdingProfitAmount: item.holdingProfitAmount,
-      holdingProfitPct: 0,
-      dailyProfitAmount:
-        typeof estimateChangePct === "number" ? Number((item.holdingAmount * estimateChangePct).toFixed(2)) : 0,
-      dailyProfitPct: typeof estimateChangePct === "number" ? estimateChangePct : 0,
-      dailyProfitOfficialUpdated: false,
-      trend: trendFromEstimate(estimateChangePct),
-      plannedRatio: item.portfolioType === "RATIO" ? item.plannedRatio : undefined
-    };
-
-    if (!grouped.has(item.portfolioId)) {
-      grouped.set(item.portfolioId, []);
-    }
-    grouped.get(item.portfolioId)?.push(vm);
-  }
-
-  const rows: PortfolioDailyProfitV2Item[] = portfolios.map((portfolio) => {
-    const funds = grouped.get(portfolio.id) ?? [];
-    const totalAmount = Number(funds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2));
-    const availableFundCount = funds.filter((item) => typeof item.estimateChangePct === "number").length;
-    const missingFundCount = Math.max(0, funds.length - availableFundCount);
-    const dailyProfitAmount = Number(
-      funds
-        .reduce((sum, item) => {
-          if (typeof item.estimateChangePct !== "number") {
-            return sum;
-          }
-          return sum + item.holdingAmount * item.estimateChangePct;
-        }, 0)
-        .toFixed(2)
-    );
-    const dailyProfitPct = totalAmount > 0 ? Number((dailyProfitAmount / totalAmount).toFixed(6)) : 0;
-
-    return {
-      id: portfolio.id,
-      name: portfolio.name,
-      type: portfolio.type,
-      fundCount: funds.length,
-      availableFundCount,
-      missingFundCount,
-      totalAmount,
-      dailyProfitAmount,
-      dailyProfitPct
-    };
-  });
-
-  const now = nowInShanghai();
-  return {
-    tradeDate: formatDate(now),
-    generatedAt: now.toISOString(),
-    source: "TWELVE_DATA_FUNDGZ_HYBRID",
-    portfolios: rows
-  };
-}
-
 export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatchlistRoutesDeps): void {
-  const v2EstimateFetcher =
-    deps.v2EstimateFetcher ??
-    createTwelveDataFundGzHybridFetcher({
-      apiKey: deps.twelveData?.apiKey,
-      baseUrl: deps.twelveData?.baseUrl ?? "https://api.twelvedata.com",
-      timeoutMs: deps.twelveData?.timeoutMs ?? 1800
-    });
-
   app.register(async (protectedApp) => {
     protectedApp.addHook("preHandler", deps.requireAuth);
 
@@ -679,11 +508,6 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       return {
         portfolios: result.portfolios
       };
-    });
-
-    protectedApp.get("/v2/portfolios/daily-profit", async (request) => {
-      const userId = requireUserId(request);
-      return buildPortfolioDailyProfitV2(deps.store, userId, v2EstimateFetcher);
     });
 
     protectedApp.post("/v1/portfolios", async (request, reply) => {
@@ -964,6 +788,75 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       return {
         updated
       };
+    });
+
+    protectedApp.post("/v1/portfolios/:portfolioId/funds/:fundCode/position-operations", async (request, reply) => {
+      const userId = requireUserId(request);
+      const params = request.params as { portfolioId: string; fundCode: string };
+      ensurePortfolioId(params.portfolioId);
+      ensureFundCode(params.fundCode);
+      await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+
+      const body = request.body as {
+        operationType?: unknown;
+        amount?: unknown;
+        bindSuggestion?: unknown;
+      };
+      const operationType = parsePositionOperationType(body?.operationType);
+      const amount = parsePositiveAmount(body?.amount);
+      const bindSuggestionInput = parseBindSuggestion(body?.bindSuggestion);
+
+      const bindSuggestion = await resolveBindSuggestion({
+        decisionStore: deps.decisionStore,
+        userId,
+        portfolioId: params.portfolioId,
+        bindSuggestion: bindSuggestionInput
+      });
+
+      const input: PositionOperationInput = {
+        portfolioId: params.portfolioId,
+        fundCode: params.fundCode,
+        operationType,
+        amount,
+        ...(bindSuggestion ? { bindSuggestion } : {})
+      };
+      try {
+        const operation = await deps.store.applyPositionOperation(userId, input);
+        if (!operation) {
+          throw new AppError(ERROR_CODES.PORTFOLIO_FUND_NOT_FOUND, "portfolio fund not found", 404);
+        }
+        reply.code(201);
+        return { operation };
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("exceeds current holding amount")) {
+          throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "decrease amount exceeds current holding amount", 400);
+        }
+        if (error instanceof Error && error.message.includes("amount must be greater than 0")) {
+          throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "amount must be greater than 0", 400);
+        }
+        throw error;
+      }
+    });
+
+    protectedApp.get("/v1/portfolios/:portfolioId/position-operations", async (request) => {
+      const userId = requireUserId(request);
+      const params = request.params as { portfolioId: string };
+      ensurePortfolioId(params.portfolioId);
+      await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+
+      const query = request.query as PositionOperationQuery;
+      const rawLimit = typeof query.limit === "string" ? Number(query.limit) : Number(query.limit ?? 50);
+      const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(200, Math.floor(rawLimit))) : 50;
+      const fundCode = typeof query.fundCode === "string" ? query.fundCode.trim() : undefined;
+      if (fundCode) {
+        ensureFundCode(fundCode);
+      }
+
+      const items = await deps.store.listPositionOperations(userId, params.portfolioId, {
+        limit,
+        ...(fundCode ? { fundCode } : {})
+      });
+      return { items };
     });
 
     protectedApp.delete("/v1/portfolios/:portfolioId/funds/:fundCode", async (request) => {
