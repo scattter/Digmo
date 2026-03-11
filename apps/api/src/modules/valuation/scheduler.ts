@@ -1,5 +1,5 @@
-import { isTradingTime, nowInShanghai } from "../../utils/time";
-import { ValuationTaskRunner } from "./task";
+import { isTradingTime, nowInShanghai } from "../../utils/time.js";
+import { ValuationTaskRunner } from "./task.js";
 
 export class ValuationScheduler {
   private readonly runner: ValuationTaskRunner;

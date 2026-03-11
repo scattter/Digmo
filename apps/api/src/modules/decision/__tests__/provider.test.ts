@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { validateDecisionGenerationResult } from "../provider";
+import { validateDecisionGenerationResult } from "../provider.js";
 
 describe("validateDecisionGenerationResult", () => {
   test("accepts valid structured output", () => {

@@ -1,8 +1,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { UserRole, UserStatus } from "@digmo/shared";
-import { getConfig } from "./config";
-import { ExportDataPayload, SqliteWatchlistStore } from "./infra/watchlist/sqlite-watchlist-store";
+import { getConfig } from "./config.js";
+import { ExportDataPayload, SqliteWatchlistStore } from "./infra/watchlist/sqlite-watchlist-store.js";
 
 interface ArgMap {
   [key: string]: string | boolean;

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { DecisionGenerationInput } from "../provider";
-import { OpenAIDecisionProvider } from "../openai-provider";
+import { DecisionGenerationInput } from "../provider.js";
+import { OpenAIDecisionProvider } from "../openai-provider.js";
 
 function createInput(overrides?: Partial<DecisionGenerationInput>): DecisionGenerationInput {
   const base: DecisionGenerationInput = {

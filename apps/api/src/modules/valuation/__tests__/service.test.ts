@@ -1,8 +1,8 @@
 import { describe, expect, test, vi } from "vitest";
-import { MemoryCache } from "../../../infra/cache/memory-cache";
-import { InMemoryRepository } from "../../../infra/repo/in-memory-repository";
-import { McpSeedFundDataProvider } from "../../data/mcp-seed-provider";
-import { ValuationService } from "../service";
+import { MemoryCache } from "../../../infra/cache/memory-cache.js";
+import { InMemoryRepository } from "../../../infra/repo/in-memory-repository.js";
+import { McpSeedFundDataProvider } from "../../data/mcp-seed-provider.js";
+import { ValuationService } from "../service.js";
 
 function createMockQuoteClient() {
   return {

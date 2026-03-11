@@ -3,7 +3,7 @@ import {
   DecisionGenerationInput,
   DecisionGenerationResult,
   validateDecisionGenerationResult,
-} from "./provider";
+} from "./provider.js";
 
 interface OpenAIDecisionProviderOptions {
   apiKey?: string;

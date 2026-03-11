@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { estimateByBetaProxy, estimateByIndexTracking } from "../engine";
+import { estimateByBetaProxy, estimateByIndexTracking } from "../engine.js";
 
 describe("valuation engine", () => {
   test("computes index tracking estimate", () => {

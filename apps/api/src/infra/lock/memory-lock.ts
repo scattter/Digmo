@@ -1,4 +1,4 @@
-import { LockHandle, LockProvider } from "./lock";
+import { LockHandle, LockProvider } from "./lock.js";
 
 export class MemoryLockProvider implements LockProvider {
   private readonly lockMap = new Map<string, number>();

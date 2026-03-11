@@ -1,5 +1,5 @@
 import { NavRecord } from "@digmo/shared";
-import { HistoricalReturn } from "../data/provider";
+import { HistoricalReturn } from "../data/provider.js";
 
 export interface BetaCalibrationResult {
   coefficients: Record<string, number>;

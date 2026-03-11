@@ -10,17 +10,17 @@ import {
   PortfolioType,
   TrendType
 } from "@digmo/shared";
-import { DecisionStore } from "../infra/decision/sqlite-decision-store";
+import { DecisionStore } from "../infra/decision/sqlite-decision-store.js";
 import {
   PortfolioItem,
   PositionOperationInput,
   SqliteWatchlistStore,
   UpdatePortfolioFundInput,
   WatchlistStore
-} from "../infra/watchlist/sqlite-watchlist-store";
-import { ValuationService } from "../modules/valuation/service";
-import { AppError } from "../utils/app-error";
-import { formatDate, isTradingDay, nowInShanghai } from "../utils/time";
+} from "../infra/watchlist/sqlite-watchlist-store.js";
+import { ValuationService } from "../modules/valuation/service.js";
+import { AppError } from "../utils/app-error.js";
+import { formatDate, isTradingDay, nowInShanghai } from "../utils/time.js";
 import { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
 
 interface RegisterWatchlistRoutesDeps {

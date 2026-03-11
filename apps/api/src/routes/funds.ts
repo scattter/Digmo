@@ -1,7 +1,7 @@
 import { ERROR_CODES } from "@digmo/shared";
 import { FastifyInstance } from "fastify";
-import { ValuationService } from "../modules/valuation/service";
-import { AppError } from "../utils/app-error";
+import { ValuationService } from "../modules/valuation/service.js";
+import { AppError } from "../utils/app-error.js";
 
 interface RegisterFundRoutesDeps {
   service: ValuationService;

@@ -5,14 +5,14 @@ import { DatabaseSync } from "node:sqlite";
 import { FundEstimateSnapshot } from "@digmo/shared";
 import Fastify, { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, test } from "vitest";
-import { SqliteDecisionStore } from "../../infra/decision/sqlite-decision-store";
-import { SqliteWatchlistStore } from "../../infra/watchlist/sqlite-watchlist-store";
-import { ValuationService } from "../../modules/valuation/service";
-import { registerAuthRoutes } from "../auth";
-import { createRequireAuth } from "../middleware/require-auth";
-import { signAccessToken } from "../../modules/auth/token";
-import { formatDate, isTradingDay, nowInShanghai } from "../../utils/time";
-import { registerWatchlistRoutes } from "../watchlist";
+import { SqliteDecisionStore } from "../../infra/decision/sqlite-decision-store.js";
+import { SqliteWatchlistStore } from "../../infra/watchlist/sqlite-watchlist-store.js";
+import { ValuationService } from "../../modules/valuation/service.js";
+import { registerAuthRoutes } from "../auth.js";
+import { createRequireAuth } from "../middleware/require-auth.js";
+import { signAccessToken } from "../../modules/auth/token.js";
+import { formatDate, isTradingDay, nowInShanghai } from "../../utils/time.js";
+import { registerWatchlistRoutes } from "../watchlist.js";
 
 interface TestCtx {
   root: string;

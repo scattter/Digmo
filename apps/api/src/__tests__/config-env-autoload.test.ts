@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { loadEnvFromDotEnvIfPresent } from "../config";
+import { loadEnvFromDotEnvIfPresent } from "../config.js";
 
 const tempRoots: string[] = [];
 const KEY_NAME = "DIGMO_ENV_AUTOLOAD_TEST_KEY";

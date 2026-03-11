@@ -1,9 +1,9 @@
 import { ERROR_CODES } from "@digmo/shared";
-import { LockProvider } from "../../infra/lock/lock";
-import { Repository } from "../../infra/repo/repository";
-import { AppError } from "../../utils/app-error";
-import { floorToBucketIso, getBucketSeconds, nowInShanghai } from "../../utils/time";
-import { ValuationService } from "./service";
+import { LockProvider } from "../../infra/lock/lock.js";
+import { Repository } from "../../infra/repo/repository.js";
+import { AppError } from "../../utils/app-error.js";
+import { floorToBucketIso, getBucketSeconds, nowInShanghai } from "../../utils/time.js";
+import { ValuationService } from "./service.js";
 
 interface LoggerLike {
   info: (payload: unknown, message?: string) => void;

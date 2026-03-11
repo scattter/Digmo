@@ -1,11 +1,11 @@
 import { ASIA_SHANGHAI_TIMEZONE, ERROR_CODES, PortfolioType } from "@digmo/shared";
 import { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
-import { DecisionStore } from "../infra/decision/sqlite-decision-store";
-import { WatchlistStore } from "../infra/watchlist/sqlite-watchlist-store";
-import { DecisionAIProvider, DecisionGenerationResult } from "../modules/decision/provider";
-import { ValuationService } from "../modules/valuation/service";
-import { AppError } from "../utils/app-error";
-import { formatDate, nowInShanghai } from "../utils/time";
+import { DecisionStore } from "../infra/decision/sqlite-decision-store.js";
+import { WatchlistStore } from "../infra/watchlist/sqlite-watchlist-store.js";
+import { DecisionAIProvider, DecisionGenerationResult } from "../modules/decision/provider.js";
+import { ValuationService } from "../modules/valuation/service.js";
+import { AppError } from "../utils/app-error.js";
+import { formatDate, nowInShanghai } from "../utils/time.js";
 
 interface RegisterDecisionRoutesDeps {
   store: WatchlistStore;

@@ -7,7 +7,7 @@ import {
   ValuationTaskStatus
 } from "@digmo/shared";
 import { randomUUID } from "node:crypto";
-import { Repository, StoredEstimate } from "./repository";
+import { Repository, StoredEstimate } from "./repository.js";
 
 function round(value: number): number {
   return Math.round(value * 10000) / 10000;

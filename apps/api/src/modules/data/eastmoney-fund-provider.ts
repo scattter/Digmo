@@ -1,7 +1,7 @@
 import { FundProfile, HoldingSnapshot, MarketQuote, NavRecord } from "@digmo/shared";
 import { request as httpsRequest } from "node:https";
-import { formatDate, getShanghaiYear, nowInShanghai } from "../../utils/time";
-import { FundDataProvider, HistoricalReturn } from "./provider";
+import { formatDate, getShanghaiYear, nowInShanghai } from "../../utils/time.js";
+import { FundDataProvider, HistoricalReturn } from "./provider.js";
 
 interface EastmoneyRequestOptions {
   timeoutMs: number;

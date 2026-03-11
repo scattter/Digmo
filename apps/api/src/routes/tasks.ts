@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { Repository } from "../infra/repo/repository";
+import { Repository } from "../infra/repo/repository.js";
 
 interface RegisterTaskRoutesDeps {
   repository: Repository;

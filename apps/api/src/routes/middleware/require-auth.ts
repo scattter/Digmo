@@ -1,8 +1,8 @@
 import { AuthUser, ERROR_CODES } from "@digmo/shared";
 import { preHandlerHookHandler } from "fastify";
-import { SqliteWatchlistStore } from "../../infra/watchlist/sqlite-watchlist-store";
-import { verifyAccessToken, TokenError } from "../../modules/auth/token";
-import { AppError } from "../../utils/app-error";
+import { SqliteWatchlistStore } from "../../infra/watchlist/sqlite-watchlist-store.js";
+import { verifyAccessToken, TokenError } from "../../modules/auth/token.js";
+import { AppError } from "../../utils/app-error.js";
 
 declare module "fastify" {
   interface FastifyRequest {

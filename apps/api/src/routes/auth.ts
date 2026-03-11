@@ -1,10 +1,10 @@
 import { ERROR_CODES } from "@digmo/shared";
 import { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { SqliteWatchlistStore } from "../infra/watchlist/sqlite-watchlist-store";
-import { signAccessToken } from "../modules/auth/token";
-import { AppError } from "../utils/app-error";
-import { createRequireAuth } from "./middleware/require-auth";
-import { verifyPassword } from "../modules/auth/password";
+import { SqliteWatchlistStore } from "../infra/watchlist/sqlite-watchlist-store.js";
+import { signAccessToken } from "../modules/auth/token.js";
+import { AppError } from "../utils/app-error.js";
+import { createRequireAuth } from "./middleware/require-auth.js";
+import { verifyPassword } from "../modules/auth/password.js";
 
 interface RegisterAuthRoutesDeps {
   store: SqliteWatchlistStore;

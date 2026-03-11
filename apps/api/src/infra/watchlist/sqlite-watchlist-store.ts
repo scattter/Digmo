@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { PortfolioType, PositionOperationType, UserRole, UserStatus } from "@digmo/shared";
-import { hashPassword } from "../../modules/auth/password";
+import { hashPassword } from "../../modules/auth/password.js";
 
 export interface PortfolioItem {
   id: string;

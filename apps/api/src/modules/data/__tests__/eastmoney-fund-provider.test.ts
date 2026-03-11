@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toIsoDateFromMs } from "../eastmoney-fund-provider";
+import { toIsoDateFromMs } from "../eastmoney-fund-provider.js";
 
 describe("toIsoDateFromMs", () => {
   it("parses Data_netWorthTrend timestamp as Shanghai date", () => {

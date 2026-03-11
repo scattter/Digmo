@@ -3,18 +3,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Fastify from "fastify";
 import { afterEach, describe, expect, test } from "vitest";
-import { SqliteWatchlistStore } from "../../infra/watchlist/sqlite-watchlist-store";
-import { SqliteDecisionStore } from "../../infra/decision/sqlite-decision-store";
-import { registerAuthRoutes } from "../auth";
-import { createRequireAuth } from "../middleware/require-auth";
-import { signAccessToken } from "../../modules/auth/token";
-import { registerWatchlistRoutes } from "../watchlist";
-import { registerDecisionRoutes } from "../decision";
+import { SqliteWatchlistStore } from "../../infra/watchlist/sqlite-watchlist-store.js";
+import { SqliteDecisionStore } from "../../infra/decision/sqlite-decision-store.js";
+import { registerAuthRoutes } from "../auth.js";
+import { createRequireAuth } from "../middleware/require-auth.js";
+import { signAccessToken } from "../../modules/auth/token.js";
+import { registerWatchlistRoutes } from "../watchlist.js";
+import { registerDecisionRoutes } from "../decision.js";
 import {
   DecisionAIProvider,
   DecisionGenerationInput,
   DecisionGenerationResult,
-} from "../../modules/decision/provider";
+} from "../../modules/decision/provider.js";
 
 interface TestCtx {
   root: string;

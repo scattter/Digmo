@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { evaluateConfidence } from "../confidence";
+import { evaluateConfidence } from "../confidence.js";
 
 describe("confidence scoring", () => {
   test("returns high confidence with fresh and well-fit data", () => {

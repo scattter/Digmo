@@ -1,4 +1,4 @@
-import { HistoricalReturn } from "../data/provider";
+import { HistoricalReturn } from "../data/provider.js";
 import { NavRecord } from "@digmo/shared";
 
 export interface AlphaCalibrationResult {

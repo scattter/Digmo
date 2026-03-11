@@ -1,6 +1,6 @@
 import { FundProfile, HoldingSnapshot, MarketQuote, NavRecord } from "@digmo/shared";
-import { formatDate, getShanghaiWeekday, nowInShanghai } from "../../utils/time";
-import { FundDataProvider, HistoricalReturn } from "./provider";
+import { formatDate, getShanghaiWeekday, nowInShanghai } from "../../utils/time.js";
+import { FundDataProvider, HistoricalReturn } from "./provider.js";
 
 interface IndexSeries {
   code: string;

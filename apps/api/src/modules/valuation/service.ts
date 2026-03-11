@@ -5,8 +5,8 @@ import {
   FundEstimateSnapshot,
   ValuationMethod
 } from "@digmo/shared";
-import { Cache } from "../../infra/cache/cache";
-import { Repository, StoredEstimate } from "../../infra/repo/repository";
+import { Cache } from "../../infra/cache/cache.js";
+import { Repository, StoredEstimate } from "../../infra/repo/repository.js";
 import {
   floorToBucketIso,
   formatDate,
@@ -15,11 +15,11 @@ import {
   isTradingTime,
   nowInShanghai,
   secondsStaleness
-} from "../../utils/time";
-import { AppError } from "../../utils/app-error";
-import { EastmoneyQuote, EastmoneyQuoteClient } from "../data/eastmoney-client";
-import { FundDataProvider } from "../data/provider";
-import { evaluateConfidence } from "./confidence";
+} from "../../utils/time.js";
+import { AppError } from "../../utils/app-error.js";
+import { EastmoneyQuote, EastmoneyQuoteClient } from "../data/eastmoney-client.js";
+import { FundDataProvider } from "../data/provider.js";
+import { evaluateConfidence } from "./confidence.js";
 
 const ESTIMATE_CACHE_TTL = 45;
 const BATCH_CACHE_TTL = 20;
