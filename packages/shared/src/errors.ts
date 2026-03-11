@@ -1,4 +1,4 @@
-import { ERROR_CODES } from "./constants";
+import { ERROR_CODES } from "./constants.js";
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 
