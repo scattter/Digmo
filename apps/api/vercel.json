@@ -2,22 +2,22 @@
   "version": 2,
   "builds": [
     {
-      "src": "vercel-handler.ts",
+      "src": "apps/api/vercel-handler.ts",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/v1/(.*)",
-      "dest": "/vercel-handler.ts"
+      "dest": "/apps/api/vercel-handler.ts"
     },
     {
       "src": "/v1",
-      "dest": "/vercel-handler.ts"
+      "dest": "/apps/api/vercel-handler.ts"
     },
     {
       "src": "/(.*)",
-      "dest": "/vercel-handler.ts"
+      "dest": "/apps/api/vercel-handler.ts"
     }
   ]
 }

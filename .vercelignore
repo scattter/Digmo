@@ -1,0 +1,17 @@
+.git
+.gitignore
+.idea
+.vscode
+.serena
+.codex
+.trae
+.run
+.turbo
+node_modules
+apps/api/data/*.sqlite
+apps/api/data/*.sqlite-*
+apps/api/.vercel
+apps/web/.next
+apps/web/node_modules
+apps/api/node_modules
+packages/shared/node_modules
