@@ -94,12 +94,12 @@ export function deltaClassByPct(value: number): "text-success" | "text-danger" |
   return "text-muted-foreground";
 }
 
-export function trendTone(trend: TrendType): "success" | "danger" | "warning" {
+export function trendTone(trend: TrendType): string {
   if (trend === "UP") {
-    return "success";
+    return "border-success/30 bg-success/15 text-success hover:bg-success/15";
   }
   if (trend === "DOWN") {
-    return "danger";
+    return "border-danger/30 bg-danger/15 text-danger hover:bg-danger/15";
   }
-  return "warning";
+  return "border-warning/30 bg-warning/15 text-warning hover:bg-warning/15";
 }

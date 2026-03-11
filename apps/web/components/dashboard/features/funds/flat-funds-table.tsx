@@ -89,7 +89,7 @@ function FundsTable({
                   {formatSignedPct(item.totalChangePct)}
                 </TableCell>
                 <TableCell className="text-right font-mono">
-                  <Badge variant={trendTone(item.trend)}>
+                  <Badge variant="secondary" className={trendTone(item.trend)}>
                     {formatSignedPct(item.estimateChangePct)}
                   </Badge>
                 </TableCell>
@@ -97,7 +97,7 @@ function FundsTable({
                   <TableCell className="text-sm text-muted-foreground">
                     {item.portfolioCount && item.portfolioCount > 1
                       ? `(${item.portfolioCount}) ${
-                          item.portfolioNames.join(" / ") || "-"
+                          item.portfolioNames.join("/") || "-"
                         }`
                       : item.portfolioName ?? "-"}
                   </TableCell>
@@ -191,7 +191,7 @@ export function FlatFundsTable({
               <p className="font-medium">
                 {item.fundName ?? `基金 ${item.fundCode}`}
               </p>
-              <Badge variant={trendTone(item.trend)}>
+              <Badge variant="secondary" className={trendTone(item.trend)}>
                 {formatSignedPct(item.estimateChangePct)}
               </Badge>
             </div>

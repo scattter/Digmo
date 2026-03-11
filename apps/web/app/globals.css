@@ -3,47 +3,59 @@
 @tailwind utilities;
 
 :root {
-  --radius: 0.75rem;
+  --radius: 0.5rem;
 
-  --background: 210 40% 98%;
-  --foreground: 221 39% 11%;
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
   --surface: 0 0% 100%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 40%;
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 221 83% 53%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 240 5.9% 10%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 240 5.9% 10%;
+
+  /* Business semantic tones (kept as extensions on top of official tokens). */
   --success: 152 76% 30%;
   --warning: 32 95% 44%;
   --danger: 0 72% 43%;
-
-  --card: 0 0% 100%;
-  --card-foreground: 221 39% 11%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 221 39% 11%;
 }
 
 :root[data-ui-mode="professional"] {
-  --background: 216 33% 98%;
-  --foreground: 222 47% 12%;
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
   --surface: 0 0% 100%;
-  --muted: 214 32% 94%;
-  --muted-foreground: 218 13% 34%;
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
-  --border: 214 32% 88%;
-  --input: 214 32% 88%;
-  --ring: 221 83% 53%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 240 5.9% 10%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 240 5.9% 10%;
   --success: 152 76% 30%;
   --warning: 32 95% 44%;
   --danger: 0 72% 43%;
-
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 12%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 12%;
 }
 
 :root[data-ui-mode="minimal"] {
@@ -54,6 +66,12 @@
   --muted-foreground: 218 9% 38%;
   --primary: 214 62% 40%;
   --primary-foreground: 210 40% 98%;
+  --secondary: 42 16% 93%;
+  --secondary-foreground: 210 15% 16%;
+  --accent: 42 16% 93%;
+  --accent-foreground: 210 15% 16%;
+  --destructive: 0 63% 41%;
+  --destructive-foreground: 0 0% 98%;
   --border: 40 8% 83%;
   --input: 40 8% 83%;
   --ring: 214 62% 40%;
@@ -81,14 +99,22 @@
     @apply bg-background text-foreground antialiased;
     font-family: "Noto Sans SC", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     line-height: 1.5;
-    background-image:
-      radial-gradient(circle at 10% 0%, hsl(var(--primary) / 0.08), transparent 35%),
-      radial-gradient(circle at 90% 0%, hsl(var(--success) / 0.07), transparent 40%);
-    background-attachment: fixed;
+    font-kerning: normal;
+    /* Keep slash-delimited labels (e.g. a/b) visually compact. */
+    word-spacing: -0.04em;
   }
 
   a {
     @apply text-primary underline-offset-4 hover:underline;
+  }
+
+  input,
+  textarea,
+  code,
+  pre,
+  kbd,
+  samp {
+    word-spacing: normal;
   }
 }
 

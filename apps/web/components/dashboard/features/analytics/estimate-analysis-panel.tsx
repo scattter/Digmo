@@ -63,7 +63,7 @@ export function EstimateAnalysisPanel({
                     {!compact ? <p className="text-xs font-mono text-muted-foreground">{row.fundCode}</p> : null}
                   </div>
                   <p className={`font-mono text-sm ${deltaClassByPct(row.estimateChangePct)}`}>
-                    {formatSignedCurrency(row.intradayAmount)} / {formatSignedPct(row.estimateChangePct)}
+                    {formatSignedCurrency(row.intradayAmount)}/{formatSignedPct(row.estimateChangePct)}
                   </p>
                 </div>
               ))}

@@ -123,16 +123,20 @@ function ratioCompact(item: PortfolioFundItem) {
   const plannedPct = item.plannedRatio * 100;
   const diffPct = actualPct - plannedPct;
   const diffText = `${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%`;
-  const diffVariant =
-    diffPct > 0 ? "warning" : diffPct < 0 ? "success" : "secondary";
+  const diffToneClass =
+    diffPct > 0
+      ? "border-warning/30 bg-warning/15 text-warning hover:bg-warning/15"
+      : diffPct < 0
+        ? "border-success/30 bg-success/15 text-success hover:bg-success/15"
+        : undefined;
 
   return (
     <div className="flex flex-col gap-1">
       <span className="font-mono text-xs text-muted-foreground">
-        实 {actualPct.toFixed(1)}% / 计 {plannedPct.toFixed(1)}%
+        实{actualPct.toFixed(1)}%/计{plannedPct.toFixed(1)}%
       </span>
       <div>
-        <Badge variant={diffVariant} className="h-5 px-1.5 font-mono text-[10px]">
+        <Badge variant="secondary" className={cn("h-5 px-1.5 font-mono text-[10px]", diffToneClass)}>
           {diffText}
         </Badge>
       </div>

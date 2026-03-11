@@ -53,7 +53,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog-official";
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -728,23 +728,25 @@ export default function FundDashboard() {
       )}
 
       <Dialog open={isDecisionDrawerOpen} onOpenChange={setIsDecisionDrawerOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+        <DialogContent className="max-h-[90vh] overflow-hidden grid-rows-[auto_minmax(0,1fr)] sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>决策与操作</DialogTitle>
             <DialogDescription>策略文档管理。</DialogDescription>
           </DialogHeader>
-          <DailyDecisionPanel
-            isBusy={isDecisionBusy}
-            isLoading={isDecisionLoading}
-            isGeneratingSuggestion={isGeneratingSuggestion}
-            docContent={decisionDocContent}
-            docFormat={decisionDocFormat}
-            docVersion={decisionDocVersion}
-            docFileName={decisionDocSourceFileName}
-            onDocContentChange={setDecisionDocContent}
-            onDocUpload={onUploadDecisionDoc}
-            onSaveDoc={onSaveDecisionDoc}
-          />
+          <div className="min-h-0 overflow-y-auto overscroll-contain pr-1">
+            <DailyDecisionPanel
+              isBusy={isDecisionBusy}
+              isLoading={isDecisionLoading}
+              isGeneratingSuggestion={isGeneratingSuggestion}
+              docContent={decisionDocContent}
+              docFormat={decisionDocFormat}
+              docVersion={decisionDocVersion}
+              docFileName={decisionDocSourceFileName}
+              onDocContentChange={setDecisionDocContent}
+              onDocUpload={onUploadDecisionDoc}
+              onSaveDoc={onSaveDecisionDoc}
+            />
+          </div>
         </DialogContent>
       </Dialog>
 

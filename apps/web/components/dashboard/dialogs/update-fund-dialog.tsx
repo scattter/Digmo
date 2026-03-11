@@ -16,7 +16,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog-official";
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
