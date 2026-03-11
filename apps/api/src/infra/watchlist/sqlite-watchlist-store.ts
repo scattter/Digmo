@@ -827,7 +827,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           ORDER BY created_at DESC, rowid DESC
         `
       )
-      .all() as LegacyWatchlistFundRow[];
+      .all() as unknown as LegacyWatchlistFundRow[];
 
     if (legacyRows.length === 0) {
       return;
@@ -1040,7 +1040,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           WHERE id = ?
         `
       )
-      .get(userId) as AppUserRow | undefined;
+      .get(userId) as unknown as AppUserRow | undefined;
 
     if (!row) {
       return undefined;
@@ -1065,7 +1065,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           WHERE username = ? COLLATE NOCASE
         `
       )
-      .get(username) as AppUserRow | undefined;
+      .get(username) as unknown as AppUserRow | undefined;
 
     if (!row) {
       return undefined;
@@ -1166,7 +1166,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
             ORDER BY created_at ASC
           `
         )
-        .all() as AppUserRow[];
+        .all() as unknown as AppUserRow[];
       users = rows.map((row) => this.toAppUser(row));
     }
 
@@ -1458,7 +1458,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           ORDER BY display_order ASC, updated_at DESC
         `
       )
-      .all(userId) as PortfolioRow[];
+      .all(userId) as unknown as PortfolioRow[];
 
     return rows.map((row) => this.toPortfolio(row));
   }
@@ -1479,7 +1479,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           WHERE user_id = ? AND id = ?
         `
       )
-      .get(userId, portfolioId) as PortfolioRow | undefined;
+      .get(userId, portfolioId) as unknown as PortfolioRow | undefined;
 
     if (!row) {
       return undefined;
@@ -1634,7 +1634,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           ORDER BY pf.display_order ASC, pf.updated_at DESC
         `
       )
-      .all(userId, portfolioId) as PortfolioFundRow[];
+      .all(userId, portfolioId) as unknown as PortfolioFundRow[];
 
     return rows.map((row) => this.toPortfolioFund(row));
   }
@@ -1664,7 +1664,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           ORDER BY pf.created_at DESC, pf.rowid DESC
         `
       )
-      .all(userId) as PortfolioFundRow[];
+      .all(userId) as unknown as PortfolioFundRow[];
 
     return rows.map((row) => this.toPortfolioFund(row));
   }
@@ -1693,7 +1693,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           WHERE pf.user_id = ? AND pf.portfolio_id = ? AND pf.fund_code = ?
         `
       )
-      .get(userId, portfolioId, fundCode) as PortfolioFundRow | undefined;
+      .get(userId, portfolioId, fundCode) as unknown as PortfolioFundRow | undefined;
 
     if (!row) {
       return undefined;
@@ -1971,7 +1971,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
               `
             )
             .all(userId, portfolioId, limit)
-    ) as PositionOperationRow[];
+    ) as unknown as PositionOperationRow[];
 
     return rows.map((row) => this.toPositionOperation(row));
   }
@@ -2137,7 +2137,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           WHERE user_id = ? AND fund_code IN (${placeholders})
         `
       )
-      .all(userId, ...fundCodes) as FundStateRow[];
+      .all(userId, ...fundCodes) as unknown as FundStateRow[];
 
     return new Map(
       rows.map((row) => [

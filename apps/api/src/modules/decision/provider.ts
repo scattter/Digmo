@@ -1,4 +1,10 @@
-import { DailyDecisionAction, DecisionDocFormat, DecisionRiskLevel, PortfolioType } from "@digmo/shared";
+import {
+  DailyDecisionAction,
+  DecisionCitationSourceType,
+  DecisionDocFormat,
+  DecisionRiskLevel,
+  PortfolioType,
+} from "@digmo/shared";
 
 export interface DecisionGenerationInput {
   asOf: string;
@@ -180,7 +186,7 @@ export function validateDecisionGenerationResult(input: unknown): DecisionGenera
       return {
         title,
         snippet,
-        sourceType,
+        sourceType: sourceType as DecisionCitationSourceType,
         ...(url ? { url } : {})
       };
     });

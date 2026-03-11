@@ -301,7 +301,7 @@ export class SqliteDecisionStore implements DecisionStore {
           LIMIT 1
         `
       )
-      .get(userId, portfolioId) as DecisionDocRow | undefined;
+      .get(userId, portfolioId) as unknown as DecisionDocRow | undefined;
 
     return row ? toDoc(row) : undefined;
   }
@@ -459,7 +459,7 @@ export class SqliteDecisionStore implements DecisionStore {
           LIMIT 1
         `
       )
-      .get(userId, portfolioId, tradeDate) as DecisionRunRow | undefined;
+      .get(userId, portfolioId, tradeDate) as unknown as DecisionRunRow | undefined;
     if (!row) {
       return undefined;
     }
@@ -487,7 +487,7 @@ export class SqliteDecisionStore implements DecisionStore {
           ORDER BY action_order ASC
         `
       )
-      .all(row.id) as DecisionActionRow[];
+      .all(row.id) as unknown as DecisionActionRow[];
 
     return {
       id: row.id,
@@ -535,7 +535,7 @@ export class SqliteDecisionStore implements DecisionStore {
           LIMIT ?
         `
       )
-      .all(userId, portfolioId, limit) as DecisionRunRow[];
+      .all(userId, portfolioId, limit) as unknown as DecisionRunRow[];
 
     if (runRows.length === 0) {
       return [];
@@ -566,7 +566,7 @@ export class SqliteDecisionStore implements DecisionStore {
           ORDER BY run_id, action_order ASC
         `
       )
-      .all(...runIdSet) as DecisionActionRow[];
+      .all(...runIdSet) as unknown as DecisionActionRow[];
 
     const actionMap = new Map<string, DailyDecisionAction[]>();
     for (const row of actionRows) {

@@ -1,5 +1,20 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "HOST",
+    "PORT",
+    "TZ",
+    "WATCHLIST_DB_PATH",
+    "VALUATION_TARGET_FUNDS",
+    "AUTH_*",
+    "EASTMONEY_*",
+    "TWELVEDATA_*",
+    "DECISION_AI_*",
+    "OPENAI_*",
+    "ALPACA_*",
+    "ALPHAVANTAGE_API_KEY",
+    "DEMO_*"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
