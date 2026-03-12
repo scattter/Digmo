@@ -13,10 +13,9 @@ import { SortableContext, useSortable, rectSortingStrategy } from "@dnd-kit/sort
 import { CSS } from "@dnd-kit/utilities";
 import { PortfolioSummary } from "@digmo/shared";
 import { CloseCircleFilled } from "@ant-design/icons";
-import { FlatExpandMode, SortOrder } from "@/lib/api";
+import { FlatExpandMode } from "@/lib/api";
 import { MainView } from "@/hooks/use-dashboard-data";
 import { Button, Card, Radio, Badge } from "antd";
-import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 
 interface PortfolioToolbarProps {
@@ -27,9 +26,6 @@ interface PortfolioToolbarProps {
   onSelectPortfolio: (portfolioId: string) => void;
   flatExpand: FlatExpandMode;
   onFlatExpandChange: (value: FlatExpandMode) => void;
-  flatSortOrder: SortOrder;
-  onFlatSortToggle: () => void;
-  flatSortLabel: string;
   onDeletePortfolioTab: (portfolio: PortfolioSummary) => void;
   onPortfolioDragEnd: (event: DragEndEvent) => void;
 }
@@ -102,9 +98,6 @@ export function PortfolioToolbar(props: PortfolioToolbarProps) {
     onSelectPortfolio,
     flatExpand,
     onFlatExpandChange,
-    flatSortOrder,
-    onFlatSortToggle,
-    flatSortLabel,
     onDeletePortfolioTab,
     onPortfolioDragEnd
   } = props;
@@ -165,14 +158,6 @@ export function PortfolioToolbar(props: PortfolioToolbarProps) {
                <Radio.Button value="dedup">去重汇总</Radio.Button>
                <Radio.Button value="expanded">按组合展开</Radio.Button>
             </Radio.Group>
-
-            <Button
-              onClick={onFlatSortToggle}
-              type={flatSortOrder !== "default" ? "primary" : "default"}
-              size={isMobile ? "small" : "middle"}
-            >
-              {flatSortLabel}
-            </Button>
           </div>
         ) : null}
     </Card>

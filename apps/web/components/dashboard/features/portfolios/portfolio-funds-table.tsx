@@ -201,7 +201,7 @@ export function PortfolioFundsTable({
       width: 140,
       fixed: "left",
       render: (_, record) => (
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
           <Text strong ellipsis={{ tooltip: record.fundName }} style={{ fontSize: isMobile ? 12 : 14 }}>
             {record.fundName ?? `基金 ${record.fundCode}`}
           </Text>
@@ -289,7 +289,7 @@ export function PortfolioFundsTable({
       title: "操作",
       key: "action",
       fixed: "right",
-      align: "right",
+      align: "center",
       width: 60,
       render: (_, record) => {
         const items: MenuProps['items'] = [

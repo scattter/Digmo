@@ -138,6 +138,17 @@
   outline-offset: 2px;
 }
 
+.ant-table-wrapper .ant-table-thead > tr > th,
+.ant-table-wrapper .ant-table-tbody > tr > td,
+.ant-table-wrapper .ant-table-expanded-row > td {
+  text-align: center !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th .ant-table-column-sorters,
+.ant-table-wrapper .ant-table-thead > tr > th .ant-table-filter-column {
+  justify-content: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

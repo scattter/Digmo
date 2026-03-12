@@ -17,6 +17,7 @@ import {
 import { FundEditState, formatBeijingTime } from "@/lib/format";
 
 export type MainView = "funds" | "portfolios" | "overview" | "analysis";
+export type LandingSection = "overview" | "portfolios" | "funds";
 export interface RefreshDataOptions {
   silent?: boolean;
 }
@@ -149,10 +150,18 @@ export function useDashboardData() {
     const next = await fetchPortfolios();
     setPortfolios(next);
 
-    if (selectedPortfolioId !== "all" && !next.some((item) => item.id === selectedPortfolioId)) {
+    if (next.length === 0) {
       setSelectedPortfolioId("all");
       setSelectedPortfolioMeta(null);
       setPortfolioFunds([]);
+      return;
+    }
+
+    if (
+      selectedPortfolioId === "all" ||
+      !next.some((item) => item.id === selectedPortfolioId)
+    ) {
+      setSelectedPortfolioId(next[0].id);
     }
   }, [selectedPortfolioId]);
 

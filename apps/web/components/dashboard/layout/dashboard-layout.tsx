@@ -1,20 +1,19 @@
 "use client";
 
 import React, { useState } from "react";
-import { Layout, Menu, Button, Drawer, Breadcrumb, Avatar, Dropdown, theme, Space, Typography } from "antd";
+import { Layout, Menu, Button, Drawer, Breadcrumb, Avatar, Dropdown, theme, Typography } from "antd";
 import {
   DashboardOutlined,
   WalletOutlined,
   BarChartOutlined,
-  PieChartOutlined,
   MenuOutlined,
   UserOutlined,
   LogoutOutlined,
-  SettingOutlined,
 } from "@ant-design/icons";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { MenuProps } from "antd";
+import type { LandingSection } from "@/hooks/use-dashboard-data";
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -29,32 +28,32 @@ const navItems = [
   {
     key: "overview",
     label: "概览",
-    href: "/",
+    href: "/?section=overview",
     icon: <DashboardOutlined />,
-    view: "overview",
+    section: "overview" as LandingSection,
   },
   {
     key: "portfolios",
     label: "基金组合",
-    href: "/?view=portfolios",
+    href: "/?section=portfolios",
     icon: <WalletOutlined />,
-    view: "portfolios",
+    section: "portfolios" as LandingSection,
   },
   {
     key: "funds",
     label: "基金列表",
-    href: "/?view=funds",
+    href: "/?section=funds",
     icon: <BarChartOutlined />,
-    view: "funds",
-  },
-  {
-    key: "analysis",
-    label: "分析报表",
-    href: "/?view=analysis",
-    icon: <PieChartOutlined />,
-    view: "analysis",
+    section: "funds" as LandingSection,
   },
 ];
+
+function mapLegacyViewToSection(viewParam: string | null): LandingSection {
+  if (viewParam === "portfolios") return "portfolios";
+  if (viewParam === "funds") return "funds";
+  if (viewParam === "analysis") return "funds";
+  return "overview";
+}
 
 export function DashboardLayout({
   children,
@@ -64,16 +63,26 @@ export function DashboardLayout({
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const sectionParam = searchParams.get("section");
   const viewParam = searchParams.get("view");
-  
-  const currentView = navItems.some((item) => item.view === viewParam)
-    ? viewParam
-    : pathname.startsWith("/funds/")
+
+  const currentSection = navItems.some((item) => item.section === sectionParam)
+    ? (sectionParam as LandingSection)
+    : sectionParam === "holdings"
       ? "funds"
-      : "overview";
-  
-  const activeNavItem = navItems.find((item) => item.view === currentView) ?? navItems[0];
+    : navItems.some((item) => item.section === viewParam)
+      ? (viewParam as LandingSection)
+      : pathname.startsWith("/funds/")
+        ? "funds"
+        : mapLegacyViewToSection(viewParam);
+
+  const activeNavItem = navItems.find((item) => item.section === currentSection) ?? navItems[0];
   const selectedKeys = [activeNavItem.key];
+
+  const breadcrumbTitle =
+    pathname.startsWith("/funds/")
+      ? "基金详情"
+      : activeNavItem.label;
 
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -172,10 +181,10 @@ export function DashboardLayout({
                 className="md:hidden" // Tailwind class to hide on desktop
                 style={{ fontSize: '16px', width: 64, height: 64 }}
              />
-             <Breadcrumb
+              <Breadcrumb
                 items={[
                   { title: <Link href="/">首页</Link> },
-                  { title: activeNavItem.label },
+                  { title: breadcrumbTitle },
                 ]}
                 className="hidden md:flex"
              />

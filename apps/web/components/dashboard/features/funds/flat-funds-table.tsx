@@ -5,9 +5,8 @@ import { ReloadOutlined } from "@ant-design/icons";
 import Link from "next/link";
 import { Card, Button, Table, Tag, Skeleton, List, Typography, Space } from "antd";
 import type { TableProps } from "antd";
-import { FlatExpandMode } from "@/lib/api";
+import { FlatExpandMode, SortOrder } from "@/lib/api";
 import { formatCurrency, formatSignedPct, trendTone } from "@/lib/format";
-import { cn } from "@/lib/utils";
 
 const { Text } = Typography;
 
@@ -16,6 +15,9 @@ interface FlatFundsTableProps {
   expand: FlatExpandMode;
   isLoading: boolean;
   isBusy: boolean;
+  flatSortOrder: SortOrder;
+  flatSortLabel: string;
+  onFlatSortToggle: () => void;
   onRefresh: () => Promise<void>;
 }
 
@@ -31,6 +33,9 @@ export function FlatFundsTable({
   expand,
   isLoading,
   isBusy,
+  flatSortOrder,
+  flatSortLabel,
+  onFlatSortToggle,
   onRefresh,
 }: FlatFundsTableProps) {
   const columns: TableProps<FlatFundItem>["columns"] = [
@@ -40,7 +45,7 @@ export function FlatFundsTable({
       fixed: "left",
       width: 180,
       render: (_, record) => (
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
           <Text strong ellipsis={{ tooltip: record.fundName }}>
             {record.fundName ?? `基金 ${record.fundCode}`}
           </Text>
@@ -54,7 +59,7 @@ export function FlatFundsTable({
       title: "持仓金额",
       dataIndex: "holdingAmount",
       key: "holdingAmount",
-      align: "right",
+      align: "center",
       width: 120,
       render: (value) => `¥${formatCurrency(value)}`,
     },
@@ -62,7 +67,7 @@ export function FlatFundsTable({
       title: "历史总涨跌",
       dataIndex: "totalChangePct",
       key: "totalChangePct",
-      align: "right",
+      align: "center",
       render: (value) => (
         <span style={{ color: value > 0 ? "#cf1322" : value < 0 ? "#389e0d" : "inherit" }}>
           {formatSignedPct(value)}
@@ -73,7 +78,7 @@ export function FlatFundsTable({
       title: "盘中估算",
       dataIndex: "estimateChangePct",
       key: "estimateChangePct",
-      align: "right",
+      align: "center",
       render: (value, record) => {
         const tone = trendTone(record.trend);
         const color = getTrendColor(tone);
@@ -103,7 +108,7 @@ export function FlatFundsTable({
       title: "详情",
       key: "action",
       fixed: "right",
-      align: "right",
+      align: "center",
       width: 100,
       render: (_, record) => (
         <Link href={`/funds/${record.fundCode}`} passHref legacyBehavior>
@@ -180,10 +185,19 @@ export function FlatFundsTable({
       手动更新
     </Button>
   );
+  const sortButton = (
+    <Button
+      onClick={onFlatSortToggle}
+      type={flatSortOrder !== "default" ? "primary" : "default"}
+      disabled={isBusy}
+    >
+      {flatSortLabel}
+    </Button>
+  );
 
   if (expand === "dedup") {
     return (
-      <Card title="所有基金 (去重)" extra={refreshButton}>
+      <Card title="所有基金 (去重)" extra={<Space>{sortButton}{refreshButton}</Space>}>
          {data.length === 0 ? (
             <div style={{ padding: 24, textAlign: 'center', color: 'rgba(0,0,0,0.45)', border: '1px dashed #d9d9d9', borderRadius: 6 }}>
                暂无基金数据，请先创建组合并添加基金。
@@ -211,7 +225,8 @@ export function FlatFundsTable({
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          {sortButton}
           {refreshButton}
        </div>
        {Object.keys(groupedData).length === 0 ? (
