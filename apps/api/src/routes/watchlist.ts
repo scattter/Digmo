@@ -267,23 +267,49 @@ async function syncFundStateWithLatestReturns(
     return;
   }
 
-  for (const fundCode of fundCodes) {
-    try {
-      const snapshot = await service.getOrComputeEstimate(fundCode);
-      const hasNewOfficialData = await store.accumulateOfficialReturn(
-        userId,
-        fundCode,
-        snapshot.baseNavDate,
-        snapshot.officialDailyReturn
-      );
+  const uniqueFundCodes = Array.from(new Set(fundCodes));
+  const concurrency = Math.min(6, uniqueFundCodes.length);
+  let nextIndex = 0;
 
-      if (hasNewOfficialData) {
-        await store.rollPortfolioFundHoldingByNavDate(userId, fundCode, snapshot.baseNavDate, snapshot.officialDailyReturn);
+  const worker = async () => {
+    while (nextIndex < uniqueFundCodes.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      const fundCode = uniqueFundCodes[currentIndex];
+      if (!fundCode) {
+        continue;
       }
-    } catch {
-      // 忽略单只基金同步失败，避免整体接口失败。
+
+      try {
+        const snapshot = await service.getOrComputeEstimate(fundCode);
+        const hasNewOfficialData = await store.accumulateOfficialReturn(
+          userId,
+          fundCode,
+          snapshot.baseNavDate,
+          snapshot.officialDailyReturn
+        );
+
+        if (hasNewOfficialData) {
+          await store.rollPortfolioFundHoldingByNavDate(userId, fundCode, snapshot.baseNavDate, snapshot.officialDailyReturn);
+        }
+      } catch {
+        // 忽略单只基金同步失败，避免整体接口失败。
+      }
     }
-  }
+  };
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+}
+
+function triggerFundStateSyncInBackground(
+  store: WatchlistStore,
+  userId: string,
+  service: ValuationService,
+  fundCodes: string[]
+): void {
+  void syncFundStateWithLatestReturns(store, userId, service, fundCodes).catch(() => {
+    // 后台同步失败不影响当前请求响应。
+  });
 }
 
 function sortByEstimate<T extends { estimateChangePct?: number; fundCode: string }>(items: T[], order: "asc" | "desc"): T[] {
@@ -388,12 +414,10 @@ async function buildPortfolioSummaries(
   fundStateMap: Map<string, { totalChangePct: number; lastAccumulatedNavDate?: string }>;
 }> {
   const portfolios = await store.listPortfolios(userId);
-  const initialPortfolioFunds = await store.listAllPortfolioFunds(userId);
-  const fundCodes = Array.from(new Set(initialPortfolioFunds.map((item) => item.fundCode)));
-
-  await syncFundStateWithLatestReturns(store, userId, service, fundCodes);
-
   const portfolioFunds = await store.listAllPortfolioFunds(userId);
+  const fundCodes = Array.from(new Set(portfolioFunds.map((item) => item.fundCode)));
+
+  triggerFundStateSyncInBackground(store, userId, service, fundCodes);
 
   const [estimateMap, fundStates] = await Promise.all([
     chunkGetEstimates(service, fundCodes),
@@ -598,21 +622,19 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       const items = await deps.store.listPortfolioFunds(userId, params.portfolioId);
       const fundCodes = items.map((item) => item.fundCode);
 
-      await syncFundStateWithLatestReturns(deps.store, userId, deps.service, fundCodes);
-
-      const latestItems = await deps.store.listPortfolioFunds(userId, params.portfolioId);
+      triggerFundStateSyncInBackground(deps.store, userId, deps.service, fundCodes);
 
       const [estimateMap, fundStates] = await Promise.all([
         chunkGetEstimates(deps.service, fundCodes),
         deps.store.listFundStatesByCodes(userId, fundCodes)
       ]);
 
-      const totalAmount = latestItems.reduce((sum, item) => sum + item.holdingAmount, 0);
+      const totalAmount = items.reduce((sum, item) => sum + item.holdingAmount, 0);
       const now = nowInShanghai();
       const tradingDayNow = isTradingDay(now);
       const today = formatDate(now);
 
-      const funds = latestItems.map((item) => {
+      const funds = items.map((item) => {
         const estimate = estimateMap.get(item.fundCode);
         const fundState = fundStates.get(item.fundCode);
         const totalChangePct = fundState?.totalChangePct ?? 0;
@@ -878,9 +900,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       const portfolioFunds = await deps.store.listAllPortfolioFunds(userId);
       const fundCodes = Array.from(new Set(portfolioFunds.map((item) => item.fundCode)));
 
-      await syncFundStateWithLatestReturns(deps.store, userId, deps.service, fundCodes);
-
-      const latestPortfolioFunds = await deps.store.listAllPortfolioFunds(userId);
+      triggerFundStateSyncInBackground(deps.store, userId, deps.service, fundCodes);
 
       const [estimateMap, fundStates] = await Promise.all([
         chunkGetEstimates(deps.service, fundCodes),
@@ -888,12 +908,12 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       ]);
 
       const totalAmountMap = new Map<string, number>();
-      for (const row of latestPortfolioFunds) {
+      for (const row of portfolioFunds) {
         totalAmountMap.set(row.portfolioId, (totalAmountMap.get(row.portfolioId) ?? 0) + row.holdingAmount);
       }
 
       if (expand === "expanded") {
-        const expandedRows = latestPortfolioFunds.map((row) => {
+        const expandedRows = portfolioFunds.map((row) => {
           const estimate = estimateMap.get(row.fundCode);
           const totalChangePct = fundStates.get(row.fundCode)?.totalChangePct ?? 0;
           const totalAmount = totalAmountMap.get(row.portfolioId) ?? 0;
@@ -923,7 +943,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       }
 
       const grouped = new Map<string, FlatFundItem>();
-      for (const row of latestPortfolioFunds) {
+      for (const row of portfolioFunds) {
         const estimate = estimateMap.get(row.fundCode);
         const totalChangePct = fundStates.get(row.fundCode)?.totalChangePct ?? 0;
 

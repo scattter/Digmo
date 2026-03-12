@@ -113,26 +113,37 @@ async function createRouteApp(
   options?: {
     autoAuth?: boolean;
     decisionStore?: SqliteDecisionStore;
+    serviceOverrides?: {
+      getBatchEstimates?: (fundCodes: string[]) => Promise<{
+        data: FundEstimateSnapshot[];
+        partialFailed: string[];
+      }>;
+      getOrComputeEstimate?: (fundCode: string) => Promise<FundEstimateSnapshot>;
+    };
   }
 ) {
   const app = Fastify({ logger: false });
 
   const service = {
-    getBatchEstimates: async (fundCodes: string[]) => {
-      return {
-        data: fundCodes
-          .filter((code) => Object.prototype.hasOwnProperty.call(estimates, code))
-          .map((code) => {
-            const seed = toEstimateSeed(estimates[code]);
-            return buildSnapshot(code, seed.estimateChangePct, seed.officialDailyReturn, seed.baseNavDate);
-          }),
-        partialFailed: []
-      };
-    },
-    getOrComputeEstimate: async (fundCode: string) => {
-      const seed = toEstimateSeed(estimates[fundCode] ?? 0);
-      return buildSnapshot(fundCode, seed.estimateChangePct, seed.officialDailyReturn, seed.baseNavDate);
-    }
+    getBatchEstimates:
+      options?.serviceOverrides?.getBatchEstimates ??
+      (async (fundCodes: string[]) => {
+        return {
+          data: fundCodes
+            .filter((code) => Object.prototype.hasOwnProperty.call(estimates, code))
+            .map((code) => {
+              const seed = toEstimateSeed(estimates[code]);
+              return buildSnapshot(code, seed.estimateChangePct, seed.officialDailyReturn, seed.baseNavDate);
+            }),
+          partialFailed: []
+        };
+      }),
+    getOrComputeEstimate:
+      options?.serviceOverrides?.getOrComputeEstimate ??
+      (async (fundCode: string) => {
+        const seed = toEstimateSeed(estimates[fundCode] ?? 0);
+        return buildSnapshot(fundCode, seed.estimateChangePct, seed.officialDailyReturn, seed.baseNavDate);
+      })
   } as unknown as ValuationService;
 
   const requireAuth = createRequireAuth({
@@ -673,17 +684,10 @@ describe("watchlist routes", () => {
         dailyProfitOfficialUpdated: boolean;
       }>;
     };
-    if (tradingDay) {
-      expect(firstPayload.funds[0].holdingAmount).toBe(1010);
-      expect(firstPayload.funds[0].holdingProfitAmount).toBe(30);
-      expect(firstPayload.funds[0].dailyProfitPct).toBe(0.01);
-      expect(firstPayload.funds[0].dailyProfitOfficialUpdated).toBe(true);
-    } else {
-      expect(firstPayload.funds[0].holdingAmount).toBe(1000);
-      expect(firstPayload.funds[0].holdingProfitAmount).toBe(20);
-      expect(firstPayload.funds[0].dailyProfitPct).toBe(0.02);
-      expect(firstPayload.funds[0].dailyProfitOfficialUpdated).toBe(false);
-    }
+    expect(firstPayload.funds[0].holdingAmount).toBe(1000);
+    expect(firstPayload.funds[0].holdingProfitAmount).toBe(20);
+    expect(typeof firstPayload.funds[0].dailyProfitPct).toBe("number");
+    expect(typeof firstPayload.funds[0].dailyProfitOfficialUpdated).toBe("boolean");
 
     const secondListResp = await app.inject({
       method: "GET",
@@ -713,6 +717,82 @@ describe("watchlist routes", () => {
     expect(summary).toBeDefined();
     expect(summary?.dailyProfitPct).toBe(tradingDay ? 0.01 : 0.02);
     expect(summary?.allFundsDailyUpdated).toBe(tradingDay);
+
+    await app.close();
+  });
+
+  test("does not block funds response while syncing official return in background", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const today = formatDate(nowInShanghai());
+
+    const app = await createRouteApp(
+      store,
+      {
+        "161725": {
+          estimateChangePct: 0.02,
+          officialDailyReturn: 0.01,
+          baseNavDate: today
+        }
+      },
+      {
+        serviceOverrides: {
+          getOrComputeEstimate: async (fundCode: string) => {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            return buildSnapshot(fundCode, 0.02, 0.01, today);
+          }
+        }
+      }
+    );
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "异步同步组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000, holdingProfitAmount: 20 }
+    });
+
+    const startedAt = Date.now();
+    const firstResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    const elapsedMs = Date.now() - startedAt;
+    expect(firstResp.statusCode).toBe(200);
+    expect(elapsedMs).toBeLessThan(195);
+    const firstPayload = firstResp.json() as {
+      funds: Array<{ holdingAmount: number; holdingProfitAmount: number; dailyProfitPct: number }>;
+    };
+    expect(firstPayload.funds[0].holdingAmount).toBe(1000);
+    expect(firstPayload.funds[0].holdingProfitAmount).toBe(20);
+    expect(firstPayload.funds[0].dailyProfitPct).toBe(0.02);
+
+    await new Promise((resolve) => setTimeout(resolve, 260));
+
+    const secondResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    expect(secondResp.statusCode).toBe(200);
+    const secondPayload = secondResp.json() as {
+      funds: Array<{ holdingAmount: number; holdingProfitAmount: number; dailyProfitPct: number }>;
+    };
+
+    if (isTradingDay(nowInShanghai())) {
+      expect(secondPayload.funds[0].holdingAmount).toBe(1010);
+      expect(secondPayload.funds[0].holdingProfitAmount).toBe(30);
+      expect(secondPayload.funds[0].dailyProfitPct).toBe(0.01);
+    } else {
+      expect(secondPayload.funds[0].holdingAmount).toBe(1000);
+      expect(secondPayload.funds[0].holdingProfitAmount).toBe(20);
+      expect(secondPayload.funds[0].dailyProfitPct).toBe(0.02);
+    }
 
     await app.close();
   });

@@ -30,6 +30,25 @@ function createEmptyRealtimeEstimateFetcher() {
   return async () => undefined;
 }
 
+function createEstimateSnapshot(fundCode: string) {
+  return {
+    fundCode,
+    fundName: `基金${fundCode}`,
+    officialNav: 1,
+    officialDailyReturn: 0.002,
+    estimateNav: 1.002,
+    estimateChangePct: 0.002,
+    baseNavDate: "2026-03-02",
+    estimateTime: "2026-03-02T02:00:00.000Z",
+    confidenceLevel: "HIGH" as const,
+    confidenceScore: 90,
+    method: "BETA_PROXY" as const,
+    inputsStalenessSec: 1,
+    topHoldings: [],
+    disclaimer: "test"
+  };
+}
+
 describe("valuation service", () => {
   test("keeps idempotency within the same estimate bucket", async () => {
     const service = new ValuationService({
@@ -316,5 +335,30 @@ describe("valuation service", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  test("fetches batch estimates concurrently", async () => {
+    const service = new ValuationService({
+      provider: new McpSeedFundDataProvider(["161725"]),
+      repository: new InMemoryRepository(),
+      cache: new MemoryCache(),
+      eastmoneyClient: createMockQuoteClient() as any,
+      realtimeEstimateFetcher: createMockRealtimeEstimateFetcher()
+    });
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    vi.spyOn(service, "getOrComputeEstimate").mockImplementation(async (fundCode: string) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      inFlight -= 1;
+      return createEstimateSnapshot(fundCode);
+    });
+
+    const result = await service.getBatchEstimates(["161725", "110011", "006327", "009033"]);
+    expect(result.data).toHaveLength(4);
+    expect(result.partialFailed).toHaveLength(0);
+    expect(maxInFlight).toBeGreaterThan(1);
   });
 });

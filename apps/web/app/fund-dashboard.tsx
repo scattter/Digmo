@@ -688,7 +688,7 @@ export default function FundDashboard() {
                           onClick={() => void onOpenDecisionHistoryDialog()}
                           disabled={isDecisionBusy}
                         >
-                          历史
+                          操作历史
                         </Button>
                       </div>
                     </CardContent>

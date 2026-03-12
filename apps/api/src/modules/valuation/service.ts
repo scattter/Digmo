@@ -24,7 +24,8 @@ import { evaluateConfidence } from "./confidence.js";
 const ESTIMATE_CACHE_TTL = 45;
 const BATCH_CACHE_TTL = 20;
 const QUOTE_CACHE_TTL = 30;
-const FUND_GZ_TIMEOUT_MS = 10_000;
+const FUND_GZ_TIMEOUT_MS = 2_000;
+const BATCH_ESTIMATE_CONCURRENCY = 6;
 
 interface ComputeOptions {
   now: Date;
@@ -117,6 +118,31 @@ function isSameShanghaiDate(isoTime: string | undefined, shanghaiDate: string): 
   return formatDate(date) === shanghaiDate;
 }
 
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  mapper: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+  if (items.length === 0) {
+    return [];
+  }
+
+  const results = new Array<R>(items.length);
+  const workerCount = Math.max(1, Math.min(limit, items.length));
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex] as T, currentIndex);
+    }
+  };
+
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
+
 export class ValuationService {
   private readonly provider: FundDataProvider;
 
@@ -196,17 +222,30 @@ export class ValuationService {
       return cached;
     }
 
-    const data: FundEstimateSnapshot[] = [];
-    const partialFailed: string[] = [];
-
-    for (const fundCode of fundCodes) {
+    const results = await mapWithConcurrency<
+      string,
+      {
+        fundCode: string;
+        snapshot?: FundEstimateSnapshot;
+      }
+    >(fundCodes, BATCH_ESTIMATE_CONCURRENCY, async (fundCode) => {
       try {
         const snapshot = await this.getOrComputeEstimate(fundCode);
-        data.push(snapshot);
+        return {
+          fundCode,
+          snapshot
+        };
       } catch {
-        partialFailed.push(fundCode);
+        return {
+          fundCode
+        };
       }
-    }
+    });
+
+    const data = results
+      .filter((item): item is { fundCode: string; snapshot: FundEstimateSnapshot } => Boolean(item.snapshot))
+      .map((item) => item.snapshot);
+    const partialFailed = results.filter((item) => !item.snapshot).map((item) => item.fundCode);
 
     const response: BatchEstimateResponse = {
       data,
