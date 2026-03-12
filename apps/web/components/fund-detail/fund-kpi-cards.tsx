@@ -1,5 +1,5 @@
 import { FundEstimateSnapshot } from "@digmo/shared";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, Statistic, Row, Col } from "antd";
 
 interface FundKpiCardsProps {
   snapshot: FundEstimateSnapshot;
@@ -30,17 +30,18 @@ export function FundKpiCards({ snapshot }: FundKpiCardsProps) {
   ];
 
   return (
-    <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <Row gutter={[12, 12]}>
       {items.map((item) => (
-        <Card key={item.label}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{item.label}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="font-mono text-xl font-semibold">{item.value}</p>
-          </CardContent>
-        </Card>
+        <Col xs={24} md={12} xl={6} key={item.label}>
+          <Card bordered={false}>
+            <Statistic
+              title={item.label}
+              value={item.value}
+              valueStyle={{ fontFamily: 'monospace', fontWeight: 600 }}
+            />
+          </Card>
+        </Col>
       ))}
-    </section>
+    </Row>
   );
 }

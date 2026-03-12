@@ -96,8 +96,6 @@ export async function buildApp(): Promise<AppContext> {
     eastmoneyClient,
   });
 
-  await service.bootstrap();
-
   const taskRunner = new ValuationTaskRunner({
     service,
     repository,

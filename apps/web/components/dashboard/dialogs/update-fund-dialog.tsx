@@ -5,29 +5,12 @@ import {
   PortfolioFundItem,
   PositionOperationType,
 } from "@digmo/shared";
-import { Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Modal, Button, Input, Select, Segmented, Form, Typography, Space } from "antd";
 
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FundEditState } from "@/lib/format";
+
+const { Text } = Typography;
 
 interface UpdateFundDialogProps {
   open: boolean;
@@ -86,7 +69,7 @@ export function UpdateFundDialog({
       } else {
         const parsedOrder =
           bindActionOrder === "none" ? undefined : Number(bindActionOrder);
-        await onOperate(mode, operationAmount, parsedOrder);
+        await onOperate(mode as PositionOperationType, operationAmount, parsedOrder);
       }
       onOpenChange(false);
     } catch (error) {
@@ -98,133 +81,97 @@ export function UpdateFundDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>更新基金</DialogTitle>
-          <DialogDescription>
-            {target.fundName ?? `基金 ${target.fundCode}`} ({target.fundCode})
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-2">
-          <Tabs
-            value={mode}
-            onValueChange={(v) => setMode(v as any)}
-            className="w-full"
-          >
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="DIRECT" disabled={isBusy}>
-                直接更新
-              </TabsTrigger>
-              <TabsTrigger value="INCREASE" disabled={isBusy}>
-                加仓
-              </TabsTrigger>
-              <TabsTrigger value="DECREASE" disabled={isBusy}>
-                减仓
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {mode === "DIRECT" ? (
-            <div className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="holdingAmount">持仓金额</Label>
-                <Input
-                  id="holdingAmount"
-                  inputMode="decimal"
-                  value={editState.holdingAmount}
-                  onChange={(e) => onEditFieldChange("holdingAmount", e.target.value)}
-                  disabled={isBusy}
-                />
-              </div>
-
-              {target.portfolioType === "RATIO" && (
-                <div className="grid gap-2">
-                  <Label htmlFor="plannedRatio">计划持有比例(%)</Label>
-                  <Input
-                    id="plannedRatio"
-                    inputMode="decimal"
-                    value={editState.plannedRatio}
-                    onChange={(e) => onEditFieldChange("plannedRatio", e.target.value)}
-                    disabled={isBusy}
-                  />
-                </div>
-              )}
-
-              <div className="grid gap-2">
-                <Label htmlFor="holdingProfitAmount">持有收益金额</Label>
-                <Input
-                  id="holdingProfitAmount"
-                  inputMode="decimal"
-                  value={editState.holdingProfitAmount}
-                  onChange={(e) =>
-                    onEditFieldChange("holdingProfitAmount", e.target.value)
-                  }
-                  disabled={isBusy}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="operationAmount">
-                  {mode === "INCREASE" ? "加仓金额" : "减仓金额"}
-                </Label>
-                <Input
-                  id="operationAmount"
-                  inputMode="decimal"
-                  value={operationAmount}
-                  onChange={(e) => setOperationAmount(e.target.value)}
-                  disabled={isBusy}
-                  placeholder="请输入金额"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="bindAction">绑定今日建议（可选）</Label>
-                <Select
-                  value={bindActionOrder}
-                  onValueChange={setBindActionOrder}
-                  disabled={isBusy || suggestionActions.length === 0}
-                >
-                  <SelectTrigger id="bindAction">
-                    <SelectValue placeholder="选择绑定的建议" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">不绑定</SelectItem>
-                    {suggestionActions.map((action, index) => (
-                      <SelectItem key={index} value={String(index)}>
-                        {action.actionType === "BUY" ? "买入" : "卖出"} ·{" "}
-                        {action.fundCode} · {action.rationale}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {suggestionActions.length === 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    当前无可绑定的今日建议
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
+    <Modal
+      title="更新基金"
+      open={open}
+      onCancel={() => onOpenChange(false)}
+      onOk={handleSubmit}
+      confirmLoading={isBusy || isSubmitting}
+      okText={mode === "DIRECT" ? "确认更新" : mode === "INCREASE" ? "确认加仓" : "确认减仓"}
+      cancelText="取消"
+    >
+      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+        <div style={{ marginBottom: 8 }}>
+           <Text type="secondary">
+             {target.fundName ?? `基金 ${target.fundCode}`} ({target.fundCode})
+           </Text>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            取消
-          </Button>
-          <Button onClick={handleSubmit} disabled={isBusy || isSubmitting}>
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {mode === "DIRECT"
-              ? "确认更新"
-              : mode === "INCREASE"
-              ? "确认加仓"
-              : "确认减仓"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <Segmented
+          block
+          options={[
+            { label: '直接更新', value: 'DIRECT' },
+            { label: '加仓', value: 'INCREASE' },
+            { label: '减仓', value: 'DECREASE' },
+          ]}
+          value={mode}
+          onChange={(v) => setMode(v as any)}
+          disabled={isBusy}
+        />
+
+        {mode === "DIRECT" ? (
+          <Form layout="vertical">
+            <Form.Item label="持仓金额">
+              <Input
+                value={editState.holdingAmount}
+                onChange={(e) => onEditFieldChange("holdingAmount", e.target.value)}
+                disabled={isBusy}
+                placeholder="请输入持仓金额"
+              />
+            </Form.Item>
+
+            {target.portfolioType === "RATIO" && (
+              <Form.Item label="计划持有比例(%)">
+                <Input
+                  value={editState.plannedRatio}
+                  onChange={(e) => onEditFieldChange("plannedRatio", e.target.value)}
+                  disabled={isBusy}
+                  placeholder="例如：25"
+                />
+              </Form.Item>
+            )}
+
+            <Form.Item label="持有收益金额">
+              <Input
+                value={editState.holdingProfitAmount}
+                onChange={(e) =>
+                  onEditFieldChange("holdingProfitAmount", e.target.value)
+                }
+                disabled={isBusy}
+                placeholder="例如：-88.36（不填默认为 0）"
+              />
+            </Form.Item>
+          </Form>
+        ) : (
+          <Form layout="vertical">
+            <Form.Item label={mode === "INCREASE" ? "加仓金额" : "减仓金额"}>
+              <Input
+                value={operationAmount}
+                onChange={(e) => setOperationAmount(e.target.value)}
+                disabled={isBusy}
+                placeholder="请输入金额"
+              />
+            </Form.Item>
+
+            <Form.Item label="绑定今日建议（可选）" help={suggestionActions.length === 0 ? "当前无可绑定的今日建议" : undefined}>
+              <Select
+                value={bindActionOrder}
+                onChange={setBindActionOrder}
+                disabled={isBusy || suggestionActions.length === 0}
+                placeholder="选择绑定的建议"
+              >
+                <Select.Option value="none">不绑定</Select.Option>
+                {suggestionActions.map((action, index) => (
+                  <Select.Option key={index} value={String(index)}>
+                    {action.actionType === "BUY" ? "买入" : "卖出"} ·{" "}
+                    {action.fundCode} · {action.rationale}
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Form>
+        )}
+      </Space>
+    </Modal>
   );
 }

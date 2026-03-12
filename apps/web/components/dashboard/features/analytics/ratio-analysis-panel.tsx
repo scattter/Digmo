@@ -1,10 +1,13 @@
-import { ArrowUpDown } from "lucide-react";
+"use client";
+
 import { SortOrder } from "@/lib/api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { getEstimateSortButtonLabel } from "@/hooks/use-dashboard-data";
 import { deltaClassByPct, formatPct, formatSignedAmountCompact, formatSignedPct } from "@/lib/format";
+import { getEstimateSortButtonLabel } from "@/hooks/use-dashboard-data";
 import { cn } from "@/lib/utils";
+import { Card, Button, Typography, Space, Progress, Tooltip } from "antd";
+import { SortAscendingOutlined, SortDescendingOutlined, UnorderedListOutlined } from "@ant-design/icons";
+
+const { Text } = Typography;
 
 interface RatioAnalysisRow {
   fundCode: string;
@@ -36,68 +39,76 @@ export function RatioAnalysisPanel({
   className
 }: RatioAnalysisPanelProps) {
   return (
-    <Card className={cn("flex flex-col", className)}>
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle className="text-base">比例达成</CardTitle>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="secondary" size="sm" onClick={onToggleExpanded} disabled={disabled}>
-            {expanded ? "收起" : "展开"}
-          </Button>
-          <Button type="button" variant="secondary" size="sm" onClick={onToggleSort} disabled={disabled || !expanded}>
-            <ArrowUpDown className="h-4 w-4" />
-            {getEstimateSortButtonLabel(sortOrder)}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col">
-        {rows.length === 0 ? (
-          <p className="text-xs text-muted-foreground">当前组合暂无可分析的比例数据。</p>
-        ) : null}
+    <Card 
+      className={cn("flex flex-col", className)}
+      styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}
+      title={
+         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text strong>比例达成</Text>
+            <Space>
+               <Button size="small" onClick={onToggleExpanded} disabled={disabled}>
+                  {expanded ? "收起" : "展开"}
+               </Button>
+               <Button 
+                  size="small" 
+                  onClick={onToggleSort} 
+                  disabled={disabled || !expanded}
+                  icon={sortOrder === 'asc' ? <SortAscendingOutlined /> : sortOrder === 'desc' ? <SortDescendingOutlined /> : <UnorderedListOutlined />}
+               >
+                  {getEstimateSortButtonLabel(sortOrder)}
+               </Button>
+            </Space>
+         </div>
+      }
+    >
+        {rows.length === 0 ? <Text type="secondary" style={{ fontSize: 12 }}>当前组合暂无可分析的比例数据。</Text> : null}
 
-        {rows.length > 0 && !expanded ? <p className="text-xs text-muted-foreground">已收起，点击“展开”查看达成详情。</p> : null}
+        {rows.length > 0 && !expanded ? <Text type="secondary" style={{ fontSize: 12 }}>已收起，点击“展开”查看达成详情。</Text> : null}
 
         {rows.length > 0 && expanded ? (
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-            <div className="grid grid-cols-1 gap-3 sm:[grid-template-columns:repeat(auto-fit,minmax(240px,1fr))]">
+             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
               {rows.map((row) => {
                 const overrun = Math.max(0, row.actualRatio - row.plannedRatio);
-                const actualWidth = row.plannedRatio > 0 ? Math.min((row.actualRatio / row.plannedRatio) * 100, 100) : row.actualRatio > 0 ? 100 : 0;
-
+                const percent = row.plannedRatio > 0 ? Math.min((row.actualRatio / row.plannedRatio) * 100, 100) : row.actualRatio > 0 ? 100 : 0;
+                
                 return (
-                  <div key={row.fundCode} className="rounded-md border border-border p-3">
-                    <div className="mb-2 space-y-1">
-                      <p className="truncate text-sm font-medium" title={row.fundName}>
+                  <Card key={row.fundCode} size="small" type="inner" bordered>
+                    <div style={{ marginBottom: 8 }}>
+                      <Text strong ellipsis={{ tooltip: row.fundName }} style={{ display: 'block' }}>
                         {row.fundName}
-                      </p>
-                      <p className={`inline-flex items-center gap-1 text-xs font-mono ${deltaClassByPct(row.estimateChangePct)}`}>
+                      </Text>
+                      <div className={deltaClassByPct(row.estimateChangePct)} style={{ fontFamily: 'monospace', fontSize: 12 }}>
                         <span>{formatSignedAmountCompact(row.intradayAmount)}</span>
                         <span>({formatSignedPct(row.estimateChangePct)})</span>
-                      </p>
+                      </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>计划 {formatPct(row.plannedRatio)}</span>
-                        <span>实际 {formatPct(row.actualRatio)}</span>
-                      </div>
-
-                      <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                        <div className="absolute inset-y-0 left-0 w-full rounded-full bg-primary/30" />
-                        <div
-                          className={`absolute inset-y-0 left-0 rounded-full ${overrun > 0 ? "bg-warning" : "bg-success"}`}
-                          style={{ width: `${actualWidth}%` }}
-                        />
-                      </div>
-
-                      {overrun > 0 ? <p className="text-xs font-mono text-warning">+{(overrun * 100).toFixed(2)}%</p> : null}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 4 }}>
+                       <span>计划 {formatPct(row.plannedRatio)}</span>
+                       <span>实际 {formatPct(row.actualRatio)}</span>
                     </div>
-                  </div>
+
+                    <Progress 
+                       percent={percent} 
+                       showInfo={false} 
+                       status={overrun > 0 ? "exception" : "success"}
+                       size="small"
+                    />
+                    
+                    {overrun > 0 && (
+                       <div style={{ marginTop: 4, textAlign: 'right' }}>
+                          <Text type="warning" style={{ fontSize: 12, fontFamily: 'monospace' }}>
+                             +{(overrun * 100).toFixed(2)}%
+                          </Text>
+                       </div>
+                    )}
+                  </Card>
                 );
               })}
             </div>
           </div>
         ) : null}
-      </CardContent>
     </Card>
   );
 }

@@ -1,0 +1,12 @@
+- [x] Dependencies installed (`antd`, `@ant-design/nextjs-registry`, `@ant-design/icons`)
+- [x] Next.js Registry configured in `layout.tsx`
+- [x] Application builds without errors
+- [x] Dashboard Layout uses Ant Design `Layout`
+- [x] Mobile navigation (Drawer) works
+- [x] Home/Dashboard page renders correctly with Ant Design components
+- [x] Funds Table renders with Ant Design Table
+- [x] Update Fund Dialog opens and functions using Ant Design Modal/Form
+- [x] Create Portfolio Dialog opens and functions using Ant Design Modal/Form
+- [x] No imports from `@/components/ui` remain
+- [x] No imports from `lucide-react` remain (unless intentionally kept)
+- [x] Unused dependencies removed from `package.json`

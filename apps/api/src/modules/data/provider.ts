@@ -1,4 +1,4 @@
-import { FundProfile, HoldingSnapshot, MarketQuote, NavRecord } from "@digmo/shared";
+import { FundProfile, HoldingSnapshot, NavRecord } from "@digmo/shared";
 
 export interface HistoricalReturn {
   date: string;
@@ -11,6 +11,4 @@ export interface FundDataProvider {
   getLatestNavRecord(fundCode: string): Promise<NavRecord | undefined>;
   getRecentNavRecords(fundCode: string, limit: number): Promise<NavRecord[]>;
   getHoldingSnapshot(fundCode: string): Promise<HoldingSnapshot | undefined>;
-  getLatestMarketQuotes(): Promise<MarketQuote[]>;
-  getHistoricalIndexReturns(indexCode: string, limit: number): Promise<HistoricalReturn[]>;
 }

@@ -1,4 +1,4 @@
-import { FundProfile, HoldingSnapshot, MarketQuote, NavRecord } from "@digmo/shared";
+import { FundProfile, HoldingSnapshot, NavRecord } from "@digmo/shared";
 import { formatDate, getShanghaiWeekday, nowInShanghai } from "../../utils/time.js";
 import { FundDataProvider, HistoricalReturn } from "./provider.js";
 
@@ -352,30 +352,5 @@ export class McpSeedFundDataProvider implements FundDataProvider {
 
   async getHoldingSnapshot(fundCode: string): Promise<HoldingSnapshot | undefined> {
     return this.holdings.get(fundCode);
-  }
-
-  async getLatestMarketQuotes(): Promise<MarketQuote[]> {
-    const now = nowInShanghai();
-    const date = formatDate(now);
-    const timeIso = now.toISOString();
-
-    return [...this.indexReturns.values()].map((series) => {
-      const baseReturn = series.returns.at(-1)?.changePct ?? 0;
-      const intradayDrift = Math.sin(now.getTime() / 600000 + Number(series.code.slice(-2))) / 10000;
-
-      return {
-        code: series.code,
-        name: series.name,
-        quoteDate: date,
-        quoteTime: timeIso,
-        changePct: round(clamp(baseReturn + intradayDrift, -0.095, 0.095)),
-        source: "MCP_SEED"
-      };
-    });
-  }
-
-  async getHistoricalIndexReturns(indexCode: string, limit: number): Promise<HistoricalReturn[]> {
-    const returns = this.indexReturns.get(indexCode)?.returns ?? [];
-    return returns.slice(Math.max(0, returns.length - limit));
   }
 }

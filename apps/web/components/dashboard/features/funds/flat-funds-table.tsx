@@ -1,21 +1,15 @@
+"use client";
+
 import { FlatFundItem } from "@digmo/shared";
-import { RefreshCw } from "lucide-react";
+import { ReloadOutlined } from "@ant-design/icons";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card, Button, Table, Tag, Skeleton, List, Typography, Space } from "antd";
+import type { TableProps } from "antd";
 import { FlatExpandMode } from "@/lib/api";
 import { formatCurrency, formatSignedPct, trendTone } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+const { Text } = Typography;
 
 interface FlatFundsTableProps {
   data: FlatFundItem[];
@@ -25,100 +19,11 @@ interface FlatFundsTableProps {
   onRefresh: () => Promise<void>;
 }
 
-function FundsTable({
-  data,
-  showPortfolioColumn = false,
-}: {
-  data: FlatFundItem[];
-  showPortfolioColumn?: boolean;
-}) {
-  return (
-    <div className="rounded-md border overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[180px] min-w-[180px] sticky left-0 z-20 bg-background">
-              基金名称
-            </TableHead>
-            <TableHead className="w-[120px] min-w-[120px] text-right sticky left-[180px] z-20 bg-background">
-              持仓金额
-            </TableHead>
-            <TableHead className="text-right">历史总涨跌</TableHead>
-            <TableHead className="text-right">盘中估算</TableHead>
-            {showPortfolioColumn && <TableHead>所属组合</TableHead>}
-            <TableHead className="text-right sticky right-0 z-20 bg-background">
-              详情
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((item, index) => {
-            const stickyBg = index % 2 !== 0 ? "bg-muted/50" : "bg-background";
-            return (
-              <TableRow
-                key={`${item.fundCode}-${item.portfolioId ?? "all"}`}
-                className="even:bg-muted/50"
-              >
-                <TableCell
-                  className={cn(
-                    "w-[180px] min-w-[180px] sticky left-0 z-10 transition-colors",
-                    stickyBg
-                  )}
-                >
-                  <div className="flex flex-col">
-                    <span
-                      className="font-medium truncate max-w-[180px]"
-                      title={item.fundName ?? ""}
-                    >
-                      {item.fundName ?? `基金 ${item.fundCode}`}
-                    </span>
-                    <span className="text-xs font-mono text-muted-foreground">
-                      {item.fundCode}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell
-                  className={cn(
-                    "w-[120px] min-w-[120px] text-right font-mono sticky left-[180px] z-10 transition-colors",
-                    stickyBg
-                  )}
-                >
-                  ¥{formatCurrency(item.holdingAmount)}
-                </TableCell>
-                <TableCell className="text-right font-mono">
-                  {formatSignedPct(item.totalChangePct)}
-                </TableCell>
-                <TableCell className="text-right font-mono">
-                  <Badge variant="secondary" className={trendTone(item.trend)}>
-                    {formatSignedPct(item.estimateChangePct)}
-                  </Badge>
-                </TableCell>
-                {showPortfolioColumn && (
-                  <TableCell className="text-sm text-muted-foreground">
-                    {item.portfolioCount && item.portfolioCount > 1
-                      ? `(${item.portfolioCount}) ${
-                          item.portfolioNames.join("/") || "-"
-                        }`
-                      : item.portfolioName ?? "-"}
-                  </TableCell>
-                )}
-                <TableCell
-                  className={cn(
-                    "text-right sticky right-0 z-10 transition-colors",
-                    stickyBg
-                  )}
-                >
-                  <Button variant="link" size="sm" asChild>
-                    <Link href={`/funds/${item.fundCode}`}>查看详情</Link>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
-  );
+// Helper to map trend tone to Antd Tag color
+function getTrendColor(tone: string): string {
+  if (tone.includes("red")) return "red"; // rise
+  if (tone.includes("green")) return "green"; // fall
+  return "default";
 }
 
 export function FlatFundsTable({
@@ -128,145 +33,201 @@ export function FlatFundsTable({
   isBusy,
   onRefresh,
 }: FlatFundsTableProps) {
-  // Group by Portfolio logic
-  const groupedData =
-    expand === "dedup"
-      ? null
-      : data.reduce((acc, item) => {
-          const key = item.portfolioId ?? "other";
-          const name = item.portfolioName ?? "其他";
-          if (!acc[key]) {
-            acc[key] = { name, items: [] };
-          }
-          acc[key].items.push(item);
-          return acc;
-        }, {} as Record<string, { name: string; items: FlatFundItem[] }>);
+  const columns: TableProps<FlatFundItem>["columns"] = [
+    {
+      title: "基金名称",
+      key: "name",
+      fixed: "left",
+      width: 180,
+      render: (_, record) => (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <Text strong ellipsis={{ tooltip: record.fundName }}>
+            {record.fundName ?? `基金 ${record.fundCode}`}
+          </Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {record.fundCode}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: "持仓金额",
+      dataIndex: "holdingAmount",
+      key: "holdingAmount",
+      align: "right",
+      width: 120,
+      render: (value) => `¥${formatCurrency(value)}`,
+    },
+    {
+      title: "历史总涨跌",
+      dataIndex: "totalChangePct",
+      key: "totalChangePct",
+      align: "right",
+      render: (value) => (
+        <span style={{ color: value > 0 ? "#cf1322" : value < 0 ? "#389e0d" : "inherit" }}>
+          {formatSignedPct(value)}
+        </span>
+      ),
+    },
+    {
+      title: "盘中估算",
+      dataIndex: "estimateChangePct",
+      key: "estimateChangePct",
+      align: "right",
+      render: (value, record) => {
+        const tone = trendTone(record.trend);
+        const color = getTrendColor(tone);
+        return (
+          <Tag color={color}>
+            {formatSignedPct(value)}
+          </Tag>
+        );
+      },
+    },
+    ...(expand === "dedup"
+      ? [
+          {
+            title: "所属组合",
+            key: "portfolio",
+            render: (_: any, record: FlatFundItem) => (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {record.portfolioCount && record.portfolioCount > 1
+                  ? `(${record.portfolioCount}) ${record.portfolioNames.join("/") || "-"}`
+                  : record.portfolioName ?? "-"}
+              </Text>
+            ),
+          },
+        ]
+      : []),
+    {
+      title: "详情",
+      key: "action",
+      fixed: "right",
+      align: "right",
+      width: 100,
+      render: (_, record) => (
+        <Link href={`/funds/${record.fundCode}`} passHref legacyBehavior>
+           <Button type="link" size="small">查看详情</Button>
+        </Link>
+      ),
+    },
+  ];
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>基金平铺</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </CardContent>
+      <Card title="基金平铺">
+        <Skeleton active paragraph={{ rows: 3 }} />
       </Card>
     );
   }
 
-  if (data.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <CardTitle className="text-base">基金平铺</CardTitle>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => void onRefresh()}
-            disabled={isBusy}
-          >
-            <RefreshCw className="h-4 w-4" />
-            手动更新
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-dashed border-border p-6 text-sm text-muted-foreground">
-            暂无基金数据，请先创建组合并添加基金。
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
+  // Mobile List Render
   const renderMobileList = (items: FlatFundItem[]) => (
-    <div className="grid gap-3 md:hidden">
-      {items.map((item) => (
-        <Card key={`${item.fundCode}-${item.portfolioId ?? "all"}`}>
-          <CardContent className="space-y-2 pt-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-medium">
-                {item.fundName ?? `基金 ${item.fundCode}`}
-              </p>
-              <Badge variant="secondary" className={trendTone(item.trend)}>
-                {formatSignedPct(item.estimateChangePct)}
-              </Badge>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              代码: {item.fundCode}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              持仓金额: ¥{formatCurrency(item.holdingAmount)}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              历史总涨跌: {formatSignedPct(item.totalChangePct)}
-            </p>
-            <Button variant="link" size="sm" className="px-0" asChild>
-              <Link href={`/funds/${item.fundCode}`}>查看详情</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+    <List
+      grid={{ gutter: 16, column: 1 }}
+      dataSource={items}
+      renderItem={(item) => (
+        <List.Item>
+          <Card size="small" title={item.fundName ?? `基金 ${item.fundCode}`} extra={<Tag color={getTrendColor(trendTone(item.trend))}>{formatSignedPct(item.estimateChangePct)}</Tag>}>
+             <Space direction="vertical" style={{ width: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                   <Text type="secondary">代码</Text>
+                   <Text>{item.fundCode}</Text>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                   <Text type="secondary">持仓金额</Text>
+                   <Text>¥{formatCurrency(item.holdingAmount)}</Text>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                   <Text type="secondary">历史总涨跌</Text>
+                   <Text style={{ color: item.totalChangePct > 0 ? "#cf1322" : item.totalChangePct < 0 ? "#389e0d" : "inherit" }}>
+                      {formatSignedPct(item.totalChangePct)}
+                   </Text>
+                </div>
+                <div style={{ textAlign: 'right', marginTop: 8 }}>
+                   <Link href={`/funds/${item.fundCode}`} passHref legacyBehavior>
+                      <Button type="link" size="small" style={{ padding: 0 }}>查看详情</Button>
+                   </Link>
+                </div>
+             </Space>
+          </Card>
+        </List.Item>
+      )}
+      className="md:hidden"
+    />
   );
 
-  return (
-    <div className="space-y-4">
-      {expand === "dedup" ? (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
-            <CardTitle className="text-base">所有基金 (去重)</CardTitle>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => void onRefresh()}
-              disabled={isBusy}
-            >
-              <RefreshCw className="h-4 w-4" />
-              手动更新
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="hidden md:block">
-              <FundsTable data={data} showPortfolioColumn={true} />
+  // Desktop Table Render
+  const renderTable = (items: FlatFundItem[]) => (
+    <Table
+      columns={columns}
+      dataSource={items}
+      rowKey={(record) => `${record.fundCode}-${record.portfolioId ?? "all"}`}
+      pagination={false}
+      scroll={{ x: 800 }}
+      size="middle"
+      className="hidden md:block"
+    />
+  );
+
+  const refreshButton = (
+    <Button
+      icon={<ReloadOutlined />}
+      onClick={() => void onRefresh()}
+      disabled={isBusy}
+      loading={isBusy}
+    >
+      手动更新
+    </Button>
+  );
+
+  if (expand === "dedup") {
+    return (
+      <Card title="所有基金 (去重)" extra={refreshButton}>
+         {data.length === 0 ? (
+            <div style={{ padding: 24, textAlign: 'center', color: 'rgba(0,0,0,0.45)', border: '1px dashed #d9d9d9', borderRadius: 6 }}>
+               暂无基金数据，请先创建组合并添加基金。
             </div>
-            {renderMobileList(data)}
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-           <div className="flex items-center justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => void onRefresh()}
-                disabled={isBusy}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                手动更新
-              </Button>
-           </div>
-          {groupedData &&
-            Object.entries(groupedData).map(([key, group]) => (
-              <Card key={key}>
-                <CardHeader>
-                  <CardTitle className="text-base">{group.name}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="hidden md:block">
-                    <FundsTable data={group.items} showPortfolioColumn={false} />
-                  </div>
-                  {renderMobileList(group.items)}
-                </CardContent>
-              </Card>
-            ))}
-        </>
-      )}
-    </div>
+         ) : (
+            <>
+               {renderTable(data)}
+               {renderMobileList(data)}
+            </>
+         )}
+      </Card>
+    );
+  }
+
+  // Grouped logic
+  const groupedData = data.reduce((acc, item) => {
+    const key = item.portfolioId ?? "other";
+    const name = item.portfolioName ?? "其他";
+    if (!acc[key]) {
+      acc[key] = { name, items: [] };
+    }
+    acc[key].items.push(item);
+    return acc;
+  }, {} as Record<string, { name: string; items: FlatFundItem[] }>);
+
+  return (
+    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          {refreshButton}
+       </div>
+       {Object.keys(groupedData).length === 0 ? (
+           <Card>
+              <div style={{ padding: 24, textAlign: 'center', color: 'rgba(0,0,0,0.45)', border: '1px dashed #d9d9d9', borderRadius: 6 }}>
+                 暂无基金数据，请先创建组合并添加基金。
+              </div>
+           </Card>
+       ) : (
+          Object.entries(groupedData).map(([key, group]) => (
+            <Card key={key} title={group.name} size="small">
+               {renderTable(group.items)}
+               {renderMobileList(group.items)}
+            </Card>
+          ))
+       )}
+    </Space>
   );
 }

@@ -85,6 +85,16 @@ function toFiniteNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+function formatBootstrapError(error: unknown): string {
+  if (error instanceof AppError) {
+    return `${error.code}:${error.message}`;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "unknown_error";
+}
+
 function parseFundGzTimeToIso(raw: string | undefined, fallback: Date): string {
   if (!raw) {
     return fallback.toISOString();
@@ -164,12 +174,28 @@ export class ValuationService {
 
   async bootstrap(): Promise<void> {
     const fundCodes = await this.provider.listTargetFundCodes();
+    const failedFunds: Array<{ fundCode: string; reason: string }> = [];
 
     await Promise.all(
       fundCodes.map(async (fundCode) => {
-        await this.ensureFundData(fundCode);
+        try {
+          await this.ensureFundData(fundCode);
+        } catch (error) {
+          failedFunds.push({
+            fundCode,
+            reason: formatBootstrapError(error)
+          });
+        }
       })
     );
+
+    if (failedFunds.length > 0) {
+      console.warn("[valuation] bootstrap skipped unavailable funds", {
+        failedCount: failedFunds.length,
+        totalCount: fundCodes.length,
+        failedFunds
+      });
+    }
   }
 
   async listTargetFunds(): Promise<string[]> {

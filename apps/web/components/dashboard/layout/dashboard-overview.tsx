@@ -1,24 +1,21 @@
 "use client";
 
 import {
-  ArrowUpRight,
-  ArrowDownRight,
-  TrendingUp,
-  Plus,
-  LayoutGrid,
-} from "lucide-react";
+  ArrowUpOutlined,
+  ArrowDownOutlined,
+  PlusOutlined,
+  AppstoreAddOutlined,
+  FundOutlined,
+  RiseOutlined,
+  FallOutlined
+} from "@ant-design/icons";
 import { ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Button, Card, Col, Row, Statistic, Typography } from "antd";
 import { formatCurrency, formatSignedAmountCompact, deltaClassByPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+const { Text } = Typography;
 
 interface DashboardOverviewProps {
   totalAmount: number;
@@ -41,63 +38,54 @@ export function DashboardOverview({
   return (
     <div className="space-y-6">
       {/* Hero Stats Section */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="relative overflow-hidden border-none bg-gradient-to-br from-primary/10 to-primary/5 shadow-md">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">总资产净值</CardTitle>
-            <TrendingUp className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight">
-              {formatCurrency(totalAmount)}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={12} lg={8}>
+          <Card bordered={false} style={{ background: 'linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%)' }}>
+            <Statistic
+              title={<Text strong>总资产净值</Text>}
+              value={totalAmount}
+              precision={2}
+              formatter={(value) => formatCurrency(Number(value))}
+              prefix={<FundOutlined />}
+            />
+            <div style={{ marginTop: 8 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>更新于 刚刚</Text>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              更新于 刚刚
-            </p>
-          </CardContent>
-          <div className="absolute -right-6 -bottom-6 opacity-5">
-            <TrendingUp size={120} />
-          </div>
-        </Card>
+          </Card>
+        </Col>
 
-        <Card className={cn(
-          "relative overflow-hidden border-none shadow-md",
-          isProfit ? "bg-red-50 dark:bg-red-950/20" : isLoss ? "bg-green-50 dark:bg-green-950/20" : "bg-muted"
-        )}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">今日估算盈亏</CardTitle>
-            {isProfit ? (
-              <ArrowUpRight className="h-4 w-4 text-red-600" />
-            ) : isLoss ? (
-              <ArrowDownRight className="h-4 w-4 text-green-600" />
-            ) : null}
-          </CardHeader>
-          <CardContent>
-            <div className={cn(
-              "text-3xl font-bold tracking-tight font-mono",
-              deltaClassByPct(totalIntradayAmount)
-            )}>
-              {formatSignedAmountCompact(totalIntradayAmount)}
+        <Col xs={24} md={12} lg={8}>
+          <Card bordered={false} style={{ background: isProfit ? '#fff1f0' : isLoss ? '#f6ffed' : '#f5f5f5' }}>
+            <Statistic
+              title={<Text strong>今日估算盈亏</Text>}
+              value={totalIntradayAmount}
+              precision={2}
+              formatter={(value) => (
+                <span className={deltaClassByPct(Number(value))}>
+                  {formatSignedAmountCompact(Number(value))}
+                </span>
+              )}
+              prefix={isProfit ? <RiseOutlined style={{ color: '#cf1322' }} /> : isLoss ? <FallOutlined style={{ color: '#389e0d' }} /> : null}
+            />
+            <div style={{ marginTop: 8 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>盘中实时估算</Text>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              盘中实时估算
-            </p>
-          </CardContent>
-        </Card>
+          </Card>
+        </Col>
 
-        <Card className="flex flex-col justify-center border-dashed bg-muted/20">
-          <CardContent className="flex gap-4 p-6 pt-6">
-            <Button className="flex-1 h-12 shadow-sm" onClick={onAddFund}>
-              <Plus className="mr-2 h-4 w-4" />
-              添加基金
-            </Button>
-            <Button variant="outline" className="flex-1 h-12 bg-background" onClick={onCreatePortfolio}>
-              <LayoutGrid className="mr-2 h-4 w-4" />
-              新建组合
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+        <Col xs={24} md={24} lg={8}>
+          <Card bordered={false} style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+             <div style={{ display: 'flex', gap: 16, alignItems: 'center', height: '100%' }}>
+                <Button type="primary" size="medium" icon={<PlusOutlined />} onClick={onAddFund} block style={{ height: 36 }}>
+                  添加基金
+                </Button>
+                <Button size="medium" icon={<AppstoreAddOutlined />} onClick={onCreatePortfolio} block style={{ height: 36 }}>
+                  新建组合
+                </Button>
+             </div>
+          </Card>
+        </Col>
+      </Row>
 
       {/* Main Content (Children) */}
       <div className="space-y-6">

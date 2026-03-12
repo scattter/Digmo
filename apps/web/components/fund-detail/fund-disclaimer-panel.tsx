@@ -1,5 +1,7 @@
 import { FundEstimateSnapshot } from "@digmo/shared";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, Typography } from "antd";
+
+const { Paragraph } = Typography;
 
 interface FundDisclaimerPanelProps {
   snapshot: FundEstimateSnapshot;
@@ -7,13 +9,10 @@ interface FundDisclaimerPanelProps {
 
 export function FundDisclaimerPanel({ snapshot }: FundDisclaimerPanelProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">风险与免责声明</CardTitle>
-      </CardHeader>
-      <CardContent className="text-sm text-muted-foreground">
-        <p>{snapshot.disclaimer}</p>
-      </CardContent>
+    <Card title="风险与免责声明">
+      <Paragraph type="secondary" style={{ fontSize: 12 }}>
+        {snapshot.disclaimer}
+      </Paragraph>
     </Card>
   );
 }

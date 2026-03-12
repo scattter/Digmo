@@ -1,18 +1,13 @@
 "use client";
 
 import { DailyDecision } from "@digmo/shared";
-import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { useMemo } from "react";
+import { Modal, Collapse, Tag, Typography, Button, Space, Card, Spin } from "antd";
 import { formatBeijingTime, formatPct } from "@/lib/format";
+import { LinkOutlined } from "@ant-design/icons";
+
+const { Text, Paragraph } = Typography;
+const { Panel } = Collapse;
 
 interface DecisionHistoryDialogProps {
   open: boolean;
@@ -28,107 +23,107 @@ function formatHistoryDate(input: string): string {
 
 export function DecisionHistoryDialog(props: DecisionHistoryDialogProps) {
   const { open, onOpenChange, isBusy, isLoading, items } = props;
-  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
-  const rows = useMemo(() => items, [items]);
+  const collapseItems = useMemo(() => {
+    return items.map((item) => {
+      const label = formatHistoryDate(item.createdAt);
+      return {
+        key: item.id,
+        label: <Text strong>{label}</Text>,
+        children: (
+          <div className="space-y-4">
+             <div>
+                <Paragraph style={{ whiteSpace: 'pre-line' }}>{item.summary}</Paragraph>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  生成于 {formatBeijingTime(item.createdAt)} · 耗时 {item.latencyMs}ms · token {item.usage.totalTokens ?? "-"}
+                </Text>
+             </div>
 
-  function toggleExpanded(decisionId: string): void {
-    setExpandedIds((prev) => ({
-      ...prev,
-      [decisionId]: !prev[decisionId],
-    }));
-  }
+             {item.actions.length === 0 ? (
+                <div style={{ padding: 16, border: '1px dashed #d9d9d9', borderRadius: 6, textAlign: 'center' }}>
+                   <Text type="secondary">本次生成无动作建议。</Text>
+                </div>
+             ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                   {item.actions.map((action, index) => (
+                      <Card key={`${item.id}:${index}`} size="small" type="inner" bordered>
+                         <Space wrap style={{ marginBottom: 8 }}>
+                            <Tag color="blue">{action.actionType}</Tag>
+                            <Text code>{action.fundCode}</Text>
+                            {action.fundName && <Text>{action.fundName}</Text>}
+                            <Tag>{action.riskLevel}</Tag>
+                            <Text type="secondary" style={{ fontSize: 12 }}>置信度 {formatPct(action.confidence)}</Text>
+                         </Space>
+                         
+                         <Paragraph style={{ whiteSpace: 'pre-line', marginBottom: 8 }}>{action.rationale}</Paragraph>
+                         
+                         <div style={{ marginBottom: 8 }}>
+                            <Text type="secondary" style={{ fontSize: 12 }}>
+                               触发条件：{action.triggerCondition} · 失效时间：{formatBeijingTime(action.validUntil)}
+                            </Text>
+                         </div>
+                         
+                         {action.citations.length > 0 && (
+                            <div style={{ background: '#f5f5f5', padding: 8, borderRadius: 4 }}>
+                               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>来源依据</Text>
+                               {action.citations.map((citation, cIndex) => (
+                                  <div key={cIndex} style={{ marginBottom: 4, paddingBottom: 4, borderBottom: '1px solid #e8e8e8' }}>
+                                     <Text strong style={{ fontSize: 12 }}>{citation.title}</Text>
+                                     <Paragraph ellipsis={{ rows: 2, expandable: true, symbol: '展开' }} style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)', marginBottom: 4 }}>
+                                        {citation.snippet}
+                                     </Paragraph>
+                                     <Space size="small">
+                                        <Tag style={{ fontSize: 10 }}>{citation.sourceType}</Tag>
+                                        {citation.url && (
+                                           <a href={citation.url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+                                              <LinkOutlined /> 来源链接
+                                           </a>
+                                        )}
+                                     </Space>
+                                  </div>
+                               ))}
+                            </div>
+                         )}
+                      </Card>
+                   ))}
+                </div>
+             )}
+          </div>
+        )
+      };
+    });
+  }, [items]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-hidden grid-rows-[auto_minmax(0,1fr)] sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>建议历史</DialogTitle>
-          <DialogDescription>默认仅显示日期，点击展开可查看完整建议内容。</DialogDescription>
-        </DialogHeader>
-        <div className="min-h-0 overflow-y-auto overscroll-contain pr-1">
-          {rows.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-              {isLoading ? "加载中..." : "暂无建议历史"}
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {rows.map((item) => {
-                const expanded = expandedIds[item.id] === true;
-                return (
-                  <div key={item.id} className="rounded-md border border-border p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium">{formatHistoryDate(item.createdAt)}</p>
-                      <Button type="button" variant="secondary" size="sm" onClick={() => toggleExpanded(item.id)} disabled={isBusy}>
-                        {expanded ? (
-                          <>
-                            <ChevronUp className="h-4 w-4" />
-                            收起
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown className="h-4 w-4" />
-                            展开
-                          </>
-                        )}
-                      </Button>
-                    </div>
-
-                    {expanded ? (
-                      <div className="mt-3 space-y-3 border-t border-border pt-3">
-                        <div className="space-y-1">
-                          <p className="whitespace-pre-line text-sm font-medium">{item.summary}</p>
-                          <p className="text-xs text-muted-foreground">
-                            生成于 {formatBeijingTime(item.createdAt)} · 耗时 {item.latencyMs}ms · token {item.usage.totalTokens ?? "-"}
-                          </p>
-                        </div>
-                        {item.actions.length === 0 ? (
-                          <div className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">本次生成无动作建议。</div>
-                        ) : (
-                          <div className="space-y-3">
-                            {item.actions.map((action, index) => (
-                              <div key={`${item.id}:${index}`} className="space-y-2 rounded-md border border-border p-3">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Badge variant="default">{action.actionType}</Badge>
-                                  <span className="font-mono text-sm">{action.fundCode}</span>
-                                  {action.fundName ? <span className="text-sm">{action.fundName}</span> : null}
-                                  <Badge variant="secondary">{action.riskLevel}</Badge>
-                                  <span className="text-xs text-muted-foreground">置信度 {formatPct(action.confidence)}</span>
-                                </div>
-                                <p className="whitespace-pre-line text-sm">{action.rationale}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  触发条件：{action.triggerCondition} · 失效时间：{formatBeijingTime(action.validUntil)}
-                                </p>
-                                <div className="space-y-1">
-                                  <p className="text-xs font-medium text-muted-foreground">来源依据</p>
-                                  {action.citations.map((citation, citationIndex) => (
-                                    <div key={`${item.id}:${index}:${citationIndex}`} className="rounded border border-border/70 p-2 text-xs">
-                                      <p className="font-medium">{citation.title}</p>
-                                      <p className="whitespace-pre-line text-muted-foreground">{citation.snippet}</p>
-                                      <div className="mt-1 flex items-center gap-2">
-                                        <Badge variant="secondary">{citation.sourceType}</Badge>
-                                        {citation.url ? (
-                                          <a href={citation.url} target="_blank" rel="noreferrer" className="text-primary underline-offset-4 hover:underline">
-                                            来源链接
-                                          </a>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+    <Modal
+      title="建议历史"
+      open={open}
+      onCancel={() => onOpenChange(false)}
+      footer={[
+        <Button key="close" onClick={() => onOpenChange(false)}>
+          关闭
+        </Button>
+      ]}
+      width={800}
+      styles={{ body: { padding: 0, maxHeight: '70vh', overflowY: 'auto' } }}
+    >
+      <div style={{ padding: 24 }}>
+        <div style={{ marginBottom: 16 }}>
+           <Text type="secondary">默认仅显示日期，点击展开可查看完整建议内容。</Text>
         </div>
-      </DialogContent>
-    </Dialog>
+        
+        {isLoading ? (
+           <div style={{ textAlign: 'center', padding: 32 }}>
+              <Spin tip="加载中..." />
+           </div>
+        ) : items.length === 0 ? (
+           <div style={{ padding: 32, border: '1px dashed #d9d9d9', borderRadius: 6, textAlign: 'center' }}>
+              <Text type="secondary">暂无建议历史</Text>
+           </div>
+        ) : (
+           <Collapse items={collapseItems} bordered={false} defaultActiveKey={[]} />
+        )}
+      </div>
+    </Modal>
   );
 }

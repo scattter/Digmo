@@ -1,6 +1,5 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AuthUser,
   DailyDecision,
@@ -9,11 +8,10 @@ import {
   PortfolioSummary,
   PortfolioType,
 } from "@digmo/shared";
-import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useForm } from "react-hook-form";
 import { z } from "zod";
+import {Spin, Modal, Typography, App, Button} from "antd";
 
 // Layout & Overview
 import { DashboardLayout } from "@/components/dashboard/layout/dashboard-layout";
@@ -36,27 +34,6 @@ import { PortfolioFundsTable } from "@/components/dashboard/features/portfolios/
 import { PortfolioOverviewTable } from "@/components/dashboard/features/portfolios/portfolio-overview-table";
 import { PortfolioToolbar } from "@/components/dashboard/features/navigation/portfolio-toolbar";
 
-// Shadcn UI
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
 // Hooks & Utils
 import {
   getFlatSortButtonLabel,
@@ -78,6 +55,9 @@ import {
 } from "@/lib/api";
 import { clearAccessToken, getAccessToken } from "@/lib/auth-session";
 import { FundEditState } from "@/lib/format";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+
+const { Text } = Typography;
 
 const renameSchema = z
   .string()
@@ -94,8 +74,12 @@ export default function FundDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const isMobile = useIsMobile();
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const authRequiredEventName = getAuthRequiredEventName();
+  
+  // Use Ant Design App context for modal/message/notification
+  const { modal, message } = App.useApp();
 
   // Auth Check Effect
   useEffect(() => {
@@ -149,9 +133,6 @@ export default function FundDashboard() {
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null);
   const [editingPortfolioName, setEditingPortfolioName] = useState("");
 
-  const [deletePortfolioTarget, setDeletePortfolioTarget] = useState<PortfolioSummary | null>(null);
-  const [deleteFundTarget, setDeleteFundTarget] = useState<PortfolioFundItem | null>(null);
-
   const [isCreatePortfolioDialogOpen, setIsCreatePortfolioDialogOpen] = useState(false);
   const [isFlatAddFundDialogOpen, setIsFlatAddFundDialogOpen] = useState(false);
   const [isPortfolioAddFundDialogOpen, setIsPortfolioAddFundDialogOpen] = useState(false);
@@ -179,8 +160,8 @@ export default function FundDashboard() {
     selectedPortfolioId: dashboard.selectedPortfolioId,
     setSelectedPortfolioId: dashboard.setSelectedPortfolioId,
     setIsLoading: dashboard.setIsLoading,
-    setErrorText: dashboard.setErrorText,
-    setStatusText: dashboard.setStatusText,
+    setErrorText: (msg) => message.error(msg),
+    setStatusText: (msg) => message.success(msg),
   });
 
   const reorder = useFundReorder({
@@ -188,16 +169,16 @@ export default function FundDashboard() {
     portfolioFunds: dashboard.portfolioFunds,
     setPortfolioFunds: dashboard.setPortfolioFunds,
     setIsReordering: dashboard.setIsReordering,
-    setErrorText: dashboard.setErrorText,
-    setStatusText: dashboard.setStatusText,
+    setErrorText: (msg) => message.error(msg),
+    setStatusText: (msg) => message.success(msg),
   });
   
   const portfolioReorder = usePortfolioReorder({
     portfolios: dashboard.portfolios,
     setPortfolios: dashboard.setPortfolios,
     setIsReordering: dashboard.setIsReordering,
-    setErrorText: dashboard.setErrorText,
-    setStatusText: dashboard.setStatusText,
+    setErrorText: (msg) => message.error(msg),
+    setStatusText: (msg) => message.success(msg),
   });
 
   const selectedPortfolioName = useMemo(
@@ -291,14 +272,12 @@ export default function FundDashboard() {
         setDecisionDocVersion(doc?.version);
         setLatestDecision(latest);
       } catch (error) {
-        dashboard.setErrorText(
-          error instanceof Error ? error.message : "加载决策数据失败"
-        );
+        message.error(error instanceof Error ? error.message : "加载决策数据失败");
       } finally {
         setIsDecisionLoading(false);
       }
     },
-    [dashboard.setErrorText]
+    [message]
   );
 
   useEffect(() => {
@@ -323,7 +302,7 @@ export default function FundDashboard() {
     const content = await file.text();
     const normalized = content.trim();
     if (!normalized) {
-      dashboard.setErrorText("上传文件内容为空");
+      message.error("上传文件内容为空");
       return;
     }
 
@@ -337,12 +316,12 @@ export default function FundDashboard() {
 
   async function onSaveDecisionDoc() {
     if (dashboard.selectedPortfolioId === "all") {
-      dashboard.setErrorText("请先选择具体组合");
+      message.error("请先选择具体组合");
       return;
     }
 
     if (!decisionDocContent.trim()) {
-      dashboard.setErrorText("请先上传或填写策略文档");
+      message.error("请先上传或填写策略文档");
       return;
     }
 
@@ -358,11 +337,9 @@ export default function FundDashboard() {
       setDecisionDocContent(doc.content);
       setDecisionDocFormat(doc.format);
       setDecisionDocVersion(doc.version);
-      dashboard.setStatusText("策略文档已保存");
+      message.success("策略文档已保存");
     } catch (error) {
-      dashboard.setErrorText(
-        error instanceof Error ? error.message : "保存策略文档失败"
-      );
+      message.error(error instanceof Error ? error.message : "保存策略文档失败");
     } finally {
       setIsDecisionDocSubmitting(false);
     }
@@ -370,12 +347,12 @@ export default function FundDashboard() {
 
   async function onGenerateDecision() {
     if (dashboard.selectedPortfolioId === "all") {
-      dashboard.setErrorText("请先选择具体组合");
+      message.error("请先选择具体组合");
       return;
     }
 
     if (!decisionDocContent.trim()) {
-      dashboard.setErrorText("请先保存策略文档");
+      message.error("请先保存策略文档");
       return;
     }
 
@@ -387,11 +364,9 @@ export default function FundDashboard() {
         decision,
         ...prev.filter((item) => item.id !== decision.id),
       ]);
-      dashboard.setStatusText("今日建议已生成");
+      message.success("今日建议已生成");
     } catch (error) {
-      dashboard.setErrorText(
-        error instanceof Error ? error.message : "生成今日建议失败"
-      );
+      message.error(error instanceof Error ? error.message : "生成今日建议失败");
     } finally {
       setIsGeneratingSuggestion(false);
     }
@@ -403,9 +378,7 @@ export default function FundDashboard() {
       const history = await fetchDailyDecisionHistory(portfolioId, 100);
       setDecisionHistory(history);
     } catch (error) {
-      dashboard.setErrorText(
-        error instanceof Error ? error.message : "加载建议历史失败"
-      );
+      message.error(error instanceof Error ? error.message : "加载建议历史失败");
     } finally {
       setIsDecisionHistoryLoading(false);
     }
@@ -413,7 +386,7 @@ export default function FundDashboard() {
 
   async function onOpenDecisionHistoryDialog() {
     if (dashboard.selectedPortfolioId === "all") {
-      dashboard.setErrorText("请先选择具体组合");
+      message.error("请先选择具体组合");
       return;
     }
     setIsDecisionHistoryDialogOpen(true);
@@ -472,7 +445,7 @@ export default function FundDashboard() {
         : undefined;
 
     if (typeof input.bindActionOrder === "number" && !bindSuggestion) {
-      dashboard.setErrorText("当前无可绑定的今日建议");
+      message.error("当前无可绑定的今日建议");
       throw new Error("当前无可绑定的今日建议");
     }
 
@@ -507,7 +480,7 @@ export default function FundDashboard() {
 
     const parsed = renameSchema.safeParse(trimmedName);
     if (!parsed.success) {
-      dashboard.setErrorText(parsed.error.issues[0]?.message ?? "名称不合法");
+      message.error(parsed.error.issues[0]?.message ?? "名称不合法");
       return;
     }
 
@@ -524,13 +497,36 @@ export default function FundDashboard() {
     router.replace("/login");
   }
 
+  function handleDeletePortfolio(portfolio: PortfolioSummary) {
+    modal.confirm({
+      title: '确认删除组合？',
+      content: `删除后将无法恢复：${portfolio.name}`,
+      okText: '确认删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        await actions.deletePortfolioAction(portfolio);
+      }
+    });
+  }
+
+  function handleDeleteFund(fund: PortfolioFundItem) {
+    modal.confirm({
+      title: '确认移除基金？',
+      content: `将从组合中移除基金 ${fund.fundCode}`,
+      okText: '确认移除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        await actions.deleteFundAction(fund);
+      }
+    });
+  }
+
   if (isAuthChecking) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          正在校验登录状态...
-        </div>
+        <Spin tip="正在校验登录状态..." />
       </main>
     );
   }
@@ -538,8 +534,6 @@ export default function FundDashboard() {
   if (!currentUser) {
     return null;
   }
-
-  // --- Main Render Logic ---
 
   return (
     <DashboardLayout
@@ -568,7 +562,7 @@ export default function FundDashboard() {
             flatSortOrder={dashboard.flatSortOrder}
             onFlatSortToggle={() => dashboard.setFlatSortOrder((prev) => nextSortOrder(prev))}
             flatSortLabel={getFlatSortButtonLabel(dashboard.flatSortOrder)}
-            onDeletePortfolioTab={(portfolio) => setDeletePortfolioTarget(portfolio)}
+            onDeletePortfolioTab={handleDeletePortfolio}
             onPortfolioDragEnd={(event) => portfolioReorder.onPortfolioTabsDragEnd(event, dashboard.isReordering)}
           />
           <FlatFundsTable
@@ -583,7 +577,6 @@ export default function FundDashboard() {
 
       {dashboard.mainView === "portfolios" && (
         <>
-           {/* If "all" is selected, show Overview Table (List of Portfolios) */}
            {dashboard.selectedPortfolioId === "all" ? (
              <div className="space-y-4">
                <PortfolioToolbar
@@ -597,7 +590,7 @@ export default function FundDashboard() {
                   flatSortOrder={dashboard.flatSortOrder}
                   onFlatSortToggle={() => dashboard.setFlatSortOrder((prev) => nextSortOrder(prev))}
                   flatSortLabel={getFlatSortButtonLabel(dashboard.flatSortOrder)}
-                  onDeletePortfolioTab={(portfolio) => setDeletePortfolioTarget(portfolio)}
+                  onDeletePortfolioTab={handleDeletePortfolio}
                   onPortfolioDragEnd={(event) => portfolioReorder.onPortfolioTabsDragEnd(event, dashboard.isReordering)}
                 />
                 <PortfolioOverviewTable
@@ -606,7 +599,7 @@ export default function FundDashboard() {
                   isBusy={dashboard.isBusy}
                   editingPortfolioId={editingPortfolioId}
                   editingPortfolioName={editingPortfolioName}
-                  onDelete={(portfolio) => setDeletePortfolioTarget(portfolio)}
+                  onDelete={handleDeletePortfolio}
                   onOpen={(portfolio) => dashboard.setSelectedPortfolioId(portfolio.id)}
                   onStartRename={onStartRenamePortfolio}
                   onRenameInputChange={setEditingPortfolioName}
@@ -618,9 +611,11 @@ export default function FundDashboard() {
            ) : (
              // Specific Portfolio View
              <div className="space-y-2">
-                <Button variant="ghost" onClick={() => dashboard.setSelectedPortfolioId("all")}>
-                  ← 返回组合列表
-                </Button>
+                <div style={{ marginBottom: isMobile ? 8 : 16 }}>
+                    <a onClick={() => dashboard.setSelectedPortfolioId("all")} style={{ cursor: 'pointer', color: '#1677ff', fontSize: isMobile ? 14 : 16 }}>
+                        ← 返回组合列表
+                    </a>
+                </div>
                 
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="min-w-0">
@@ -648,51 +643,30 @@ export default function FundDashboard() {
                     )}
                   </div>
 
-                  <Card className={`flex min-h-0 flex-col ${analysisPanelHeightClass}`}>
-                    <CardHeader className="py-3 pb-2">
-                      <CardTitle className="text-base font-medium">决策与操作</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex min-h-0 flex-1 flex-col gap-3 pb-3">
-                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-                        <p className="whitespace-pre-line text-xs text-muted-foreground">
+                  {/* Decision Panel (Mini) - Replaced with Antd Card/Button */}
+                  <div className={`flex flex-col ${analysisPanelHeightClass}`} style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 8, padding: isMobile ? 12 : 16 }}>
+                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                        <Text strong style={{ fontSize: isMobile ? 14 : 16 }}>决策与操作</Text>
+                     </div>
+                     <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12 }}>
+                        <Text type="secondary" style={{ fontSize: 12, whiteSpace: 'pre-line' }}>
                           {latestDecision
                             ? latestDecision.summary
                             : "暂无今日建议，可在此更新建议并管理策略文档"}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 flex-wrap items-center gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => void onGenerateDecision()}
-                          disabled={isDecisionBusy}
-                        >
-                          更新建议
+                        </Text>
+                     </div>
+                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <Button onClick={() => void onGenerateDecision()} style={{ fontSize: 12, color: isDecisionBusy ? '#ccc' : '#1677ff', cursor: isDecisionBusy ? 'not-allowed' : 'pointer' }}>
+                           更新决策
                         </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => setIsDecisionDrawerOpen(true)}
-                          disabled={isDecisionBusy}
-                        >
-                          管理文档
+                        <Button onClick={() => setIsDecisionDrawerOpen(true)} style={{ fontSize: 12, color: isDecisionBusy ? '#ccc' : '#1677ff', cursor: isDecisionBusy ? 'not-allowed' : 'pointer' }}>
+                           管理文档
                         </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => void onOpenDecisionHistoryDialog()}
-                          disabled={isDecisionBusy}
-                        >
-                          操作历史
+                        <Button onClick={() => void onOpenDecisionHistoryDialog()} style={{ fontSize: 12, color: isDecisionBusy ? '#ccc' : '#1677ff', cursor: isDecisionBusy ? 'not-allowed' : 'pointer' }}>
+                           操作历史
                         </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                     </div>
+                  </div>
                 </div>
 
                 <PortfolioFundsTable
@@ -706,7 +680,7 @@ export default function FundDashboard() {
                   onUpdateFund={onUpdateFund}
                   onOperateFund={onOperateFund}
                   latestDecisionForBinding={latestDecisionForBinding}
-                  onDeleteFund={(item) => setDeleteFundTarget(item)}
+                  onDeleteFund={handleDeleteFund}
                   onDragEnd={(event) => reorder.onPortfolioFundsDragEnd(event, dashboard.isReordering)}
                   onRefresh={handleManualRefresh}
                   onOpenAddFundDialog={() => setIsPortfolioAddFundDialogOpen(true)}
@@ -717,38 +691,34 @@ export default function FundDashboard() {
       )}
 
       {dashboard.mainView === "analysis" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">分析报表</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            V2 视图已下线，当前暂无可展示的分析内容。
-          </CardContent>
-        </Card>
+        <div style={{ padding: 24, background: '#fff', borderRadius: 8, textAlign: 'center' }}>
+           <Text type="secondary">V2 视图已下线，当前暂无可展示的分析内容。</Text>
+        </div>
       )}
 
-      <Dialog open={isDecisionDrawerOpen} onOpenChange={setIsDecisionDrawerOpen}>
-        <DialogContent className="max-h-[90vh] overflow-hidden grid-rows-[auto_minmax(0,1fr)] sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>决策与操作</DialogTitle>
-            <DialogDescription>策略文档管理。</DialogDescription>
-          </DialogHeader>
-          <div className="min-h-0 overflow-y-auto overscroll-contain pr-1">
-            <DailyDecisionPanel
-              isBusy={isDecisionBusy}
-              isLoading={isDecisionLoading}
-              isGeneratingSuggestion={isGeneratingSuggestion}
-              docContent={decisionDocContent}
-              docFormat={decisionDocFormat}
-              docVersion={decisionDocVersion}
-              docFileName={decisionDocSourceFileName}
-              onDocContentChange={setDecisionDocContent}
-              onDocUpload={onUploadDecisionDoc}
-              onSaveDoc={onSaveDecisionDoc}
-            />
-          </div>
-        </DialogContent>
-      </Dialog>
+      <Modal 
+         title="决策与操作" 
+         open={isDecisionDrawerOpen} 
+         onCancel={() => setIsDecisionDrawerOpen(false)}
+         footer={null}
+         width={800}
+         style={{ top: 20 }}
+         destroyOnClose
+      >
+          <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>策略文档管理。</Text>
+          <DailyDecisionPanel
+            isBusy={isDecisionBusy}
+            isLoading={isDecisionLoading}
+            isGeneratingSuggestion={isGeneratingSuggestion}
+            docContent={decisionDocContent}
+            docFormat={decisionDocFormat}
+            docVersion={decisionDocVersion}
+            docFileName={decisionDocSourceFileName}
+            onDocContentChange={setDecisionDocContent}
+            onDocUpload={onUploadDecisionDoc}
+            onSaveDoc={onSaveDecisionDoc}
+          />
+      </Modal>
 
       <DecisionHistoryDialog
         open={isDecisionHistoryDialogOpen}
@@ -773,7 +743,7 @@ export default function FundDashboard() {
         onOpenChange={setIsFlatAddFundDialogOpen}
         onSubmit={async (values) => {
            const targetPortfolio = dashboard.portfolios.find((portfolio) => portfolio.id === values.portfolioId);
-           if (!targetPortfolio) return; // Should handle error
+           if (!targetPortfolio) return;
            
            await actions.addFundAction({
               portfolioId: targetPortfolio.id,
@@ -807,52 +777,6 @@ export default function FundDashboard() {
         }}
         isBusy={dashboard.isBusy}
       />
-
-      <AlertDialog open={Boolean(deletePortfolioTarget)} onOpenChange={(open) => (!open ? setDeletePortfolioTarget(null) : undefined)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认删除组合？</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deletePortfolioTarget ? `删除后将无法恢复：${deletePortfolioTarget.name}` : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!deletePortfolioTarget) return;
-                void actions.deletePortfolioAction(deletePortfolioTarget);
-                setDeletePortfolioTarget(null);
-              }}
-            >
-              确认删除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={Boolean(deleteFundTarget)} onOpenChange={(open) => (!open ? setDeleteFundTarget(null) : undefined)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认移除基金？</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteFundTarget ? `将从组合中移除基金 ${deleteFundTarget.fundCode}` : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!deleteFundTarget) return;
-                void actions.deleteFundAction(deleteFundTarget);
-                setDeleteFundTarget(null);
-              }}
-            >
-              确认移除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </DashboardLayout>
   );
 }

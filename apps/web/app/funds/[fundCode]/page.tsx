@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { LeftOutlined } from "@ant-design/icons";
 import { FundDisclaimerPanel } from "@/components/fund-detail/fund-disclaimer-panel";
 import { FundHoldingsTable } from "@/components/fund-detail/fund-holdings-table";
 import { FundKpiCards } from "@/components/fund-detail/fund-kpi-cards";
 import { FundMethodConfidence } from "@/components/fund-detail/fund-method-confidence";
-import { Button } from "@/components/ui/button";
+import { Button, Typography } from "antd";
 import { fetchSingleEstimate } from "@/lib/api";
+
+const { Title, Text } = Typography;
 
 export default async function FundPage({ params }: { params: Promise<{ fundCode: string }> }) {
   const { fundCode } = await params;
@@ -15,15 +17,14 @@ export default async function FundPage({ params }: { params: Promise<{ fundCode:
     <main id="main-content" className="mx-auto w-full max-w-7xl px-4 pb-14 pt-6 md:px-6">
       <section className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{snapshot.fundName ?? `基金 ${snapshot.fundCode}`}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">盘中估值详情</p>
+          <Title level={2} style={{ marginBottom: 0 }}>{snapshot.fundName ?? `基金 ${snapshot.fundCode}`}</Title>
+          <Text type="secondary">盘中估值详情</Text>
         </div>
-        <Button variant="secondary" asChild>
-          <Link href="/">
-            <ChevronLeft className="h-4 w-4" />
+        <Link href="/">
+          <Button icon={<LeftOutlined />}>
             返回列表
-          </Link>
-        </Button>
+          </Button>
+        </Link>
       </section>
 
       <div className="space-y-4">

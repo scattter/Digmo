@@ -21,223 +21,26 @@ import {
   PortfolioType,
   PositionOperationType,
 } from "@digmo/shared";
-import { GripVertical, MoreHorizontal, Pencil, Trash2, RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { 
+  MenuOutlined, 
+  MoreOutlined, 
+  EditOutlined, 
+  DeleteOutlined, 
+  ReloadOutlined,
+  PlusOutlined,
+  HolderOutlined
+} from "@ant-design/icons";
+import React, { useMemo, useState, useContext, createContext } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Button, Card, Table, Tag, Dropdown, Typography, Space, Skeleton, Empty } from "antd";
+import type { TableProps, MenuProps } from "antd";
+
 import { UpdateFundDialog } from "@/components/dashboard/dialogs/update-fund-dialog";
 import { FundEditState, formatCurrency, formatSignedPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
-interface SortableFundRowProps {
-  item: PortfolioFundItem;
-  index: number;
-  isBusy: boolean;
-  onDeleteFund: (item: PortfolioFundItem) => void;
-  onOpenUpdateDialog: (item: PortfolioFundItem) => void;
-}
-
-function formatSignedCurrencyValue(value: number): string {
-  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
-  return `${sign}¥${formatCurrency(Math.abs(value))}`;
-}
-
-function holdingProfitText(item: PortfolioFundItem) {
-  const profit = item.holdingProfitAmount;
-  const pct = item.holdingProfitPct;
-  const isPositive = profit > 0;
-  const isNegative = profit < 0;
-  
-  return (
-    <div className={cn(
-      "flex flex-col text-xs",
-      isPositive && "text-red-600 dark:text-red-400",
-      isNegative && "text-green-600 dark:text-green-400"
-    )}>
-      <span className="font-mono">{formatSignedCurrencyValue(profit)}</span>
-      <span className="font-mono">{formatSignedPct(pct)}</span>
-    </div>
-  );
-}
-
-function dailyProfitText(item: PortfolioFundItem) {
-  const pct = typeof item.dailyProfitPct === "number" ? item.dailyProfitPct : item.estimateChangePct ?? 0;
-  const amount =
-    typeof item.dailyProfitAmount === "number"
-      ? item.dailyProfitAmount
-      : Number((item.holdingAmount * pct).toFixed(2));
-      
-  const isPositive = amount > 0;
-  const isNegative = amount < 0;
-
-  return (
-    <div className={cn(
-      "flex flex-col text-xs",
-      isPositive && "text-red-600 dark:text-red-400",
-      isNegative && "text-green-600 dark:text-green-400"
-    )}>
-      <span className="font-mono">{formatSignedCurrencyValue(amount)}</span>
-      <span className="font-mono">{formatSignedPct(pct)}</span>
-      {item.dailyProfitOfficialUpdated && (
-        <span className="text-[10px] text-muted-foreground scale-90 origin-left mt-0.5">已更新</span>
-      )}
-    </div>
-  );
-}
-
-function ratioCompact(item: PortfolioFundItem) {
-  if (
-    item.portfolioType !== "RATIO" ||
-    typeof item.actualRatio !== "number" ||
-    typeof item.plannedRatio !== "number"
-  ) {
-    return <span className="text-xs text-muted-foreground">-</span>;
-  }
-
-  const actualPct = item.actualRatio * 100;
-  const plannedPct = item.plannedRatio * 100;
-  const diffPct = actualPct - plannedPct;
-  const diffText = `${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%`;
-  const diffToneClass =
-    diffPct > 0
-      ? "border-warning/30 bg-warning/15 text-warning hover:bg-warning/15"
-      : diffPct < 0
-        ? "border-success/30 bg-success/15 text-success hover:bg-success/15"
-        : undefined;
-
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="font-mono text-xs text-muted-foreground">
-        实{actualPct.toFixed(1)}%/计{plannedPct.toFixed(1)}%
-      </span>
-      <div>
-        <Badge variant="secondary" className={cn("h-5 px-1.5 font-mono text-[10px]", diffToneClass)}>
-          {diffText}
-        </Badge>
-      </div>
-    </div>
-  );
-}
-
-function SortableFundRow({
-  item,
-  index,
-  isBusy,
-  onDeleteFund,
-  onOpenUpdateDialog,
-}: SortableFundRowProps) {
-  const {
-    attributes,
-    listeners,
-    setActivatorNodeRef,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({
-    id: item.fundCode,
-    disabled: isBusy,
-  });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  const stickyBg = index % 2 !== 0 ? "bg-muted/50" : "bg-background";
-
-  return (
-    <TableRow
-      ref={setNodeRef}
-      style={style}
-      className={cn("group even:bg-muted/50", isDragging && "bg-muted/50 opacity-50")}
-    >
-      <TableCell className={cn("w-[50px] p-2 sticky left-0 z-10 group-hover:bg-muted/50 group-data-[state=selected]:bg-muted transition-colors", stickyBg)}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 cursor-grab text-muted-foreground active:cursor-grabbing"
-          ref={setActivatorNodeRef}
-          {...attributes}
-          {...listeners}
-          disabled={isBusy}
-        >
-          <GripVertical className="h-4 w-4" />
-        </Button>
-      </TableCell>
-
-      <TableCell className={cn("w-[180px] min-w-[180px] sticky left-[50px] z-10 group-hover:bg-muted/50 group-data-[state=selected]:bg-muted transition-colors", stickyBg)}>
-        <div className="flex flex-col">
-          <span className="font-medium truncate max-w-[180px]" title={item.fundName ?? ""}>
-            {item.fundName ?? `基金 ${item.fundCode}`}
-          </span>
-          <span className="text-xs font-mono text-muted-foreground">
-            {item.fundCode}
-          </span>
-        </div>
-      </TableCell>
-
-      <TableCell className={cn("w-[120px] min-w-[120px] font-mono sticky left-[230px] z-10 group-hover:bg-muted/50 group-data-[state=selected]:bg-muted transition-colors", stickyBg)}>
-        ¥{formatCurrency(item.holdingAmount)}
-      </TableCell>
-      <TableCell>{holdingProfitText(item)}</TableCell>
-      <TableCell>{dailyProfitText(item)}</TableCell>
-      <TableCell>{ratioCompact(item)}</TableCell>
-
-      <TableCell className={cn("text-right sticky right-0 z-10 group-hover:bg-muted/50 group-data-[state=selected]:bg-muted transition-colors", stickyBg)}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8" disabled={isBusy}>
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">操作</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>操作</DropdownMenuLabel>
-            <DropdownMenuItem onClick={() => onOpenUpdateDialog(item)}>
-              <Pencil className="mr-2 h-4 w-4" />
-              更新持仓
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-destructive focus:text-destructive"
-              onClick={() => onDeleteFund(item)}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              删除基金
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </TableCell>
-    </TableRow>
-  );
-}
+const { Text, Title } = Typography;
 
 interface PortfolioFundsTableProps {
   portfolioName: string;
@@ -267,6 +70,68 @@ interface PortfolioFundsTableProps {
   onOpenAddFundDialog: () => void;
 }
 
+function formatSignedCurrencyValue(value: number): string {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}¥${formatCurrency(Math.abs(value))}`;
+}
+
+// Row Context for DnD Handle
+interface RowContextProps {
+  setActivatorNodeRef?: (element: HTMLElement | null) => void;
+  listeners?: Record<string, any>;
+}
+
+const RowContext = createContext<RowContextProps>({});
+
+// Row component for DnD
+interface RowProps extends React.HTMLAttributes<HTMLTableRowElement> {
+  "data-row-key": string;
+}
+
+const SortableRow = ({ children, ...props }: RowProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: props["data-row-key"],
+  });
+
+  const style: React.CSSProperties = {
+    ...props.style,
+    transform: CSS.Transform.toString(transform && { ...transform, scaleY: 1 }),
+    transition,
+    ...(isDragging ? { position: "relative", zIndex: 9999 } : {}),
+  };
+
+  return (
+    <RowContext.Provider value={{ setActivatorNodeRef, listeners }}>
+      <tr {...props} ref={setNodeRef} style={style} {...attributes}>
+        {children}
+      </tr>
+    </RowContext.Provider>
+  );
+};
+
+// Drag Handle Component
+const DragHandle = () => {
+  const { setActivatorNodeRef, listeners } = useContext(RowContext);
+  return (
+    <Button
+      type="text"
+      size="small"
+      icon={<HolderOutlined />}
+      style={{ cursor: 'grab' }}
+      ref={setActivatorNodeRef}
+      {...listeners}
+    />
+  );
+};
+
 export function PortfolioFundsTable({
   portfolioName,
   portfolioType,
@@ -284,6 +149,7 @@ export function PortfolioFundsTable({
   onOpenAddFundDialog,
 }: PortfolioFundsTableProps) {
   const [updateTarget, setUpdateTarget] = useState<PortfolioFundItem | null>(null);
+  const isMobile = useIsMobile();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -322,88 +188,189 @@ export function PortfolioFundsTable({
     setUpdateTarget(item);
   }
 
+  const columns: TableProps<PortfolioFundItem>["columns"] = [
+    {
+      key: "sort",
+      width: 50,
+      fixed: "left",
+      render: () => <DragHandle />,
+    },
+    {
+      title: "基金名称",
+      key: "name",
+      width: 140,
+      fixed: "left",
+      render: (_, record) => (
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <Text strong ellipsis={{ tooltip: record.fundName }} style={{ fontSize: isMobile ? 12 : 14 }}>
+            {record.fundName ?? `基金 ${record.fundCode}`}
+          </Text>
+          <Text type="secondary" style={{ fontSize: isMobile ? 10 : 12 }}>
+            {record.fundCode}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: "持仓金额",
+      dataIndex: "holdingAmount",
+      key: "holdingAmount",
+      align: "center",
+      width: isMobile ? 100 : 120,
+      render: (value) => `¥${formatCurrency(value)}`,
+    },
+    {
+      title: "持有收益",
+      key: "holdingProfit",
+      align: "center",
+      width: isMobile ? 100 : 120,
+      render: (_, record) => {
+        const profit = record.holdingProfitAmount;
+        const pct = record.holdingProfitPct;
+        const color = profit > 0 ? "#cf1322" : profit < 0 ? "#389e0d" : "inherit";
+        return (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", fontSize: 12, color }}>
+            <span>{formatSignedCurrencyValue(profit)}</span>
+            <span>{formatSignedPct(pct)}</span>
+          </div>
+        );
+      },
+    },
+    {
+      title: "当日收益",
+      key: "dailyProfit",
+      align: "center",
+      width: isMobile ? 100 : 120,
+      render: (_, record) => {
+        const pct = typeof record.dailyProfitPct === "number" ? record.dailyProfitPct : record.estimateChangePct ?? 0;
+        const amount = typeof record.dailyProfitAmount === "number"
+            ? record.dailyProfitAmount
+            : Number((record.holdingAmount * pct).toFixed(2));
+        const color = amount > 0 ? "#cf1322" : amount < 0 ? "#389e0d" : "inherit";
+        return (
+           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", fontSize: 12, color }}>
+            <span>{formatSignedCurrencyValue(amount)}</span>
+            <span>{formatSignedPct(pct)}</span>
+            {record.dailyProfitOfficialUpdated && (
+                <Text type="secondary" style={{ fontSize: 10 }}>已更新</Text>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      title: "配比",
+      key: "ratio",
+      align: "center",
+      width: isMobile ? 100 : 120,
+      render: (_, record) => {
+        if (record.portfolioType !== "RATIO" || typeof record.actualRatio !== "number" || typeof record.plannedRatio !== "number") {
+           return <Text type="secondary">-</Text>;
+        }
+        const actualPct = record.actualRatio * 100;
+        const plannedPct = record.plannedRatio * 100;
+        const diffPct = actualPct - plannedPct;
+        const diffText = `${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%`;
+        const color = diffPct > 0 ? "orange" : diffPct < 0 ? "green" : "default";
+        
+        return (
+           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 4 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                 实{actualPct.toFixed(1)}%/计{plannedPct.toFixed(1)}%
+              </Text>
+              <div>
+                 <Tag color={color} style={{ margin: 0, fontSize: 10 }}>{diffText}</Tag>
+              </div>
+           </div>
+        );
+      },
+    },
+    {
+      title: "操作",
+      key: "action",
+      fixed: "right",
+      align: "right",
+      width: 60,
+      render: (_, record) => {
+        const items: MenuProps['items'] = [
+            { key: 'update', label: '更新持仓', icon: <EditOutlined />, onClick: () => onOpenUpdateDialog(record) },
+            { type: 'divider' },
+            { key: 'delete', label: '删除基金', icon: <DeleteOutlined />, danger: true, onClick: () => onDeleteFund(record) },
+        ];
+        return (
+          <Dropdown menu={{ items }} placement="bottomRight" trigger={['click']}>
+            <Button type="text" icon={<MoreOutlined />} size={isMobile ? "small" : "middle"} />
+          </Dropdown>
+        );
+      },
+    },
+  ];
+
+  if (isLoading) {
+    return (
+      <Card>
+         <Skeleton active paragraph={{ rows: 3 }} />
+      </Card>
+    );
+  }
+
   return (
     <>
-      <Card className="mb-3 flex flex-col border-t-4 border-t-primary/20">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <div className="space-y-1">
-            <CardTitle className="text-xl">
-              {portfolioName}
-            </CardTitle>
-            <CardDescription>
-              {portfolioType === "FREE" ? "自由组合" : "按比例组合"} · 共 {funds.length} 只基金
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void onRefresh()}
-              disabled={isBusy || isLoading}
+      <Card
+        title={
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                 <Title level={isMobile ? 5 : 5} style={{ margin: 0, fontSize: isMobile ? 14 : 16 }}>{portfolioName}</Title>
+                 <Text type="secondary" style={{ fontSize: isMobile ? 10 : 12, fontWeight: 'normal' }}>
+                    {portfolioType === "FREE" ? "自由组合" : "按比例组合"} · 共 {funds.length} 只基金
+                 </Text>
+              </div>
+              <Space>
+                 <Button icon={<ReloadOutlined />} onClick={() => void onRefresh()} disabled={isBusy} loading={isBusy} size={isMobile ? "small" : "middle"}>
+                    {isMobile ? "刷新" : "刷新"}
+                 </Button>
+                 <Button type="primary" icon={<PlusOutlined />} onClick={onOpenAddFundDialog} disabled={isBusy} size={isMobile ? "small" : "middle"}>
+                    {isMobile ? "添加" : "添加基金"}
+                 </Button>
+              </Space>
+           </div>
+        }
+        style={{ marginBottom: 24, borderTop: '4px solid #1677ff' }}
+        bodyStyle={{ padding: isMobile ? 12 : 24 }}
+      >
+        {funds.length === 0 ? (
+          <Empty
+             description="暂无基金"
+             image={Empty.PRESENTED_IMAGE_SIMPLE}
+          >
+             <Button type="primary" onClick={onOpenAddFundDialog}>添加第一只基金</Button>
+          </Empty>
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={onDragEnd}
+          >
+            <SortableContext
+              items={sortableIds}
+              strategy={verticalListSortingStrategy}
             >
-              <RefreshCw className={cn("mr-2 h-4 w-4", isLoading && "animate-spin")} />
-              刷新
-            </Button>
-            <Button onClick={onOpenAddFundDialog} disabled={isBusy}>
-              添加基金
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="flex-1">
-          {isLoading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : funds.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-10 text-center text-muted-foreground">
-              <p>暂无基金</p>
-              <Button variant="link" onClick={onOpenAddFundDialog}>
-                添加第一只基金
-              </Button>
-            </div>
-          ) : (
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={onDragEnd}
-            >
-              <SortableContext
-                items={sortableIds}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="rounded-md border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[50px] sticky left-0 z-20 bg-background"></TableHead>
-                        <TableHead className="w-[180px] min-w-[180px] sticky left-[50px] z-20 bg-background">基金名称</TableHead>
-                        <TableHead className="w-[120px] min-w-[120px] sticky left-[230px] z-20 bg-background">持仓金额</TableHead>
-                        <TableHead>持有收益</TableHead>
-                        <TableHead>当日收益</TableHead>
-                        <TableHead>配比</TableHead>
-                        <TableHead className="text-right sticky right-0 z-20 bg-background">操作</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {funds.map((item, index) => (
-                        <SortableFundRow
-                          key={item.fundCode}
-                          item={item}
-                          index={index}
-                          isBusy={isBusy}
-                          onDeleteFund={onDeleteFund}
-                          onOpenUpdateDialog={onOpenUpdateDialog}
-                        />
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </SortableContext>
-            </DndContext>
-          )}
-        </CardContent>
+              <Table
+                columns={columns}
+                dataSource={funds}
+                rowKey="fundCode"
+                pagination={false}
+                scroll={{ x: 800 }}
+                size={isMobile ? "small" : "middle"}
+                components={{
+                  body: {
+                    row: SortableRow,
+                  },
+                }}
+              />
+            </SortableContext>
+          </DndContext>
+        )}
       </Card>
 
       <UpdateFundDialog

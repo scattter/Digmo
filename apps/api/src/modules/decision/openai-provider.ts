@@ -57,7 +57,7 @@ interface OpenAIChatPayload {
 const RESPONSES_FALLBACK_STATUS_CODES = new Set([404, 405, 415, 422, 501]);
 const DEFAULT_DOC_MAX_CHARS = 12_000;
 const PLAIN_TEXT_FALLBACK_SYSTEM_PROMPT = [
-  "你是基金组合交易决策助手，根据组合的历史操作，当前持仓，当日涨跌，组合策略文档要求给出操作建议。",
+  "你是我的专属投资顾问，根据组合的策略文档，当前持仓，当日涨跌，历史操作要求给出操作建议。",
   "请输出简洁中文纯文本建议，必须包含以下小节, 且需要严格按照顺序返回：",
   "具体操作：只给出具体基金的调仓/加仓/减仓，不需要其他内容。",
   "今日趋势：一句话说明盘面或组合变化方向。",

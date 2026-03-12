@@ -60,7 +60,7 @@ export function getConfig(): AppConfig {
   const port = Number(process.env.PORT ?? 3001);
   const timezone = process.env.TZ ?? ASIA_SHANGHAI_TIMEZONE;
   const targetFunds = (
-    process.env.VALUATION_TARGET_FUNDS ?? "161725,110011,006327"
+    process.env.VALUATION_TARGET_FUNDS ?? ""
   )
     .split(",")
     .map((code) => code.trim())

@@ -1,5 +1,5 @@
-import { Clock3 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ClockCircleOutlined } from "@ant-design/icons";
+import { Alert } from "antd";
 
 interface StatusFeedbackProps {
   lastManualRefreshAt: string;
@@ -8,15 +8,17 @@ interface StatusFeedbackProps {
 export function StatusFeedback({ lastManualRefreshAt }: StatusFeedbackProps) {
   return (
     <section aria-live="polite">
-      <Alert>
-        <Clock3 className="h-4 w-4" />
-        <AlertTitle>手动更新模式</AlertTitle>
-        <AlertDescription>
-          {lastManualRefreshAt
+      <Alert
+        message="手动更新模式"
+        description={
+          lastManualRefreshAt
             ? `最近手动更新: ${lastManualRefreshAt}`
-            : "当前为手动更新模式，不会自动刷新。"}
-        </AlertDescription>
-      </Alert>
+            : "当前为手动更新模式，不会自动刷新。"
+        }
+        type="info"
+        showIcon
+        icon={<ClockCircleOutlined />}
+      />
     </section>
   );
 }

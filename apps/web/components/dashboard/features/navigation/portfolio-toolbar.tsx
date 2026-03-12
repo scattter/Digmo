@@ -12,12 +12,12 @@ import {
 import { SortableContext, useSortable, rectSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { PortfolioSummary } from "@digmo/shared";
-import { X } from "lucide-react";
+import { CloseCircleFilled } from "@ant-design/icons";
 import { FlatExpandMode, SortOrder } from "@/lib/api";
 import { MainView } from "@/hooks/use-dashboard-data";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Button, Card, Radio, Badge } from "antd";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
 interface PortfolioToolbarProps {
   mainView: MainView;
@@ -46,42 +46,49 @@ function SortablePortfolioTab(props: {
     id: portfolio.id,
     disabled: isBusy
   });
+  const isMobile = useIsMobile();
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    display: 'inline-block',
+    marginRight: 8,
+    marginBottom: 8,
+  };
+
+  const isSelected = selectedPortfolioId === portfolio.id;
 
   return (
     <div
       ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition
-      }}
-      className={cn("group relative inline-flex items-center", isDragging ? "z-10 opacity-80" : undefined)}
+      style={style}
+      {...attributes}
+      {...listeners}
     >
-      <Button
-        type="button"
-        variant={selectedPortfolioId === portfolio.id ? "default" : "secondary"}
-        className="pr-5 touch-none"
-        onClick={() => onSelectPortfolio(portfolio.id)}
-        {...attributes}
-        {...listeners}
-        disabled={isBusy}
-      >
-        {portfolio.name}
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="absolute -right-2 -top-2 z-10 h-9 w-9 rounded-full bg-transparent p-0 opacity-100 hover:bg-transparent focus-visible:bg-transparent active:bg-transparent md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
-        aria-label={`删除组合 ${portfolio.name}`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onDeletePortfolioTab(portfolio);
-        }}
-      >
-        <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border bg-surface text-foreground shadow-sm">
-          <X className="h-3 w-3" />
-        </span>
-      </Button>
+      <div className="group relative">
+         <Badge 
+            count={
+              <CloseCircleFilled 
+                 className="opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full"
+                 style={{ color: '#ff4d4f', cursor: 'pointer' }}
+                 onClick={(e) => {
+                    e.stopPropagation();
+                    onDeletePortfolioTab(portfolio);
+                 }}
+              />
+            }
+            offset={[-5, 5]}
+         >
+           <Button
+              type={isSelected ? "primary" : "default"}
+              onClick={() => onSelectPortfolio(portfolio.id)}
+              disabled={isBusy}
+              size={isMobile ? "small" : "middle"}
+           >
+              {portfolio.name}
+           </Button>
+         </Badge>
+      </div>
     </div>
   );
 }
@@ -101,6 +108,9 @@ export function PortfolioToolbar(props: PortfolioToolbarProps) {
     onDeletePortfolioTab,
     onPortfolioDragEnd
   } = props;
+  
+  const isMobile = useIsMobile();
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -116,14 +126,14 @@ export function PortfolioToolbar(props: PortfolioToolbarProps) {
   );
 
   return (
-    <Card>
-      <CardContent className="space-y-4 pt-4">
+    <Card styles={{ body: { padding: 16 } }}>
         {mainView === "portfolios" ? (
-          <div className="flex flex-wrap gap-2" role="tablist" aria-label="组合选择">
+          <div className="flex flex-wrap" role="tablist" aria-label="组合选择">
             <Button
-              type="button"
-              variant={selectedPortfolioId === "all" ? "default" : "secondary"}
+              type={selectedPortfolioId === "all" ? "primary" : "default"}
               onClick={() => onSelectPortfolio("all")}
+              style={{ marginRight: 8, marginBottom: 8 }}
+              size={isMobile ? "small" : "middle"}
             >
               全部组合
             </Button>
@@ -146,34 +156,25 @@ export function PortfolioToolbar(props: PortfolioToolbarProps) {
 
         {mainView === "funds" ? (
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap gap-2" role="group" aria-label="平铺展开模式">
-              <Button
-                type="button"
-                variant={flatExpand === "dedup" ? "default" : "secondary"}
-                onClick={() => onFlatExpandChange("dedup")}
-              >
-                去重汇总
-              </Button>
-              <Button
-                type="button"
-                variant={flatExpand === "expanded" ? "default" : "secondary"}
-                onClick={() => onFlatExpandChange("expanded")}
-              >
-                按组合展开
-              </Button>
-            </div>
+            <Radio.Group 
+               value={flatExpand} 
+               onChange={(e) => onFlatExpandChange(e.target.value)}
+               buttonStyle="solid"
+               size={isMobile ? "small" : "middle"}
+            >
+               <Radio.Button value="dedup">去重汇总</Radio.Button>
+               <Radio.Button value="expanded">按组合展开</Radio.Button>
+            </Radio.Group>
 
             <Button
-              type="button"
-              variant={flatSortOrder === "default" ? "secondary" : "default"}
               onClick={onFlatSortToggle}
-              className="md:min-w-[140px]"
+              type={flatSortOrder !== "default" ? "primary" : "default"}
+              size={isMobile ? "small" : "middle"}
             >
               {flatSortLabel}
             </Button>
           </div>
         ) : null}
-      </CardContent>
     </Card>
   );
 }

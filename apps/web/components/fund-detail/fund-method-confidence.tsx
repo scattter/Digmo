@@ -1,6 +1,5 @@
 import { FundEstimateSnapshot } from "@digmo/shared";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, Tag, Descriptions } from "antd";
 
 interface FundMethodConfidenceProps {
   snapshot: FundEstimateSnapshot;
@@ -8,19 +7,16 @@ interface FundMethodConfidenceProps {
 
 export function FundMethodConfidence({ snapshot }: FundMethodConfidenceProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">方法与置信度</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-2 text-sm text-muted-foreground">
-        <p>
-          置信度: <Badge variant="secondary">{snapshot.confidenceLevel}</Badge> （{snapshot.confidenceScore}）
-        </p>
-        <p>估值方法: {snapshot.method}</p>
-        <p>输入延迟: {snapshot.inputsStalenessSec}s</p>
-        <p>基准净值日期: {snapshot.baseNavDate}</p>
-        <p>持仓报告期: {snapshot.holdingReportDate ?? "暂无"}</p>
-      </CardContent>
+    <Card title="方法与置信度">
+      <Descriptions column={1} size="small">
+        <Descriptions.Item label="置信度">
+           <Tag>{snapshot.confidenceLevel}</Tag> ({snapshot.confidenceScore})
+        </Descriptions.Item>
+        <Descriptions.Item label="估值方法">{snapshot.method}</Descriptions.Item>
+        <Descriptions.Item label="输入延迟">{snapshot.inputsStalenessSec}s</Descriptions.Item>
+        <Descriptions.Item label="基准净值日期">{snapshot.baseNavDate}</Descriptions.Item>
+        <Descriptions.Item label="持仓报告期">{snapshot.holdingReportDate ?? "暂无"}</Descriptions.Item>
+      </Descriptions>
     </Card>
   );
 }

@@ -1,19 +1,20 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Button, Card, Form, Input, Typography, App } from "antd";
+import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { fetchMe, login } from "@/lib/api";
 import { clearAccessToken, getAccessToken, setAccessToken } from "@/lib/auth-session";
 
+const { Title, Text } = Typography;
+
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [errorText, setErrorText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Use App context for message if inside App, but Login might be root.
+  // We added AntdConfigProvider in layout, so App is available.
+  const { message } = App.useApp();
 
   useEffect(() => {
     const existingToken = getAccessToken();
@@ -30,24 +31,16 @@ export default function LoginPage() {
       });
   }, [router]);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setErrorText("");
-
-    const normalizedUsername = username.trim();
-    const normalizedPassword = password.trim();
-    if (!normalizedUsername || !normalizedPassword) {
-      setErrorText("请输入用户名和密码");
-      return;
-    }
-
+  async function onFinish(values: any) {
+    const { username, password } = values;
     setIsSubmitting(true);
     try {
-      const payload = await login(normalizedUsername, normalizedPassword);
+      const payload = await login(username, password);
       setAccessToken(payload.accessToken);
+      message.success("登录成功");
       router.replace("/");
     } catch (error) {
-      setErrorText(error instanceof Error ? error.message : "登录失败");
+      message.error(error instanceof Error ? error.message : "登录失败");
     } finally {
       setIsSubmitting(false);
     }
@@ -56,45 +49,37 @@ export default function LoginPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-10">
       <Card className="w-full">
-        <CardHeader>
-          <CardTitle>登录 Digmo</CardTitle>
-          <CardDescription>请输入管理员创建的用户名与密码</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="username">
-                用户名
-              </label>
-              <Input
-                id="username"
-                autoComplete="username"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                placeholder="请输入用户名"
-                disabled={isSubmitting}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="password">
-                密码
-              </label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="请输入密码"
-                disabled={isSubmitting}
-              />
-            </div>
-            {errorText ? <p className="text-sm text-red-600">{errorText}</p> : null}
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "登录中..." : "登录"}
-            </Button>
-          </form>
-        </CardContent>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+           <Title level={3}>登录 Digmo</Title>
+           <Text type="secondary">请输入管理员创建的用户名与密码</Text>
+        </div>
+        
+        <Form
+           name="login_form"
+           onFinish={onFinish}
+           layout="vertical"
+           size="large"
+        >
+           <Form.Item
+              name="username"
+              rules={[{ required: true, message: '请输入用户名' }]}
+           >
+              <Input prefix={<UserOutlined />} placeholder="用户名" disabled={isSubmitting} />
+           </Form.Item>
+
+           <Form.Item
+              name="password"
+              rules={[{ required: true, message: '请输入密码' }]}
+           >
+              <Input.Password prefix={<LockOutlined />} placeholder="密码" disabled={isSubmitting} />
+           </Form.Item>
+
+           <Form.Item>
+              <Button type="primary" htmlType="submit" block loading={isSubmitting}>
+                 登录
+              </Button>
+           </Form.Item>
+        </Form>
       </Card>
     </main>
   );

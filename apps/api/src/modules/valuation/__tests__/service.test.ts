@@ -297,12 +297,6 @@ describe("valuation service", () => {
             cashRatio: 1,
             holdings: []
           };
-        },
-        async getLatestMarketQuotes() {
-          return [];
-        },
-        async getHistoricalIndexReturns() {
-          return [];
         }
       };
 
@@ -360,5 +354,79 @@ describe("valuation service", () => {
     expect(result.data).toHaveLength(4);
     expect(result.partialFailed).toHaveLength(0);
     expect(maxInFlight).toBeGreaterThan(1);
+  });
+
+  test("bootstrap does not fail when some target funds are unavailable", async () => {
+    const availableFundCode = "161725";
+    const unavailableFundCode = "999999";
+    const repository = new InMemoryRepository();
+
+    const provider = {
+      async listTargetFundCodes() {
+        return [availableFundCode, unavailableFundCode];
+      },
+      async getFundProfile(fundCode: string) {
+        if (fundCode === availableFundCode) {
+          return {
+            fundCode,
+            fundName: "可用基金",
+            fundType: "指数型"
+          };
+        }
+        return undefined;
+      },
+      async getLatestNavRecord(fundCode: string) {
+        if (fundCode === availableFundCode) {
+          return {
+            fundCode,
+            navDate: "2026-03-02",
+            nav: 1,
+            dailyReturn: 0.001
+          };
+        }
+        return undefined;
+      },
+      async getRecentNavRecords(fundCode: string) {
+        if (fundCode === availableFundCode) {
+          return [
+            {
+              fundCode,
+              navDate: "2026-03-02",
+              nav: 1,
+              dailyReturn: 0.001
+            }
+          ];
+        }
+        return [];
+      },
+      async getHoldingSnapshot(fundCode: string) {
+        if (fundCode === availableFundCode) {
+          return {
+            fundCode,
+            reportDate: "2026-03-02",
+            stockRatio: 0.9,
+            bondRatio: 0,
+            cashRatio: 0.1,
+            holdings: []
+          };
+        }
+        return undefined;
+      }
+    };
+
+    const service = new ValuationService({
+      provider: provider as any,
+      repository,
+      cache: new MemoryCache(),
+      eastmoneyClient: createMockQuoteClient() as any,
+      realtimeEstimateFetcher: createEmptyRealtimeEstimateFetcher()
+    });
+
+    await expect(service.bootstrap()).resolves.toBeUndefined();
+
+    const availableProfile = await repository.getFundProfile(availableFundCode);
+    expect(availableProfile?.fundCode).toBe(availableFundCode);
+    const unavailableProfile = await repository.getFundProfile(unavailableFundCode);
+    expect(unavailableProfile).toBeUndefined();
   });
 });

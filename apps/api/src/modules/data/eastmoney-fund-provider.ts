@@ -1,7 +1,7 @@
-import { FundProfile, HoldingSnapshot, MarketQuote, NavRecord } from "@digmo/shared";
+import { FundProfile, HoldingSnapshot, NavRecord } from "@digmo/shared";
 import { request as httpsRequest } from "node:https";
 import { formatDate, getShanghaiYear, nowInShanghai } from "../../utils/time.js";
-import { FundDataProvider, HistoricalReturn } from "./provider.js";
+import { FundDataProvider } from "./provider.js";
 
 interface EastmoneyRequestOptions {
   timeoutMs: number;
@@ -21,22 +21,6 @@ interface FundArchivesResult {
     name: string;
     ratio: number;
   }>;
-}
-
-interface KlineResponse {
-  data?: {
-    klines?: string[];
-  };
-}
-
-interface QuoteResponse {
-  data?: {
-    diff?: Array<{
-      f12?: string;
-      f14?: string;
-      f3?: number;
-    }>;
-  };
 }
 
 interface FundSearchResponse {
@@ -59,34 +43,10 @@ interface FundSearchMeta {
 const PROFILE_TTL_MS = 90 * 1000;
 const NAV_TTL_MS = 90 * 1000;
 const HOLDING_TTL_MS = 10 * 60 * 1000;
-const QUOTES_TTL_MS = 15 * 1000;
-const INDEX_HISTORY_TTL_MS = 5 * 60 * 1000;
 
 const FUND_BASE_URL = "https://fund.eastmoney.com";
 const FUND_F10_BASE_URL = "https://fundf10.eastmoney.com";
 const FUND_SEARCH_BASE_URL = "https://fundsuggest.eastmoney.com";
-const QUOTE_BASE_URLS = ["https://push2.eastmoney.com", "https://82.push2.eastmoney.com", "https://push2delay.eastmoney.com"];
-const HISTORY_BASE_URLS = [
-  "https://push2his.eastmoney.com",
-  "https://33.push2his.eastmoney.com",
-  "https://90.push2his.eastmoney.com"
-];
-
-const BENCHMARK_INDICES: Array<{
-  code: string;
-  secid: string;
-  defaultName: string;
-}> = [
-  { code: "000300", secid: "1.000300", defaultName: "沪深300" },
-  { code: "000905", secid: "1.000905", defaultName: "中证500" },
-  { code: "399006", secid: "0.399006", defaultName: "创业板指" },
-  { code: "399997", secid: "0.399997", defaultName: "中证白酒" },
-  { code: "000819", secid: "1.000819", defaultName: "中证有色金属" },
-  { code: "000811", secid: "1.000811", defaultName: "细分有色" },
-  { code: "399395", secid: "0.399395", defaultName: "国证有色" }
-];
-
-const SECID_BY_INDEX = new Map(BENCHMARK_INDICES.map((item) => [item.code, item.secid]));
 
 function stripTags(input: string): string {
   return input
@@ -388,49 +348,6 @@ function parseNavRecords(script: string, fundCode: string): NavRecord[] {
   }
 }
 
-function parseIndexHistory(data: KlineResponse, indexCode: string, limit: number): HistoricalReturn[] {
-  const klines = data.data?.klines ?? [];
-  if (klines.length === 0) {
-    return [];
-  }
-
-  const rows: Array<{
-    date: string;
-    close: number;
-  }> = [];
-
-  for (const line of klines) {
-    const parts = line.split(",");
-    if (parts.length < 3) {
-      continue;
-    }
-    const date = parts[0];
-    const close = Number(parts[2]);
-    if (!date || !Number.isFinite(close) || close <= 0) {
-      continue;
-    }
-    rows.push({ date, close });
-  }
-
-  rows.sort((a, b) => a.date.localeCompare(b.date));
-
-  const returns: HistoricalReturn[] = [];
-  for (let i = 1; i < rows.length; i += 1) {
-    const prev = rows[i - 1];
-    const curr = rows[i];
-    if (prev.close <= 0) {
-      continue;
-    }
-    const changePct = Number(((curr.close / prev.close) - 1).toFixed(6));
-    returns.push({
-      date: curr.date,
-      changePct
-    });
-  }
-
-  return returns.slice(Math.max(0, returns.length - limit));
-}
-
 function fetchText(url: string, options: EastmoneyRequestOptions): Promise<string | undefined> {
   return new Promise((resolve) => {
     const request = httpsRequest(
@@ -494,10 +411,6 @@ export class EastmoneyFundDataProvider implements FundDataProvider {
   private readonly navCache = new Map<string, CachedValue<NavRecord[]>>();
 
   private readonly holdingCache = new Map<string, CachedValue<HoldingSnapshot | undefined>>();
-
-  private readonly quoteCache = new Map<string, CachedValue<MarketQuote[]>>();
-
-  private readonly indexHistoryCache = new Map<string, CachedValue<HistoricalReturn[]>>();
 
   constructor(
     targetFunds: string[],
@@ -606,101 +519,6 @@ export class EastmoneyFundDataProvider implements FundDataProvider {
 
     this.setCached(this.holdingCache, fundCode, snapshot, HOLDING_TTL_MS);
     return snapshot;
-  }
-
-  async getLatestMarketQuotes(): Promise<MarketQuote[]> {
-    const quoteCacheKey = "benchmark";
-    const cached = this.getCached(this.quoteCache, quoteCacheKey);
-    if (cached && cached.length > 0) {
-      return cached;
-    }
-
-    const secids = BENCHMARK_INDICES.map((item) => item.secid).join(",");
-    const query = new URLSearchParams({
-      fltt: "2",
-      invt: "2",
-      fields: "f12,f14,f3",
-      secids
-    });
-
-    for (const host of QUOTE_BASE_URLS) {
-      const url = `${host}/api/qt/ulist.np/get?${query.toString()}`;
-      const payload = await fetchJson<QuoteResponse>(url, this.requestOptions);
-      const rows = payload?.data?.diff ?? [];
-      if (rows.length === 0) {
-        continue;
-      }
-
-      const now = nowInShanghai();
-      const quoteDate = formatDate(now);
-      const quoteTime = now.toISOString();
-      const quotes: MarketQuote[] = rows
-        .map((item) => {
-          const code = item.f12?.trim();
-          const changePctPercent = asNumber(item.f3);
-          if (!code || typeof changePctPercent !== "number") {
-            return undefined;
-          }
-
-          return {
-            code,
-            name: item.f14?.trim() || BENCHMARK_INDICES.find((entry) => entry.code === code)?.defaultName || code,
-            quoteDate,
-            quoteTime,
-            changePct: Number((changePctPercent / 100).toFixed(6)),
-            source: "EASTMONEY"
-          };
-        })
-        .filter((item): item is MarketQuote => Boolean(item));
-
-      if (quotes.length > 0) {
-        this.setCached(this.quoteCache, quoteCacheKey, quotes, QUOTES_TTL_MS);
-        return quotes;
-      }
-    }
-
-    return [];
-  }
-
-  async getHistoricalIndexReturns(indexCode: string, limit: number): Promise<HistoricalReturn[]> {
-    if (limit <= 0) {
-      return [];
-    }
-
-    const cacheKey = `${indexCode}:${limit}`;
-    const cached = this.getCached(this.indexHistoryCache, cacheKey);
-    if (cached && cached.length > 0) {
-      return cached;
-    }
-
-    const secid = SECID_BY_INDEX.get(indexCode);
-    if (!secid) {
-      this.setCached(this.indexHistoryCache, cacheKey, [], INDEX_HISTORY_TTL_MS);
-      return [];
-    }
-
-    const query = new URLSearchParams({
-      secid,
-      klt: "101",
-      fqt: "1",
-      lmt: String(Math.max(limit + 20, 80)),
-      end: "20500000",
-      fields1: "f1,f2,f3",
-      fields2: "f51,f52,f53,f57,f58"
-    });
-
-    for (const host of HISTORY_BASE_URLS) {
-      const url = `${host}/api/qt/stock/kline/get?${query.toString()}`;
-      const payload = await fetchJson<KlineResponse>(url, this.requestOptions);
-      const parsed = payload ? parseIndexHistory(payload, indexCode, limit) : [];
-      if (parsed.length > 0) {
-        this.setCached(this.indexHistoryCache, cacheKey, parsed, INDEX_HISTORY_TTL_MS);
-        return parsed;
-      }
-    }
-
-    this.setCached(this.indexHistoryCache, cacheKey, [], INDEX_HISTORY_TTL_MS);
-    return [];
   }
 
   private async fetchPingScript(fundCode: string): Promise<string | undefined> {

@@ -1,10 +1,13 @@
-import { ArrowUpDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+"use client";
+
 import { SortOrder } from "@/lib/api";
 import { deltaClassByPct, formatSignedCurrency, formatSignedPct } from "@/lib/format";
 import { getEstimateSortButtonLabel } from "@/hooks/use-dashboard-data";
 import { cn } from "@/lib/utils";
+import { Card, Button, Typography, List, Space } from "antd";
+import { SortAscendingOutlined, SortDescendingOutlined, UnorderedListOutlined } from "@ant-design/icons";
+
+const { Text } = Typography;
 
 interface EstimateAnalysisRow {
   fundCode: string;
@@ -35,42 +38,56 @@ export function EstimateAnalysisPanel({
   className
 }: EstimateAnalysisPanelProps) {
   return (
-    <Card className={cn("flex flex-col", className)}>
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle className="text-base">今日预估</CardTitle>
-        <div className="flex items-center gap-2">
-          <Button type="button" variant="secondary" size="sm" onClick={onToggleExpanded} disabled={disabled}>
-            {expanded ? "收起" : "展开"}
-          </Button>
-          <Button type="button" variant="secondary" size="sm" onClick={onToggleSort} disabled={disabled || !expanded}>
-            <ArrowUpDown className="h-4 w-4" />
-            {getEstimateSortButtonLabel(sortOrder)}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="flex min-h-0 flex-1 flex-col">
-        {rows.length === 0 ? <p className="text-xs text-muted-foreground">当前组合暂无基金数据。</p> : null}
+    <Card 
+      className={cn("flex flex-col", className)}
+      styles={{ body: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' } }}
+      title={
+         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text strong>今日预估</Text>
+            <Space>
+               <Button size="small" onClick={onToggleExpanded} disabled={disabled}>
+                  {expanded ? "收起" : "展开"}
+               </Button>
+               <Button 
+                  size="small" 
+                  onClick={onToggleSort} 
+                  disabled={disabled || !expanded}
+                  icon={sortOrder === 'asc' ? <SortAscendingOutlined /> : sortOrder === 'desc' ? <SortDescendingOutlined /> : <UnorderedListOutlined />}
+               >
+                  {getEstimateSortButtonLabel(sortOrder)}
+               </Button>
+            </Space>
+         </div>
+      }
+    >
+        {rows.length === 0 ? <Text type="secondary" style={{ fontSize: 12 }}>当前组合暂无基金数据。</Text> : null}
 
-        {rows.length > 0 && !expanded ? <p className="text-xs text-muted-foreground">已收起，点击“展开”查看今日预估。</p> : null}
+        {rows.length > 0 && !expanded ? <Text type="secondary" style={{ fontSize: 12 }}>已收起，点击“展开”查看今日预估。</Text> : null}
 
         {rows.length > 0 && expanded ? (
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-            <div className={compact ? "space-y-1.5" : "space-y-2"}>
-              {rows.map((row) => (
-                <div key={row.fundCode} className={`flex items-center justify-between rounded-md border border-border ${compact ? "p-2.5" : "p-3"}`}>
-                  <div>
-                    <p className="text-sm font-medium">{row.fundName}</p>
-                    {!compact ? <p className="text-xs font-mono text-muted-foreground">{row.fundCode}</p> : null}
-                  </div>
-                  <p className={`font-mono text-sm ${deltaClassByPct(row.estimateChangePct)}`}>
-                    {formatSignedCurrency(row.intradayAmount)}/{formatSignedPct(row.estimateChangePct)}
-                  </p>
-                </div>
-              ))}
-            </div>
+            <List
+               size="small"
+               dataSource={rows}
+               split={false}
+               renderItem={(row) => (
+                  <List.Item style={{ padding: compact ? '8px 0' : '12px 0', borderBottom: '1px solid #f0f0f0' }}>
+                     <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                           <Text strong style={{ fontSize: 14 }}>{row.fundName}</Text>
+                           {!compact && <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>{row.fundCode}</div>}
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                           <span className={deltaClassByPct(row.estimateChangePct)} style={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                              {formatSignedCurrency(row.intradayAmount)}/{formatSignedPct(row.estimateChangePct)}
+                           </span>
+                        </div>
+                     </div>
+                  </List.Item>
+               )}
+            />
           </div>
         ) : null}
-      </CardContent>
     </Card>
   );
 }

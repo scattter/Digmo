@@ -2,30 +2,22 @@
 
 import { PortfolioSummary } from "@digmo/shared";
 import { 
-  Pencil, 
-  RefreshCw, 
-  MoreVertical, 
-  ExternalLink, 
-  Trash2,
-  TrendingUp,
-  TrendingDown,
-  ChevronRight
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  EditOutlined, 
+  ReloadOutlined, 
+  MoreOutlined, 
+  ExportOutlined, 
+  DeleteOutlined,
+  RiseOutlined,
+  FallOutlined,
+  FolderOpenOutlined,
+  RightOutlined
+} from "@ant-design/icons";
+import { Button, Card, Col, Dropdown, Input, Row, Skeleton, Tag, Typography, Space, Empty } from "antd";
+import type { MenuProps } from "antd";
 import { formatCurrency, formatSignedPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+const { Title, Text } = Typography;
 
 interface PortfolioOverviewTableProps {
   portfolios: PortfolioSummary[];
@@ -58,60 +50,57 @@ export function PortfolioOverviewTable({
 }: PortfolioOverviewTableProps) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">基金组合</h2>
-          <p className="text-muted-foreground">管理您的投资组合资产配比与收益</p>
+          <Title level={3} style={{ marginBottom: 0 }}>基金组合</Title>
+          <Text type="secondary">管理您的投资组合资产配比与收益</Text>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void onRefresh()} disabled={isBusy}>
-          <RefreshCw className={cn("mr-2 h-4 w-4", isBusy && "animate-spin")} />
+        <Button icon={<ReloadOutlined />} onClick={() => void onRefresh()} disabled={isBusy} loading={isBusy}>
           刷新数据
         </Button>
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Row gutter={[16, 16]}>
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="h-[200px]">
-              <CardHeader>
-                <Skeleton className="h-5 w-1/2" />
-                <Skeleton className="h-4 w-1/3" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-10 w-full mb-4" />
-                <Skeleton className="h-4 w-2/3" />
-              </CardContent>
-            </Card>
+            <Col xs={24} md={12} lg={8} key={i}>
+              <Card>
+                <Skeleton active paragraph={{ rows: 3 }} />
+              </Card>
+            </Col>
           ))}
-        </div>
+        </Row>
       ) : portfolios.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-20 text-center">
-          <div className="rounded-full bg-muted p-3 mb-4">
-            <TrendingUp className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-semibold">暂无组合</h3>
-          <p className="text-sm text-muted-foreground max-w-sm mt-1">
-            您还没有创建任何基金组合。开始创建一个以跟踪您的投资。
-          </p>
+        <div style={{ padding: 48, background: '#fff', borderRadius: 8, border: '1px dashed #d9d9d9', textAlign: 'center' }}>
+           <Empty
+              description={
+                 <span>
+                    <Text strong style={{ fontSize: 16 }}>暂无组合</Text>
+                    <br />
+                    <Text type="secondary">您还没有创建任何基金组合。开始创建一个以跟踪您的投资。</Text>
+                 </span>
+              }
+           />
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Row gutter={[16, 16]}>
           {portfolios.map((portfolio) => (
-            <PortfolioCard
-              key={portfolio.id}
-              portfolio={portfolio}
-              isEditing={editingPortfolioId === portfolio.id}
-              editingName={editingPortfolioName}
-              isBusy={isBusy}
-              onOpen={() => onOpen(portfolio)}
-              onDelete={() => onDelete(portfolio)}
-              onStartRename={() => onStartRename(portfolio)}
-              onRenameInputChange={onRenameInputChange}
-              onCommitRename={() => onCommitRename(portfolio)}
-              onCancelRename={onCancelRename}
-            />
+            <Col xs={24} md={12} lg={8} key={portfolio.id}>
+              <PortfolioCard
+                portfolio={portfolio}
+                isEditing={editingPortfolioId === portfolio.id}
+                editingName={editingPortfolioName}
+                isBusy={isBusy}
+                onOpen={() => onOpen(portfolio)}
+                onDelete={() => onDelete(portfolio)}
+                onStartRename={() => onStartRename(portfolio)}
+                onRenameInputChange={onRenameInputChange}
+                onCommitRename={() => onCommitRename(portfolio)}
+                onCancelRename={onCancelRename}
+              />
+            </Col>
           ))}
-        </div>
+        </Row>
       )}
     </div>
   );
@@ -143,88 +132,73 @@ function PortfolioCard({
   const isProfit = portfolio.dailyProfitPct > 0;
   const isLoss = portfolio.dailyProfitPct < 0;
 
+  const menuItems: MenuProps['items'] = [
+    { key: 'open', label: '查看详情', icon: <FolderOpenOutlined />, onClick: onOpen },
+    { key: 'rename', label: '重命名', icon: <EditOutlined />, onClick: onStartRename },
+    { type: 'divider' },
+    { key: 'delete', label: '删除组合', icon: <DeleteOutlined />, danger: true, onClick: onDelete },
+  ];
+
   return (
-    <Card className="group relative flex flex-col overflow-hidden transition-all hover:shadow-md hover:border-primary/20">
-      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-        <div className="space-y-1 pr-8">
-          {isEditing ? (
-            <Input
-              autoFocus
-              value={editingName}
-              onChange={(e) => onRenameInputChange(e.target.value)}
-              onBlur={onCommitRename}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onCommitRename();
-                if (e.key === "Escape") onCancelRename();
-              }}
-              className="h-7 text-base font-semibold"
-            />
-          ) : (
-            <CardTitle 
-              className="text-lg font-bold leading-tight cursor-pointer hover:text-primary transition-colors"
-              onClick={onOpen}
-            >
-              {portfolio.name}
-            </CardTitle>
-          )}
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">
-              {portfolio.type === "FREE" ? "自由" : "按比例"}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              {portfolio.fundCount} 只基金
-            </span>
+    <Card
+      hoverable
+      style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+      styles={{ body: { flex: 1, display: 'flex', flexDirection: 'column' } }}
+      title={
+        isEditing ? (
+          <Input
+            autoFocus
+            value={editingName}
+            onChange={(e) => onRenameInputChange(e.target.value)}
+            onBlur={onCommitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onCommitRename();
+              if (e.key === "Escape") onCancelRename();
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <div onClick={onOpen} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+             <Text strong style={{ fontSize: 16, marginRight: 8 }}>{portfolio.name}</Text>
+             <RightOutlined style={{ fontSize: 12, color: 'rgba(0,0,0,0.25)' }} />
           </div>
-        </div>
-        
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 absolute right-2 top-4">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onOpen}>
-              <ExternalLink className="mr-2 h-4 w-4" /> 查看详情
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onStartRename}>
-              <Pencil className="mr-2 h-4 w-4" /> 重命名
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" /> 删除组合
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </CardHeader>
-      
-      <CardContent className="flex-1 pt-2">
-        <div className="flex flex-col">
-          <span className="text-xs text-muted-foreground">总资产</span>
-          <span className="text-2xl font-bold font-mono">
+        )
+      }
+      extra={
+        <Dropdown menu={{ items: menuItems }} placement="bottomRight" trigger={['click']}>
+          <Button type="text" icon={<MoreOutlined />} onClick={(e) => e.stopPropagation()} />
+        </Dropdown>
+      }
+    >
+      <div style={{ marginBottom: 16 }}>
+         <Space>
+            <Tag>{portfolio.type === "FREE" ? "自由" : "按比例"}</Tag>
+            <Text type="secondary" style={{ fontSize: 12 }}>{portfolio.fundCount} 只基金</Text>
+         </Space>
+      </div>
+
+      <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 16 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>总资产</Text>
+          <Text strong style={{ fontSize: 24, fontFamily: 'monospace' }}>
             ¥{formatCurrency(portfolio.totalAmount)}
-          </span>
+          </Text>
         </div>
         
-        <div className="mt-4 flex items-center justify-between rounded-lg bg-muted/30 p-2">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-muted-foreground uppercase">当日收益</span>
-            <div className={cn(
-              "flex items-center font-mono font-semibold",
-              isProfit ? "text-red-600 dark:text-red-400" : isLoss ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
-            )}>
-              {isProfit && <TrendingUp className="mr-1 h-3 w-3" />}
-              {isLoss && <TrendingDown className="mr-1 h-3 w-3" />}
+        <div style={{ background: '#f5f5f5', padding: 8, borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <Text type="secondary" style={{ fontSize: 10, textTransform: 'uppercase' }}>当日收益</Text>
+            <div style={{ display: 'flex', alignItems: 'center', fontFamily: 'monospace', fontWeight: 600, color: isProfit ? '#cf1322' : isLoss ? '#389e0d' : 'inherit' }}>
+              {isProfit && <RiseOutlined style={{ marginRight: 4 }} />}
+              {isLoss && <FallOutlined style={{ marginRight: 4 }} />}
               {formatSignedPct(portfolio.dailyProfitPct)}
             </div>
           </div>
           {portfolio.allFundsDailyUpdated && (
-            <Badge variant="secondary" className="h-5 bg-background text-[9px] px-1 text-muted-foreground border border-muted-foreground/20">
-              已更新
-            </Badge>
+            <Tag style={{ margin: 0, fontSize: 10 }}>已更新</Tag>
           )}
         </div>
-      </CardContent>
+      </div>
     </Card>
   );
 }

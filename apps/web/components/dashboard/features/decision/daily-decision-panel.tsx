@@ -2,10 +2,18 @@
 
 import { DecisionDocFormat } from "@digmo/shared";
 import { ChangeEvent, useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, FileText, FileUp, Loader2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { 
+  FileTextOutlined, 
+  UploadOutlined, 
+  LoadingOutlined,
+  DownOutlined,
+  UpOutlined,
+  SaveOutlined
+} from "@ant-design/icons";
+import { Button, Card, Input, Tag, Upload, Typography, Space, Spin } from "antd";
+
+const { Text } = Typography;
+const { TextArea } = Input;
 
 interface DailyDecisionPanelProps {
   isBusy: boolean;
@@ -57,100 +65,86 @@ export function DailyDecisionPanel(props: DailyDecisionPanelProps) {
     return defaultFileNameByFormat(docFormat);
   }, [docFileName, docFormat]);
 
-  async function handleUpload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
+  async function handleUpload(file: File) {
     await onDocUpload(file);
     setIsDocContentExpanded(true);
-    event.target.value = "";
+    return false; // Prevent automatic upload by Antd
   }
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-3">
-          <CardTitle className="text-base">策略文档（Info）</CardTitle>
-          <div className="flex items-center gap-2">
-            {typeof docVersion === "number" ? <Badge variant="secondary">版本 v{docVersion}</Badge> : null}
-            <label className="inline-flex">
-              <input type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" className="hidden" onChange={handleUpload} />
-              <Button type="button" variant="secondary" size="sm" asChild disabled={isBusy}>
-                <span>
-                  <FileUp className="h-4 w-4" />
-                  上传
-                </span>
-              </Button>
-            </label>
-          </div>
-        </CardHeader>
-        <CardContent className="relative space-y-3">
-          {isGeneratingSuggestion ? (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/80 backdrop-blur-[1px]">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                正在更新建议...
-              </div>
-            </div>
-          ) : null}
-          {!hasUploadedDoc ? (
-            <div className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-              {isLoading ? "加载中..." : "暂无策略文档，请先上传文件。"}
-            </div>
-          ) : (
-            <div className="rounded-md border border-border p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">已上传文件</p>
-                  <p className="truncate text-sm font-medium" title={displayFileName}>
-                    {displayFileName}
-                  </p>
+      <Card
+        title={
+           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text strong>策略文档（Info）</Text>
+              <Space>
+                 {typeof docVersion === "number" ? <Tag>版本 v{docVersion}</Tag> : null}
+                 <Upload 
+                    beforeUpload={handleUpload} 
+                    showUploadList={false} 
+                    accept=".md,.markdown,.txt,text/markdown,text/plain"
+                 >
+                    <Button icon={<UploadOutlined />} disabled={isBusy} size="small">上传</Button>
+                 </Upload>
+              </Space>
+           </div>
+        }
+      >
+        <Spin spinning={isGeneratingSuggestion} tip="正在更新建议...">
+           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {!hasUploadedDoc ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'rgba(0,0,0,0.45)', border: '1px dashed #d9d9d9', borderRadius: 6 }}>
+                  {isLoading ? "加载中..." : "暂无策略文档，请先上传文件。"}
                 </div>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setIsDocContentExpanded((prev) => !prev)}
-                  disabled={isBusy}
-                >
-                  {isDocContentExpanded ? (
-                    <>
-                      <ChevronUp className="h-4 w-4" />
-                      收起内容
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="h-4 w-4" />
-                      查看内容
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
+              ) : (
+                <div style={{ padding: 12, border: '1px solid #f0f0f0', borderRadius: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ overflow: 'hidden' }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>已上传文件</Text>
+                      <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                         <Text strong>{displayFileName}</Text>
+                      </div>
+                    </div>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={isDocContentExpanded ? <UpOutlined /> : <DownOutlined />}
+                      onClick={() => setIsDocContentExpanded((prev) => !prev)}
+                      disabled={isBusy}
+                    >
+                      {isDocContentExpanded ? "收起内容" : "查看内容"}
+                    </Button>
+                  </div>
+                </div>
+              )}
 
-          {hasUploadedDoc && isDocContentExpanded ? (
-            <div className="space-y-3 rounded-md border border-border p-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <FileText className="h-3.5 w-3.5" />
-                文档格式：{docFormat}
-              </div>
-              <textarea
-                className="min-h-[220px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                placeholder="策略文档内容"
-                value={docContent}
-                onChange={(event) => onDocContentChange(event.target.value)}
-                disabled={isBusy}
-              />
-              <div className="flex items-center gap-2">
-                <Button type="button" variant="secondary" onClick={() => void onSaveDoc()} disabled={isBusy || !docContent.trim()}>
-                  保存文档
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </CardContent>
+              {hasUploadedDoc && isDocContentExpanded ? (
+                <div style={{ padding: 12, border: '1px solid #f0f0f0', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Space style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>
+                    <FileTextOutlined />
+                    文档格式：{docFormat}
+                  </Space>
+                  <TextArea
+                    rows={10}
+                    placeholder="策略文档内容"
+                    value={docContent}
+                    onChange={(event) => onDocContentChange(event.target.value)}
+                    disabled={isBusy}
+                  />
+                  <div>
+                    <Button 
+                       type="primary" 
+                       icon={<SaveOutlined />} 
+                       onClick={() => void onSaveDoc()} 
+                       disabled={isBusy || !docContent.trim()}
+                    >
+                      保存文档
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+           </div>
+        </Spin>
       </Card>
     </div>
   );

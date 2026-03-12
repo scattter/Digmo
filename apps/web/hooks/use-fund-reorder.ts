@@ -3,7 +3,6 @@
 import { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { PortfolioFundItem } from "@digmo/shared";
-import { toast } from "sonner";
 import { reorderPortfolioFunds } from "@/lib/api";
 
 interface UseFundReorderArgs {
@@ -41,12 +40,10 @@ export function useFundReorder(args: UseFundReorderArgs) {
       );
       const message = "已更新组合基金顺序。";
       setStatusText(message);
-      toast.success(message);
     } catch (error) {
       setPortfolioFunds(previous);
       const message = error instanceof Error ? error.message : "基金重排序失败";
       setErrorText(message);
-      toast.error(message);
     } finally {
       setIsReordering(false);
     }

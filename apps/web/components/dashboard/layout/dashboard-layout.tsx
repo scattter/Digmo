@@ -1,64 +1,57 @@
 "use client";
 
+import React, { useState } from "react";
+import { Layout, Menu, Button, Drawer, Breadcrumb, Avatar, Dropdown, theme, Space, Typography } from "antd";
 import {
-  BarChart3,
-  ChevronRight,
-  LayoutDashboard,
-  Menu,
-  PieChart,
-  Settings,
-  Wallet,
-} from "lucide-react";
+  DashboardOutlined,
+  WalletOutlined,
+  BarChartOutlined,
+  PieChartOutlined,
+  MenuOutlined,
+  UserOutlined,
+  LogoutOutlined,
+  SettingOutlined,
+} from "@ant-design/icons";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ReactNode, useState } from "react";
+import type { MenuProps } from "antd";
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { cn } from "@/lib/utils";
+const { Header, Sider, Content } = Layout;
+const { Text } = Typography;
 
 interface DashboardLayoutProps {
-  children: ReactNode;
+  children: React.ReactNode;
   username?: string;
   onLogout?: () => void;
 }
 
 const navItems = [
   {
-    title: "概览",
+    key: "overview",
+    label: "概览",
     href: "/",
-    icon: LayoutDashboard,
+    icon: <DashboardOutlined />,
     view: "overview",
   },
   {
-    title: "基金组合",
+    key: "portfolios",
+    label: "基金组合",
     href: "/?view=portfolios",
-    icon: Wallet,
+    icon: <WalletOutlined />,
     view: "portfolios",
   },
   {
-    title: "基金列表",
+    key: "funds",
+    label: "基金列表",
     href: "/?view=funds",
-    icon: BarChart3,
+    icon: <BarChartOutlined />,
     view: "funds",
   },
   {
-    title: "分析报表",
+    key: "analysis",
+    label: "分析报表",
     href: "/?view=analysis",
-    icon: PieChart,
+    icon: <PieChartOutlined />,
     view: "analysis",
   },
 ];
@@ -68,168 +61,149 @@ export function DashboardLayout({
   username,
   onLogout,
 }: DashboardLayoutProps) {
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const viewParam = searchParams.get("view");
+  
   const currentView = navItems.some((item) => item.view === viewParam)
     ? viewParam
     : pathname.startsWith("/funds/")
       ? "funds"
       : "overview";
-  const activeNavItem =
-    navItems.find((item) => item.view === currentView) ?? navItems[0];
-  // In a real app, we might use useSearchParams to determine active item
-  // For now, we'll just highlight based on simple logic or let the parent handle it
-  // But since the original app uses state for views, we might need to expose the navigation action.
-  // However, the original app is a single page dashboard.
-  // We will keep it single page for now but simulate navigation or pass props.
-  // Wait, the original `FundDashboard` uses `dashboard.mainView` state.
-  // This Layout component wraps the dashboard content.
-  // The navigation should probably control that state.
   
-  // Actually, to make this reusable, we should just provide the shell structure.
-  // The `navItems` hrefs are just placeholders if we are using client-side state.
-  // But to improve UX, we should probably use URL params eventually.
-  
-  return (
-    <div className="flex h-screen overflow-hidden flex-col md:flex-row">
-      {/* Mobile Header */}
-      <header className="sticky top-0 z-50 flex h-14 shrink-0 items-center gap-4 border-b bg-background px-4 md:hidden">
-        <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="-ml-2">
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle Menu</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-[240px] sm:w-[280px]">
-            <nav className="grid gap-2 text-lg font-medium">
-              <Link
-                href="#"
-                className="flex items-center gap-2 text-lg font-semibold"
-                onClick={() => setIsMobileOpen(false)}
-              >
-                <Wallet className="h-6 w-6" />
-                <span className="sr-only">Digmo</span>
-                Digmo 基金助手
-              </Link>
-              {navItems.map((item, index) => (
-                <Link
-                  key={index}
-                  href={item.href}
-                  className={cn(
-                    "mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 transition-colors",
-                    item.view === activeNavItem.view
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  onClick={() => setIsMobileOpen(false)}
-                >
-                  <item.icon className="h-5 w-5" />
-                  {item.title}
-                </Link>
-              ))}
-            </nav>
-          </SheetContent>
-        </Sheet>
-        <div className="flex w-full items-center gap-4 md:ml-auto md:gap-2 lg:gap-4">
-          <span className="font-semibold">Digmo</span>
-        </div>
-        <UserNav username={username} onLogout={onLogout} />
-      </header>
+  const activeNavItem = navItems.find((item) => item.view === currentView) ?? navItems[0];
+  const selectedKeys = [activeNavItem.key];
 
-      {/* Desktop Sidebar */}
-      <aside className="hidden h-screen w-[180px] shrink-0 flex-col border-r bg-muted/40 md:sticky md:top-0 md:flex">
-        <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <Wallet className="h-6 w-6" />
-            <span className="">Digmo</span>
-          </Link>
-        </div>
-        <div className="flex-1">
-          <nav className="grid items-start gap-1 px-2 py-2 text-sm font-medium lg:px-4">
-            {navItems.map((item, index) => (
-              <Link
-                key={index}
-                href={item.href}
-                className={cn(
-                  "mx-1 my-0.5 flex items-center gap-3 rounded-lg px-3 py-2 transition-colors",
-                  item.view === activeNavItem.view
-                    ? "bg-primary/10 text-primary font-medium"
-                    : "text-muted-foreground hover:text-primary"
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.title}
-              </Link>
-            ))}
-          </nav>
-        </div>
-        <div className="mt-auto p-4">
-           {/* User Profile at bottom or settings */}
-           <div className="flex items-center gap-3 rounded-lg border bg-background p-3 shadow-sm">
-             <UserNav username={username} onLogout={onLogout} showName />
-           </div>
-        </div>
-      </aside>
+  const {
+    token: { colorBgContainer, borderRadiusLG },
+  } = theme.useToken();
 
-      {/* Main Content Area */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {/* Desktop Header / Breadcrumb */}
-        <header className="hidden h-14 shrink-0 items-center gap-4 border-b bg-muted/40 px-6 md:sticky md:top-0 md:z-40 md:flex lg:h-[60px]">
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/">首页</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator>
-                <ChevronRight className="h-3.5 w-3.5" />
-              </BreadcrumbSeparator>
-              <BreadcrumbItem>
-                <BreadcrumbPage>{activeNavItem.title}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <div className="ml-auto flex items-center gap-4">
-            {/* Could put global search or notifications here */}
-          </div>
-        </header>
-        
-        <main
-          id="main-content"
-          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 lg:gap-6 lg:p-6"
-        >
-          {children}
-        </main>
+  const menuItems: MenuProps["items"] = navItems.map((item) => ({
+    key: item.key,
+    icon: item.icon,
+    label: <Link href={item.href}>{item.label}</Link>,
+  }));
+
+  const userMenu: MenuProps = {
+    items: [
+      {
+        key: "logout",
+        icon: <LogoutOutlined />,
+        label: "退出登录",
+        onClick: onLogout,
+      },
+    ],
+  };
+
+  const SidebarContent = (
+    <>
+      <div style={{ height: 64, margin: 16, display: "flex", alignItems: "center", gap: 8 }}>
+        <WalletOutlined style={{ fontSize: 24, color: "#1677ff" }} />
+        <span style={{ fontSize: 18, fontWeight: "bold" }}>Digmo</span>
       </div>
-    </div>
+      <Menu
+        theme="light"
+        mode="inline"
+        selectedKeys={selectedKeys}
+        items={menuItems}
+        style={{ borderRight: 0 }}
+        onClick={() => setMobileOpen(false)}
+      />
+      <div style={{ marginTop: "auto", padding: 16 }}>
+        {username && (
+           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px', border: '1px solid #f0f0f0', borderRadius: 8 }}>
+              <Avatar style={{ backgroundColor: '#fde3cf', color: '#f56a00' }}>{username[0]?.toUpperCase()}</Avatar>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <Text strong style={{ fontSize: 12 }}>{username}</Text>
+                  <Button type="link" size="small" onClick={onLogout} style={{ padding: 0, height: 'auto', textAlign: 'left' }} danger>
+                      退出
+                  </Button>
+              </div>
+           </div>
+        )}
+      </div>
+    </>
   );
-}
 
-function UserNav({ username, onLogout, showName }: { username?: string; onLogout?: () => void; showName?: boolean }) {
-  if (!username) return null;
-  
   return (
-    <div className="flex items-center gap-2 ml-auto md:ml-0">
-      <Avatar className="h-8 w-8">
-        <AvatarImage src={`https://avatar.vercel.sh/${username}`} alt={username} />
-        <AvatarFallback>{username[0].toUpperCase()}</AvatarFallback>
-      </Avatar>
-      {showName && (
-        <div className="flex flex-col">
-          <span className="text-sm font-medium">{username}</span>
-          <button onClick={onLogout} className="text-xs text-muted-foreground hover:underline text-left">
-            退出登录
-          </button>
+    <Layout style={{ minHeight: "100vh" }}>
+      {/* Mobile Drawer */}
+      <Drawer
+        placement="left"
+        onClose={() => setMobileOpen(false)}
+        open={mobileOpen}
+        styles={{ body: { padding: 0 } }}
+        width={240}
+      >
+        {SidebarContent}
+      </Drawer>
+
+      {/* Desktop Sider */}
+      <Sider
+        breakpoint="md"
+        collapsedWidth="0"
+        onBreakpoint={(broken) => {
+          // You can handle breakpoint changes here if needed
+        }}
+        trigger={null}
+        width={240}
+        theme="light"
+        style={{
+          display: "none", // Hidden by default, shown via media query in real CSS or conditional rendering
+          // But Antd Sider handles responsive hiding if we use `breakpoint`. 
+          // However, we want a custom implementation often.
+          // Let's rely on standard CSS media queries or conditional rendering.
+        }}
+        className="hidden md:block" // Tailwind class to show on md+
+      >
+        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+           {SidebarContent}
         </div>
-      )}
-      {!showName && (
-         <Button variant="ghost" size="icon" onClick={onLogout} title="退出登录">
-           <span className="sr-only">退出登录</span>
-           <Settings className="h-4 w-4" />
-         </Button>
-      )}
-    </div>
+      </Sider>
+
+      <Layout>
+        <Header style={{ padding: '0 16px', background: colorBgContainer, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+             <Button
+                type="text"
+                icon={<MenuOutlined />}
+                onClick={() => setMobileOpen(true)}
+                className="md:hidden" // Tailwind class to hide on desktop
+                style={{ fontSize: '16px', width: 64, height: 64 }}
+             />
+             <Breadcrumb
+                items={[
+                  { title: <Link href="/">首页</Link> },
+                  { title: activeNavItem.label },
+                ]}
+                className="hidden md:flex"
+             />
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+             {/* User Profile for Header (Mobile/Tablet usually) */}
+             <div className="md:hidden">
+                <Dropdown menu={userMenu}>
+                   <Avatar icon={<UserOutlined />} style={{ cursor: 'pointer' }} />
+                </Dropdown>
+             </div>
+          </div>
+        </Header>
+        
+        <Content style={{ margin: '16px 16px', overflow: 'initial' }}>
+          <div
+            style={{
+              padding: 12,
+              minHeight: 360,
+              background: colorBgContainer,
+              borderRadius: borderRadiusLG,
+            }}
+          >
+            {children}
+          </div>
+        </Content>
+      </Layout>
+    </Layout>
   );
 }

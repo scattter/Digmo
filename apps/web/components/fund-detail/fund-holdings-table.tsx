@@ -1,6 +1,8 @@
 import { FundEstimateSnapshot } from "@digmo/shared";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, Table, Typography } from "antd";
+import type { TableProps } from "antd";
+
+const { Text } = Typography;
 
 interface FundHoldingsTableProps {
   snapshot: FundEstimateSnapshot;
@@ -13,48 +15,76 @@ function formatMarketCap(value?: number): string {
   return `${(value / 100000000).toFixed(2)}亿`;
 }
 
+interface Holding {
+  code: string;
+  name: string;
+  ratio: number;
+  latestPrice?: number;
+  changePct?: number;
+  marketCap?: number;
+  floatMarketCap?: number;
+}
+
 export function FundHoldingsTable({ snapshot }: FundHoldingsTableProps) {
-  const holdings = snapshot.topHoldings ?? [];
+  const holdings: Holding[] = snapshot.topHoldings ?? [];
+
+  const columns: TableProps<Holding>["columns"] = [
+    {
+      title: "名称",
+      dataIndex: "name",
+      key: "name",
+    },
+    {
+      title: "占比",
+      dataIndex: "ratio",
+      key: "ratio",
+      align: "right",
+      render: (value) => <span style={{ fontFamily: 'monospace' }}>{(value * 100).toFixed(2)}%</span>,
+    },
+    {
+      title: "最新价",
+      dataIndex: "latestPrice",
+      key: "latestPrice",
+      align: "right",
+      render: (value) => <span style={{ fontFamily: 'monospace' }}>{typeof value === "number" ? value.toFixed(2) : "-"}</span>,
+    },
+    {
+      title: "涨跌",
+      dataIndex: "changePct",
+      key: "changePct",
+      align: "right",
+      render: (value) => <span style={{ fontFamily: 'monospace' }}>{typeof value === "number" ? `${(value * 100).toFixed(2)}%` : "-"}</span>,
+    },
+    {
+      title: "总市值",
+      dataIndex: "marketCap",
+      key: "marketCap",
+      align: "right",
+      render: (value) => <span style={{ fontFamily: 'monospace' }}>{formatMarketCap(value)}</span>,
+    },
+    {
+      title: "流通市值",
+      dataIndex: "floatMarketCap",
+      key: "floatMarketCap",
+      align: "right",
+      render: (value) => <span style={{ fontFamily: 'monospace' }}>{formatMarketCap(value)}</span>,
+    },
+  ];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">前五持仓</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {holdings.length === 0 ? <p className="text-sm text-muted-foreground">暂无持仓数据</p> : null}
-
-        {holdings.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>名称</TableHead>
-                <TableHead className="text-right">占比</TableHead>
-                <TableHead className="text-right">最新价</TableHead>
-                <TableHead className="text-right">涨跌</TableHead>
-                <TableHead className="text-right">总市值</TableHead>
-                <TableHead className="text-right">流通市值</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {holdings.map((holding) => (
-                <TableRow key={holding.code}>
-                  <TableCell>{holding.name}</TableCell>
-                  <TableCell className="text-right font-mono">{(holding.ratio * 100).toFixed(2)}%</TableCell>
-                  <TableCell className="text-right font-mono">
-                    {typeof holding.latestPrice === "number" ? holding.latestPrice.toFixed(2) : "-"}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">
-                    {typeof holding.changePct === "number" ? `${(holding.changePct * 100).toFixed(2)}%` : "-"}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">{formatMarketCap(holding.marketCap)}</TableCell>
-                  <TableCell className="text-right font-mono">{formatMarketCap(holding.floatMarketCap)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : null}
-      </CardContent>
+    <Card title="前五持仓">
+      {holdings.length === 0 ? (
+        <Text type="secondary" style={{ fontSize: 12 }}>暂无持仓数据</Text>
+      ) : (
+        <Table
+          dataSource={holdings}
+          columns={columns}
+          pagination={false}
+          size="small"
+          rowKey="code"
+          scroll={{ x: 600 }}
+        />
+      )}
     </Card>
   );
 }

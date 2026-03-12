@@ -3,7 +3,6 @@
 import { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { PortfolioSummary } from "@digmo/shared";
-import { toast } from "sonner";
 import { reorderPortfolios } from "@/lib/api";
 
 interface UsePortfolioReorderArgs {
@@ -26,12 +25,10 @@ export function usePortfolioReorder(args: UsePortfolioReorderArgs) {
       await reorderPortfolios(next.map((item) => item.id));
       const message = "已更新组合顺序。";
       setStatusText(message);
-      toast.success(message);
     } catch (error) {
       setPortfolios(previous);
       const message = error instanceof Error ? error.message : "组合排序失败";
       setErrorText(message);
-      toast.error(message);
     } finally {
       setIsReordering(false);
     }

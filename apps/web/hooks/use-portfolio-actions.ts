@@ -1,7 +1,6 @@
 "use client";
 
 import { PortfolioFundItem, PortfolioSummary, PortfolioType, PositionOperationType } from "@digmo/shared";
-import { toast } from "sonner";
 import {
   addPortfolioFund,
   createPositionOperation,
@@ -34,11 +33,9 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
       await refreshData();
       const message = `已创建组合: ${name.trim()}`;
       setStatusText(message);
-      toast.success(message);
     } catch (error) {
       const message = error instanceof Error ? error.message : "创建组合失败";
       setErrorText(message);
-      toast.error(message);
       throw error;
     } finally {
       setIsLoading(false);
@@ -54,11 +51,9 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
       await refreshData();
       const message = `已重命名组合为 ${nextName.trim()}`;
       setStatusText(message);
-      toast.success(message);
     } catch (error) {
       const message = error instanceof Error ? error.message : "重命名失败";
       setErrorText(message);
-      toast.error(message);
       throw error;
     } finally {
       setIsLoading(false);
@@ -77,11 +72,9 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
       await refreshData();
       const message = `已删除组合 ${portfolio.name}`;
       setStatusText(message);
-      toast.success(message);
     } catch (error) {
       const message = error instanceof Error ? error.message : "删除组合失败";
       setErrorText(message);
-      toast.error(message);
       throw error;
     } finally {
       setIsLoading(false);
@@ -142,11 +135,9 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
       await refreshData({ silent: true });
       const message = `已添加基金 ${fundCode}`;
       setStatusText(message);
-      toast.success(message);
     } catch (error) {
       const message = error instanceof Error ? error.message : "添加基金失败";
       setErrorText(message);
-      toast.error(message);
       throw error;
     } finally {
       setIsLoading(false);
@@ -198,11 +189,9 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
       await refreshData();
       const message = `已更新基金 ${item.fundCode}`;
       setStatusText(message);
-      toast.success(message);
     } catch (error) {
       const message = error instanceof Error ? error.message : "更新基金失败";
       setErrorText(message);
-      toast.error(message);
       throw error;
     } finally {
       setIsLoading(false);
@@ -218,11 +207,9 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
       await refreshData();
       const message = `已移除基金 ${item.fundCode}`;
       setStatusText(message);
-      toast.success(message);
     } catch (error) {
       const message = error instanceof Error ? error.message : "移除基金失败";
       setErrorText(message);
-      toast.error(message);
       throw error;
     } finally {
       setIsLoading(false);
@@ -238,11 +225,9 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
       markManualRefresh();
       const message = "已手动更新全部数据。";
       setStatusText(message);
-      toast.success(message);
     } catch (error) {
       const message = error instanceof Error ? error.message : "手动更新失败";
       setErrorText(message);
-      toast.error(message);
       throw error;
     } finally {
       setIsLoading(false);
@@ -278,11 +263,9 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
       const actionText = operationType === "INCREASE" ? "加仓" : "减仓";
       const message = `已${actionText}基金 ${item.fundCode}`;
       setStatusText(message);
-      toast.success(message);
     } catch (error) {
       const message = error instanceof Error ? error.message : "仓位操作失败";
       setErrorText(message);
-      toast.error(message);
       throw error;
     } finally {
       setIsLoading(false);
