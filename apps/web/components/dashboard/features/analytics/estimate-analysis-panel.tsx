@@ -4,7 +4,7 @@ import { SortOrder } from "@/lib/api";
 import { deltaClassByPct, formatSignedCurrency, formatSignedPct } from "@/lib/format";
 import { getEstimateSortButtonLabel } from "@/hooks/use-dashboard-data";
 import { cn } from "@/lib/utils";
-import { Card, Button, Typography, List, Space } from "antd";
+import { Card, Button, Typography, Space, Flex } from "antd";
 import { SortAscendingOutlined, SortDescendingOutlined, UnorderedListOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
@@ -66,26 +66,26 @@ export function EstimateAnalysisPanel({
 
         {rows.length > 0 && expanded ? (
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-            <List
-               size="small"
-               dataSource={rows}
-               split={false}
-               renderItem={(row) => (
-                  <List.Item style={{ padding: compact ? '8px 0' : '12px 0', borderBottom: '1px solid #f0f0f0' }}>
-                     <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                           <Text strong style={{ fontSize: 14 }}>{row.fundName}</Text>
-                           {!compact && <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>{row.fundCode}</div>}
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                           <span className={deltaClassByPct(row.estimateChangePct)} style={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                              {formatSignedCurrency(row.intradayAmount)}/{formatSignedPct(row.estimateChangePct)}
-                           </span>
-                        </div>
-                     </div>
-                  </List.Item>
-               )}
-            />
+            <Flex vertical>
+              {rows.map((row, index) => (
+                <div
+                  key={`${row.fundCode}-${index}`}
+                  style={{ padding: compact ? "8px 0" : "12px 0", borderBottom: "1px solid #f0f0f0" }}
+                >
+                  <div style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <Text strong style={{ fontSize: 14 }}>{row.fundName}</Text>
+                      {!compact && <div style={{ fontSize: 12, color: "rgba(0,0,0,0.45)" }}>{row.fundCode}</div>}
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <span className={deltaClassByPct(row.estimateChangePct)} style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                        {formatSignedCurrency(row.intradayAmount)}/{formatSignedPct(row.estimateChangePct)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </Flex>
           </div>
         ) : null}
     </Card>

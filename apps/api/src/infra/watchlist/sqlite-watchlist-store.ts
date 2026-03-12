@@ -35,6 +35,10 @@ export interface PortfolioFundItem {
   updatedAt: string;
 }
 
+export interface PortfolioTabLayoutPreference {
+  fundsTabIndex: number;
+}
+
 export interface AppUserItem {
   id: string;
   username: string;
@@ -156,6 +160,8 @@ export interface WatchlistStore {
   deletePortfolio(userId: string, portfolioId: string): Promise<boolean>;
   validatePortfolioSet(userId: string, orderedPortfolioIds: string[]): Promise<boolean>;
   reorderPortfolios(userId: string, orderedPortfolioIds: string[]): Promise<void>;
+  getPortfolioTabLayoutPreference(userId: string): Promise<PortfolioTabLayoutPreference>;
+  setPortfolioTabLayoutPreference(userId: string, preference: PortfolioTabLayoutPreference): Promise<void>;
 
   listPortfolioFunds(userId: string, portfolioId: string): Promise<PortfolioFundItem[]>;
   listAllPortfolioFunds(userId: string): Promise<PortfolioFundItem[]>;
@@ -217,6 +223,11 @@ interface PortfolioRow {
   displayOrder: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface PortfolioTabLayoutPreferenceRow {
+  userId: string;
+  fundsTabIndex: number | null;
 }
 
 interface PortfolioFundRow {
@@ -518,6 +529,14 @@ export class SqliteWatchlistStore implements WatchlistStore {
       );
 
       CREATE UNIQUE INDEX IF NOT EXISTS ux_user_portfolio_name_ci ON user_portfolio(user_id, name COLLATE NOCASE);
+
+      CREATE TABLE IF NOT EXISTS user_portfolio_layout_preference (
+        user_id TEXT PRIMARY KEY,
+        funds_tab_index INTEGER NOT NULL DEFAULT 0 CHECK(funds_tab_index >= 0),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE CASCADE
+      );
 
       CREATE TABLE IF NOT EXISTS user_fund_state (
         user_id TEXT NOT NULL,
@@ -1607,6 +1626,39 @@ export class SqliteWatchlistStore implements WatchlistStore {
       this.db.exec("ROLLBACK;");
       throw error;
     }
+  }
+
+  async getPortfolioTabLayoutPreference(userId: string): Promise<PortfolioTabLayoutPreference> {
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            user_id AS userId,
+            funds_tab_index AS fundsTabIndex
+          FROM user_portfolio_layout_preference
+          WHERE user_id = ?
+        `
+      )
+      .get(userId) as PortfolioTabLayoutPreferenceRow | undefined;
+
+    return {
+      fundsTabIndex: Math.max(0, Math.floor(row?.fundsTabIndex ?? 0))
+    };
+  }
+
+  async setPortfolioTabLayoutPreference(userId: string, preference: PortfolioTabLayoutPreference): Promise<void> {
+    const fundsTabIndex = Math.max(0, Math.floor(preference.fundsTabIndex));
+    this.db
+      .prepare(
+        `
+          INSERT INTO user_portfolio_layout_preference (user_id, funds_tab_index, created_at, updated_at)
+          VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(user_id) DO UPDATE SET
+            funds_tab_index = excluded.funds_tab_index,
+            updated_at = CURRENT_TIMESTAMP
+        `
+      )
+      .run(userId, fundsTabIndex);
   }
 
   async listPortfolioFunds(userId: string, portfolioId: string): Promise<PortfolioFundItem[]> {

@@ -46,7 +46,7 @@ export function DecisionHistoryDialog(props: DecisionHistoryDialogProps) {
              ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                    {item.actions.map((action, index) => (
-                      <Card key={`${item.id}:${index}`} size="small" type="inner" bordered>
+                      <Card key={`${item.id}:${index}`} size="small" type="inner" variant={'borderless'}>
                          <Space wrap style={{ marginBottom: 8 }}>
                             <Tag color="blue">{action.actionType}</Tag>
                             <Text code>{action.fundCode}</Text>
@@ -106,6 +106,7 @@ export function DecisionHistoryDialog(props: DecisionHistoryDialogProps) {
       ]}
       width={800}
       styles={{ body: { padding: 0, maxHeight: '70vh', overflowY: 'auto' } }}
+      centered
     >
       <div style={{ padding: 24 }}>
         <div style={{ marginBottom: 16 }}>
@@ -114,7 +115,7 @@ export function DecisionHistoryDialog(props: DecisionHistoryDialogProps) {
         
         {isLoading ? (
            <div style={{ textAlign: 'center', padding: 32 }}>
-              <Spin tip="加载中..." />
+              <Spin description="加载中..." />
            </div>
         ) : items.length === 0 ? (
            <div style={{ padding: 32, border: '1px dashed #d9d9d9', borderRadius: 6, textAlign: 'center' }}>

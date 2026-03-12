@@ -144,6 +144,14 @@ function parsePortfolioIds(raw: unknown): string[] {
   return portfolioIds;
 }
 
+function parseFundsTabIndex(raw: unknown): number {
+  const value = typeof raw === "string" ? Number(raw.trim()) : Number(raw);
+  if (!Number.isFinite(value) || value < 0 || Math.floor(value) !== value) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "fundsTabIndex must be a non-negative integer", 400);
+  }
+  return value;
+}
+
 function parsePositionOperationType(raw: unknown): PositionOperationType {
   if (raw === "INCREASE" || raw === "DECREASE") {
     return raw;
@@ -580,6 +588,24 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       }
 
       await deps.store.reorderPortfolios(userId, portfolioIds);
+      return {
+        updated: true
+      };
+    });
+
+    protectedApp.get("/v1/portfolios/tab-layout", async (request) => {
+      const userId = requireUserId(request);
+      const preference = await deps.store.getPortfolioTabLayoutPreference(userId);
+      return {
+        fundsTabIndex: preference.fundsTabIndex
+      };
+    });
+
+    protectedApp.patch("/v1/portfolios/tab-layout", async (request) => {
+      const userId = requireUserId(request);
+      const body = request.body as { fundsTabIndex?: unknown };
+      const fundsTabIndex = parseFundsTabIndex(body?.fundsTabIndex);
+      await deps.store.setPortfolioTabLayoutPreference(userId, { fundsTabIndex });
       return {
         updated: true
       };

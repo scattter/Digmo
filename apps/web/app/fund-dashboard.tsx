@@ -4,64 +4,98 @@ import {
   AuthUser,
   PortfolioSummary,
   PortfolioType,
+  PortfolioFundItem
 } from "@digmo/shared";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { App, Spin } from "antd";
+import { DragEndEvent } from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
 
-import { DashboardLayout } from "@/components/dashboard/layout/dashboard-layout";
-import { DashboardOverview } from "@/components/dashboard/layout/dashboard-overview";
+import { TopNavLayout } from "@/components/dashboard/layout/top-nav-layout";
+import { AccountSummaryView } from "@/components/dashboard/views/account-summary-view";
+import { PortfolioDetailView } from "@/components/dashboard/views/portfolio-detail-view";
 
 import { CreatePortfolioDialog } from "@/components/dashboard/dialogs/create-portfolio-dialog";
 import { FlatAddFundDialog } from "@/components/dashboard/dialogs/flat-add-fund-dialog";
 
 import { FlatFundsTable } from "@/components/dashboard/features/funds/flat-funds-table";
-import { PortfolioOverviewTable } from "@/components/dashboard/features/portfolios/portfolio-overview-table";
-import { PortfolioToolbar } from "@/components/dashboard/features/navigation/portfolio-toolbar";
 
-import {
-  getFlatSortButtonLabel,
-  type LandingSection,
-  nextSortOrder,
-  useDashboardData,
-} from "@/hooks/use-dashboard-data";
-import { usePortfolioReorder } from "@/hooks/use-portfolio-reorder";
+import { useDashboardData } from "@/hooks/use-dashboard-data";
+import { FundEditState } from "@/lib/format";
 import { usePortfolioActions } from "@/hooks/use-portfolio-actions";
-import { fetchMe, getAuthRequiredEventName } from "@/lib/api";
+import {
+  fetchMe,
+  fetchPortfolioTabLayout,
+  getAuthRequiredEventName,
+  reorderPortfolios,
+  updatePortfolioTabLayout
+} from "@/lib/api";
 import { clearAccessToken, getAccessToken } from "@/lib/auth-session";
+import { TabItem } from "@/components/dashboard/navigation/draggable-tab-list";
 
 const renameSchema = z
   .string()
   .min(1, "请输入新的组合名称")
   .max(32, "组合名称长度不能超过 32");
-
-function resolveLandingSection(
-  sectionParam: string | null,
-  viewParam: string | null
-): LandingSection {
-  if (
-    sectionParam === "overview" ||
-    sectionParam === "portfolios" ||
-    sectionParam === "funds"
-  ) {
-    return sectionParam;
-  }
-  if (sectionParam === "holdings") return "funds";
-  if (viewParam === "portfolios") return "portfolios";
-  if (viewParam === "funds") return "funds";
-  if (viewParam === "analysis") return "funds";
-  return "overview";
-}
+const GLOBAL_LOADING_TEXT_COLOR = "#1677ff";
 
 export default function FundDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [isInitialDashboardLoading, setIsInitialDashboardLoading] = useState(true);
   const authRequiredEventName = getAuthRequiredEventName();
   const { modal, message } = App.useApp();
 
+  // Dashboard Data Hook
+  const dashboard = useDashboardData();
+
+  // Local state for tabs
+  const [activeTabId, setActiveTabId] = useState("summary");
+  
+  // Dialog states
+  const [isCreatePortfolioDialogOpen, setIsCreatePortfolioDialogOpen] = useState(false);
+  const [isFlatAddFundDialogOpen, setIsFlatAddFundDialogOpen] = useState(false);
+
+  const computeIntradayProfitAmount = (totalAmount: number, intradayEstimatePct: number) =>
+    totalAmount - totalAmount / (1 + intradayEstimatePct);
+
+  const accountSummaryBar = useMemo(() => {
+    return dashboard.portfolios.reduce(
+      (acc, portfolio) => {
+        const intradayProfitAmount = computeIntradayProfitAmount(
+          portfolio.totalAmount,
+          portfolio.intradayEstimatePct
+        );
+        acc.totalAmount += portfolio.totalAmount;
+        acc.intradayProfitAmount += intradayProfitAmount;
+        return acc;
+      },
+      { totalAmount: 0, intradayProfitAmount: 0 }
+    );
+  }, [dashboard.portfolios]);
+
+  const activeSummaryBar = useMemo(() => {
+    if (activeTabId === "summary" || activeTabId === "funds") {
+      return accountSummaryBar;
+    }
+    const portfolio = dashboard.portfolios.find((item) => item.id === activeTabId);
+    if (!portfolio) {
+      return accountSummaryBar;
+    }
+    return {
+      totalAmount: portfolio.totalAmount,
+      intradayProfitAmount: computeIntradayProfitAmount(
+        portfolio.totalAmount,
+        portfolio.intradayEstimatePct
+      )
+    };
+  }, [activeTabId, accountSummaryBar, dashboard.portfolios]);
+
+  // Auth Check
   useEffect(() => {
     let active = true;
     const jumpToLogin = () => {
@@ -97,25 +131,7 @@ export default function FundDashboard() {
     };
   }, [authRequiredEventName, router]);
 
-  const dashboard = useDashboardData();
-  const sectionParam = searchParams.get("section");
-  const viewParam = searchParams.get("view");
-  const activeSection = useMemo(
-    () => resolveLandingSection(sectionParam, viewParam),
-    [sectionParam, viewParam]
-  );
-  const sectionRefs = useRef<Record<LandingSection, HTMLDivElement | null>>({
-    overview: null,
-    portfolios: null,
-    funds: null,
-  });
-
-  const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null);
-  const [editingPortfolioName, setEditingPortfolioName] = useState("");
-
-  const [isCreatePortfolioDialogOpen, setIsCreatePortfolioDialogOpen] = useState(false);
-  const [isFlatAddFundDialogOpen, setIsFlatAddFundDialogOpen] = useState(false);
-
+  // Actions
   const actions = usePortfolioActions({
     refreshData: dashboard.refreshData,
     selectedPortfolioId: dashboard.selectedPortfolioId,
@@ -125,109 +141,175 @@ export default function FundDashboard() {
     setStatusText: (msg) => message.success(msg),
   });
 
-  const portfolioReorder = usePortfolioReorder({
-    portfolios: dashboard.portfolios,
-    setPortfolios: dashboard.setPortfolios,
-    setIsReordering: dashboard.setIsReordering,
-    setErrorText: (msg) => message.error(msg),
-    setStatusText: (msg) => message.success(msg),
-  });
-
-  const portfolioTotalAmount = useMemo(
-    () =>
-      dashboard.portfolios.reduce((sum, portfolio) => sum + portfolio.totalAmount, 0),
-    [dashboard.portfolios]
-  );
-
-  const portfolioTotalProfitAmount = useMemo(
-    () =>
-      dashboard.portfolios.reduce(
-        (sum, portfolio) => sum + portfolio.totalProfitAmount,
-        0
-      ),
-    [dashboard.portfolios]
-  );
-
-  const portfolioTotalProfitPct = useMemo(() => {
-    const totalCost = portfolioTotalAmount - portfolioTotalProfitAmount;
-    if (totalCost <= 0) {
-      return 0;
+  // Sync activeTabId with selectedPortfolioId
+  useEffect(() => {
+    if (activeTabId !== "summary" && activeTabId !== "funds") {
+       if (dashboard.selectedPortfolioId !== activeTabId) {
+          dashboard.setSelectedPortfolioId(activeTabId);
+       }
     }
-    return Number((portfolioTotalProfitAmount / totalCost).toFixed(6));
-  }, [portfolioTotalAmount, portfolioTotalProfitAmount]);
+  }, [activeTabId, dashboard.selectedPortfolioId, dashboard.setSelectedPortfolioId]);
 
-  const portfolioTotalIntradayAmount = useMemo(
-    () =>
-      dashboard.portfolios.reduce((sum, portfolio) => {
-        const intradayPct =
-          typeof portfolio.intradayEstimatePct === "number"
-            ? portfolio.intradayEstimatePct
-            : 0;
-        return sum + portfolio.totalAmount * intradayPct;
-      }, 0),
-    [dashboard.portfolios]
-  );
-
-  const portfolioTotalIntradayPct = useMemo(() => {
-    if (portfolioTotalAmount <= 0) {
-      return 0;
-    }
-    return Number((portfolioTotalIntradayAmount / portfolioTotalAmount).toFixed(6));
-  }, [portfolioTotalIntradayAmount, portfolioTotalAmount]);
+  const [fundsTabIndex, setFundsTabIndex] = useState(0);
 
   useEffect(() => {
-    if (isAuthChecking || !currentUser) {
+    if (!currentUser) {
       return;
     }
-    const target = sectionRefs.current[activeSection];
-    if (!target) {
-      return;
-    }
-    const offset = 84;
-    const top = Math.max(target.offsetTop - offset, 0);
-    window.scrollTo({ top, behavior: "smooth" });
-  }, [activeSection, currentUser, isAuthChecking]);
 
-  function onStartRenamePortfolio(portfolio: PortfolioSummary) {
-    setEditingPortfolioId(portfolio.id);
-    setEditingPortfolioName(portfolio.name);
+    let active = true;
+    void fetchPortfolioTabLayout()
+      .then((layout) => {
+        if (!active) {
+          return;
+        }
+        const nextIndex = Math.max(0, Math.floor(layout.fundsTabIndex));
+        setFundsTabIndex(nextIndex);
+      })
+      .catch(() => {
+        // Keep default tab order when preference fetch fails.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    if (
+      !dashboard.isLoadingPortfolios &&
+      !dashboard.isLoadingFlatFunds &&
+      !dashboard.isLoadingPortfolioFunds
+    ) {
+      setIsInitialDashboardLoading(false);
+    }
+  }, [
+    currentUser,
+    dashboard.isLoadingPortfolios,
+    dashboard.isLoadingFlatFunds,
+    dashboard.isLoadingPortfolioFunds
+  ]);
+
+  const tabs: TabItem[] = useMemo(() => {
+    const summaryTab: TabItem = { id: "summary", label: "账户汇总", canDrag: false };
+    const fundsTab: TabItem = { id: "funds", label: "全部基金", canDrag: true };
+    
+    const portfolioTabs: TabItem[] = dashboard.portfolios.map(p => ({
+       id: p.id,
+       label: p.name,
+       canDrag: true
+    }));
+
+    const draggable = [...portfolioTabs];
+    const insertIndex = Math.max(0, Math.min(fundsTabIndex, portfolioTabs.length));
+    draggable.splice(insertIndex, 0, fundsTab);
+
+    return [summaryTab, ...draggable];
+  }, [dashboard.portfolios, fundsTabIndex]);
+
+  function handleTabDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const draggableIds = tabs.filter((t) => t.canDrag).map((t) => t.id);
+    const oldIndex = draggableIds.indexOf(active.id as string);
+    const newIndex = draggableIds.indexOf(over.id as string);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newOrderIds = arrayMove(draggableIds, oldIndex, newIndex);
+    const newFundsIndex = newOrderIds.indexOf("funds");
+    if (newFundsIndex < 0) {
+      return;
+    }
+    const previousFundsTabIndex = fundsTabIndex;
+    const isFundsTabIndexChanged = newFundsIndex !== previousFundsTabIndex;
+
+    const oldPortfolioIds = dashboard.portfolios.map((p) => p.id);
+    const newPortfolioIds = newOrderIds.filter((id) => id !== "funds");
+    const isPortfolioOrderChanged = JSON.stringify(oldPortfolioIds) !== JSON.stringify(newPortfolioIds);
+
+    if (!isFundsTabIndexChanged && !isPortfolioOrderChanged) {
+      return;
+    }
+
+    if (isFundsTabIndexChanged) {
+      setFundsTabIndex(newFundsIndex);
+    }
+
+    const portfolioMap = new Map(dashboard.portfolios.map((portfolio) => [portfolio.id, portfolio]));
+    const nextPortfolios = newPortfolioIds
+      .map((id) => portfolioMap.get(id))
+      .filter((item): item is PortfolioSummary => Boolean(item));
+    const previousPortfolios = dashboard.portfolios;
+    if (isPortfolioOrderChanged) {
+      if (nextPortfolios.length !== newPortfolioIds.length) {
+        return;
+      }
+      dashboard.setPortfolios(nextPortfolios);
+    }
+
+    dashboard.setIsReordering(true);
+    void (async () => {
+      const [layoutResult, reorderResult] = await Promise.allSettled([
+        isFundsTabIndexChanged ? updatePortfolioTabLayout(newFundsIndex) : Promise.resolve(),
+        isPortfolioOrderChanged ? reorderPortfolios(newPortfolioIds) : Promise.resolve()
+      ]);
+
+      if (layoutResult.status === "rejected") {
+        setFundsTabIndex(previousFundsTabIndex);
+      }
+
+      if (reorderResult.status === "rejected") {
+        dashboard.setPortfolios(previousPortfolios);
+      }
+
+      if (layoutResult.status === "rejected" || reorderResult.status === "rejected") {
+        const reason =
+          layoutResult.status === "rejected"
+            ? layoutResult.reason
+            : reorderResult.status === "rejected"
+              ? reorderResult.reason
+              : undefined;
+        const errorText = reason instanceof Error ? reason.message : "排序失败";
+        message.error(errorText);
+      }
+
+      dashboard.setIsReordering(false);
+    })();
   }
 
-  function onCancelRenamePortfolio() {
-    setEditingPortfolioId(null);
-    setEditingPortfolioName("");
+  function handleEditFieldChange(fundCode: string, key: keyof FundEditState, value: string) {
+    dashboard.setEditStateMap((prev) => {
+      const next = new Map(prev);
+      const current = next.get(fundCode) || { holdingAmount: "", plannedRatio: "", holdingProfitAmount: "" };
+      next.set(fundCode, { ...current, [key]: value });
+      return next;
+    });
   }
 
-  async function onCommitRenamePortfolio(portfolio: PortfolioSummary) {
-    if (editingPortfolioId !== portfolio.id) {
-      return;
-    }
-
-    const trimmedName = editingPortfolioName.trim();
-    if (!trimmedName || trimmedName === portfolio.name) {
-      onCancelRenamePortfolio();
-      return;
-    }
-
-    const parsed = renameSchema.safeParse(trimmedName);
-    if (!parsed.success) {
-      message.error(parsed.error.issues[0]?.message ?? "名称不合法");
-      return;
-    }
-
-    await actions.renamePortfolioAction(portfolio, parsed.data);
-    onCancelRenamePortfolio();
+  async function handleUpdateFund(item: PortfolioFundItem) {
+    const editState = dashboard.editStateMap.get(item.fundCode);
+    if (!editState) return;
+    await actions.updateFundAction(
+      item,
+      editState.holdingAmount,
+      editState.plannedRatio,
+      editState.holdingProfitAmount
+    );
   }
 
-  async function handleManualRefresh() {
-    await actions.manualRefreshAction(dashboard.markManualRefresh);
-  }
-
-  function handleLogout(): void {
+  // Logout
+  function handleLogout() {
     clearAccessToken();
     router.replace("/login");
   }
 
+  // Delete Portfolio Wrapper
   function handleDeletePortfolio(portfolio: PortfolioSummary) {
     modal.confirm({
       title: "确认删除组合？",
@@ -235,8 +317,13 @@ export default function FundDashboard() {
       okText: "确认删除",
       okType: "danger",
       cancelText: "取消",
+      centered: true,
       onOk: async () => {
         await actions.deletePortfolioAction(portfolio);
+        // If deleted, switch to summary
+        if (activeTabId === portfolio.id) {
+           setActiveTabId("summary");
+        }
       }
     });
   }
@@ -244,7 +331,10 @@ export default function FundDashboard() {
   if (isAuthChecking) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <Spin tip="正在校验登录状态..." />
+        <Spin
+          description="正在校验登录状态..."
+          styles={{ description: { color: GLOBAL_LOADING_TEXT_COLOR, fontWeight: 500 } }}
+        />
       </main>
     );
   }
@@ -253,133 +343,130 @@ export default function FundDashboard() {
     return null;
   }
 
+  // Determine Content
+  let content = null;
+  if (activeTabId === "summary") {
+     content = (
+        <AccountSummaryView 
+          portfolios={dashboard.portfolios} 
+          onSelectPortfolio={setActiveTabId} 
+        />
+     );
+  } else if (activeTabId === "funds") {
+     content = (
+        <div className="p-4">
+           <FlatFundsTable
+              data={dashboard.flatFunds}
+              expand={dashboard.flatExpand}
+              isLoading={dashboard.isLoadingFlatFunds}
+              isBusy={dashboard.isBusy}
+              // We don't use flatSortOrder from dashboard anymore for table sorting, 
+              // but we might need it for API fetching if we wanted server side sort.
+              // For now, FlatFundsTable handles client side sorting.
+              flatSortOrder={dashboard.flatSortOrder}
+              onFlatSortToggle={() => {}} // No-op or we can remove the button from FlatFundsTable
+              flatSortLabel="" 
+              onRefresh={dashboard.refreshData}
+           />
+        </div>
+     );
+  } else {
+     // Portfolio View
+     const portfolio = dashboard.portfolios.find(p => p.id === activeTabId);
+     if (portfolio) {
+        content = (
+           <PortfolioDetailView
+              portfolio={portfolio}
+              funds={dashboard.portfolioFunds}
+              editStateMap={dashboard.editStateMap}
+              onEditFieldChange={handleEditFieldChange}
+              onUpdateFund={handleUpdateFund}
+              onOperateFund={(item, input) => actions.operatePositionAction(item, input.operationType, input.amountRaw, input.bindActionOrder && input.decisionId ? { decisionId: input.decisionId, actionOrder: input.bindActionOrder } : undefined)}
+              onDeleteFund={actions.deleteFundAction}
+              onDragEnd={() => {}} // PortfolioFundsTable internal drag? Or fund reorder?
+              // PortfolioFundsTable has internal drag for funds.
+              // We need `actions` to reorder funds.
+              // `usePortfolioReorder` doesn't handle fund reorder?
+              // `apps/web/hooks/use-fund-reorder.ts` exists?
+              // `usePortfolioReorder` handles portfolio reorder.
+              // Let's check `useFundReorder`? 
+              // `FundDashboard` doesn't import `useFundReorder`.
+              // I should check if `useFundReorder` exists.
+              onOpenAddFundDialog={() => setIsFlatAddFundDialogOpen(true)} // Wait, FlatAddFundDialog adds to *selected* portfolio?
+              // `FlatAddFundDialog` has a portfolio select dropdown.
+              // We want to pre-select the current portfolio.
+              // We can pass `initialPortfolioId={activeTabId}` to it.
+              onRefresh={dashboard.refreshData}
+              isBusy={dashboard.isBusy}
+              isLoading={dashboard.isLoadingPortfolioFunds}
+           />
+        );
+     } else {
+        content = <div className="p-4">组合不存在或已删除</div>;
+     }
+  }
+
   return (
-    <DashboardLayout
-      username={currentUser.username}
-      onLogout={handleLogout}
-    >
-      <div
-        className="space-y-6"
-        aria-busy={dashboard.isLoading}
-        style={
-          dashboard.isLoading
-            ? {
-                opacity: 0.58,
-                filter: "grayscale(0.9)",
-                pointerEvents: "none",
-                transition: "opacity 0.2s ease, filter 0.2s ease",
-              }
-            : undefined
-        }
+    <>
+      <Spin
+        spinning={isInitialDashboardLoading}
+        fullscreen
+        description="正在加载数据..."
+        styles={{
+          root: { backgroundColor: "rgba(247, 248, 250, 0.6)" },
+          section: { color: GLOBAL_LOADING_TEXT_COLOR },
+          description: { color: GLOBAL_LOADING_TEXT_COLOR, fontWeight: 500, textShadow: "none" }
+        }}
+      />
+      <TopNavLayout
+        username={currentUser.username}
+        onLogout={handleLogout}
+        onCreatePortfolio={() => setIsCreatePortfolioDialogOpen(true)}
+        summaryBar={activeSummaryBar}
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onTabChange={setActiveTabId}
+        onTabDragEnd={handleTabDragEnd}
       >
-        <div
-          id="overview"
-          ref={(node) => {
-            sectionRefs.current.overview = node;
+        {content}
+        
+        <CreatePortfolioDialog
+          open={isCreatePortfolioDialogOpen}
+          onOpenChange={setIsCreatePortfolioDialogOpen}
+          onSubmit={async (values) => {
+            await actions.createPortfolioAction(values.name, values.type as PortfolioType);
+            setIsCreatePortfolioDialogOpen(false);
           }}
-          style={{ scrollMarginTop: 84 }}
-        >
-          <DashboardOverview
-            totalAmount={portfolioTotalAmount}
-            totalProfitAmount={portfolioTotalProfitAmount}
-            totalProfitPct={portfolioTotalProfitPct}
-            totalIntradayAmount={portfolioTotalIntradayAmount}
-            totalIntradayPct={portfolioTotalIntradayPct}
-            isLoading={dashboard.isLoading}
-            onAddFund={() => setIsFlatAddFundDialogOpen(true)}
-            onCreatePortfolio={() => setIsCreatePortfolioDialogOpen(true)}
-          />
-        </div>
+          isBusy={dashboard.isBusy}
+        />
 
-        <div
-          id="portfolios"
-          ref={(node) => {
-            sectionRefs.current.portfolios = node;
+        <FlatAddFundDialog
+          open={isFlatAddFundDialogOpen}
+          onOpenChange={setIsFlatAddFundDialogOpen}
+          onSubmit={async (values) => {
+             // If we are in portfolio view, maybe we want to force add to that portfolio?
+             // The dialog allows selecting portfolio.
+             // `values.portfolioId` comes from dialog.
+            const targetPortfolio = dashboard.portfolios.find(
+              (portfolio) => portfolio.id === values.portfolioId
+            );
+            if (!targetPortfolio) return;
+
+            await actions.addFundAction({
+              portfolioId: targetPortfolio.id,
+              portfolioType: targetPortfolio.type,
+              fundCode: values.fundCode,
+              holdingAmount: values.holdingAmount,
+              holdingProfitAmount: values.holdingProfitAmount,
+              plannedRatio: values.plannedRatio ?? ""
+            });
+            setIsFlatAddFundDialogOpen(false);
           }}
-          style={{ scrollMarginTop: 84 }}
-        >
-          <PortfolioOverviewTable
-            portfolios={dashboard.portfolios}
-            isLoading={dashboard.isLoadingPortfolios}
-            isBusy={dashboard.isBusy}
-            editingPortfolioId={editingPortfolioId}
-            editingPortfolioName={editingPortfolioName}
-            onDelete={handleDeletePortfolio}
-            onOpen={(portfolio) => dashboard.setSelectedPortfolioId(portfolio.id)}
-            onStartRename={onStartRenamePortfolio}
-            onRenameInputChange={setEditingPortfolioName}
-            onCommitRename={onCommitRenamePortfolio}
-            onCancelRename={onCancelRenamePortfolio}
-            onRefresh={handleManualRefresh}
-          />
-        </div>
-
-        <div
-          id="funds"
-          ref={(node) => {
-            sectionRefs.current.funds = node;
-          }}
-          style={{ scrollMarginTop: 84 }}
-          className="space-y-4"
-        >
-          <PortfolioToolbar
-            mainView="funds"
-            isBusy={dashboard.isBusy}
-            portfolios={dashboard.portfolios}
-            selectedPortfolioId={dashboard.selectedPortfolioId}
-            onSelectPortfolio={dashboard.setSelectedPortfolioId}
-            flatExpand={dashboard.flatExpand}
-            onFlatExpandChange={dashboard.setFlatExpand}
-            onDeletePortfolioTab={handleDeletePortfolio}
-            onPortfolioDragEnd={(event) =>
-              portfolioReorder.onPortfolioTabsDragEnd(event, dashboard.isReordering)
-            }
-          />
-          <FlatFundsTable
-            data={dashboard.flatFunds}
-            expand={dashboard.flatExpand}
-            isLoading={dashboard.isLoadingFlatFunds}
-            isBusy={dashboard.isBusy}
-            flatSortOrder={dashboard.flatSortOrder}
-            onFlatSortToggle={() => dashboard.setFlatSortOrder((prev) => nextSortOrder(prev))}
-            flatSortLabel={getFlatSortButtonLabel(dashboard.flatSortOrder)}
-            onRefresh={handleManualRefresh}
-          />
-        </div>
-      </div>
-
-      <CreatePortfolioDialog
-        open={isCreatePortfolioDialogOpen}
-        onOpenChange={setIsCreatePortfolioDialogOpen}
-        onSubmit={async (values) => {
-          await actions.createPortfolioAction(values.name, values.type as PortfolioType);
-          setIsCreatePortfolioDialogOpen(false);
-        }}
-        isBusy={dashboard.isBusy}
-      />
-
-      <FlatAddFundDialog
-        open={isFlatAddFundDialogOpen}
-        onOpenChange={setIsFlatAddFundDialogOpen}
-        onSubmit={async (values) => {
-          const targetPortfolio = dashboard.portfolios.find(
-            (portfolio) => portfolio.id === values.portfolioId
-          );
-          if (!targetPortfolio) return;
-
-          await actions.addFundAction({
-            portfolioId: targetPortfolio.id,
-            portfolioType: targetPortfolio.type,
-            fundCode: values.fundCode,
-            holdingAmount: values.holdingAmount,
-            holdingProfitAmount: values.holdingProfitAmount,
-            plannedRatio: values.plannedRatio ?? ""
-          });
-          setIsFlatAddFundDialogOpen(false);
-        }}
-        portfolios={dashboard.portfolios}
-        isBusy={dashboard.isBusy}
-      />
-    </DashboardLayout>
+          portfolios={dashboard.portfolios}
+          isBusy={dashboard.isBusy}
+          initialPortfolioId={activeTabId !== "summary" && activeTabId !== "funds" ? activeTabId : undefined}
+        />
+      </TopNavLayout>
+    </>
   );
 }

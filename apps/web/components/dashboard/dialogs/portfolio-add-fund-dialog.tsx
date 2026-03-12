@@ -58,7 +58,8 @@ export function PortfolioAddFundDialog({
       confirmLoading={isBusy}
       okText="确认添加"
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
+      centered
     >
       <div style={{ marginBottom: 16, color: 'rgba(0, 0, 0, 0.45)' }}>
         {targetPortfolio ? `目标组合：${targetPortfolio.name}` : ""}

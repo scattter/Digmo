@@ -89,8 +89,9 @@ export function UpdateFundDialog({
       confirmLoading={isBusy || isSubmitting}
       okText={mode === "DIRECT" ? "确认更新" : mode === "INCREASE" ? "确认加仓" : "确认减仓"}
       cancelText="取消"
+      centered
     >
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
         <div style={{ marginBottom: 8 }}>
            <Text type="secondary">
              {target.fundName ?? `基金 ${target.fundCode}`} ({target.fundCode})

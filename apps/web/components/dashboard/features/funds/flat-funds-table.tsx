@@ -3,10 +3,11 @@
 import { FlatFundItem } from "@digmo/shared";
 import { ReloadOutlined } from "@ant-design/icons";
 import Link from "next/link";
-import { Card, Button, Table, Tag, Skeleton, List, Typography, Space } from "antd";
+import { Card, Button, Table, Tag, Skeleton, Typography, Space, Flex } from "antd";
 import type { TableProps } from "antd";
 import { FlatExpandMode, SortOrder } from "@/lib/api";
 import { formatCurrency, formatSignedPct, trendTone } from "@/lib/format";
+import { useState, useMemo } from "react";
 
 const { Text } = Typography;
 
@@ -38,12 +39,38 @@ export function FlatFundsTable({
   onFlatSortToggle,
   onRefresh,
 }: FlatFundsTableProps) {
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof FlatFundItem;
+    order: "ascend" | "descend";
+  } | null>(null);
+
+  const sortedData = useMemo(() => {
+    if (!sortConfig) return data;
+    return [...data].sort((a, b) => {
+      const aValue = (a as any)[sortConfig.key];
+      const bValue = (b as any)[sortConfig.key];
+      
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return sortConfig.order === 'ascend' ? aValue - bValue : bValue - aValue;
+      }
+      return 0;
+    });
+  }, [data, sortConfig]);
+
+  const handleTableChange: TableProps<FlatFundItem>['onChange'] = (pagination, filters, sorter) => {
+    if (Array.isArray(sorter)) return;
+    setSortConfig(sorter.order ? {
+      key: sorter.columnKey as keyof FlatFundItem,
+      order: sorter.order
+    } : null);
+  };
+
   const columns: TableProps<FlatFundItem>["columns"] = [
     {
       title: "基金名称",
       key: "name",
       fixed: "left",
-      width: 180,
+      width: 140,
       render: (_, record) => (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
           <Text strong ellipsis={{ tooltip: record.fundName }}>
@@ -62,6 +89,7 @@ export function FlatFundsTable({
       align: "center",
       width: 120,
       render: (value) => `¥${formatCurrency(value)}`,
+      sorter: true,
     },
     {
       title: "历史总涨跌",
@@ -73,6 +101,7 @@ export function FlatFundsTable({
           {formatSignedPct(value)}
         </span>
       ),
+      sorter: true,
     },
     {
       title: "盘中估算",
@@ -88,6 +117,7 @@ export function FlatFundsTable({
           </Tag>
         );
       },
+      sorter: true,
     },
     ...(expand === "dedup"
       ? [
@@ -126,40 +156,40 @@ export function FlatFundsTable({
     );
   }
 
-  // Mobile List Render
+  // Mobile card list render
   const renderMobileList = (items: FlatFundItem[]) => (
-    <List
-      grid={{ gutter: 16, column: 1 }}
-      dataSource={items}
-      renderItem={(item) => (
-        <List.Item>
-          <Card size="small" title={item.fundName ?? `基金 ${item.fundCode}`} extra={<Tag color={getTrendColor(trendTone(item.trend))}>{formatSignedPct(item.estimateChangePct)}</Tag>}>
-             <Space direction="vertical" style={{ width: '100%' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                   <Text type="secondary">代码</Text>
-                   <Text>{item.fundCode}</Text>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                   <Text type="secondary">持仓金额</Text>
-                   <Text>¥{formatCurrency(item.holdingAmount)}</Text>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                   <Text type="secondary">历史总涨跌</Text>
-                   <Text style={{ color: item.totalChangePct > 0 ? "#cf1322" : item.totalChangePct < 0 ? "#389e0d" : "inherit" }}>
-                      {formatSignedPct(item.totalChangePct)}
-                   </Text>
-                </div>
-                <div style={{ textAlign: 'right', marginTop: 8 }}>
-                   <Link href={`/funds/${item.fundCode}`} passHref legacyBehavior>
-                      <Button type="link" size="small" style={{ padding: 0 }}>查看详情</Button>
-                   </Link>
-                </div>
-             </Space>
-          </Card>
-        </List.Item>
-      )}
-      className="md:hidden"
-    />
+    <Flex vertical gap={16} className="md:hidden">
+      {items.map((item, index) => (
+        <Card
+          key={`${item.fundCode}-${item.portfolioId ?? "all"}-${index}`}
+          size="small"
+          title={item.fundName ?? `基金 ${item.fundCode}`}
+          extra={<Tag color={getTrendColor(trendTone(item.trend))}>{formatSignedPct(item.estimateChangePct)}</Tag>}
+        >
+          <Space orientation="vertical" style={{ width: "100%" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <Text type="secondary">代码</Text>
+              <Text>{item.fundCode}</Text>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <Text type="secondary">持仓金额</Text>
+              <Text>¥{formatCurrency(item.holdingAmount)}</Text>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <Text type="secondary">历史总涨跌</Text>
+              <Text style={{ color: item.totalChangePct > 0 ? "#cf1322" : item.totalChangePct < 0 ? "#389e0d" : "inherit" }}>
+                {formatSignedPct(item.totalChangePct)}
+              </Text>
+            </div>
+            <div style={{ textAlign: "right", marginTop: 8 }}>
+              <Link href={`/funds/${item.fundCode}`} passHref legacyBehavior>
+                <Button type="link" size="small" style={{ padding: 0 }}>查看详情</Button>
+              </Link>
+            </div>
+          </Space>
+        </Card>
+      ))}
+    </Flex>
   );
 
   // Desktop Table Render
@@ -172,6 +202,7 @@ export function FlatFundsTable({
       scroll={{ x: 800 }}
       size="middle"
       className="hidden md:block"
+      onChange={handleTableChange}
     />
   );
 
@@ -185,27 +216,19 @@ export function FlatFundsTable({
       手动更新
     </Button>
   );
-  const sortButton = (
-    <Button
-      onClick={onFlatSortToggle}
-      type={flatSortOrder !== "default" ? "primary" : "default"}
-      disabled={isBusy}
-    >
-      {flatSortLabel}
-    </Button>
-  );
+  // Removed sortButton since we use table header sorting now
 
   if (expand === "dedup") {
     return (
-      <Card title="所有基金 (去重)" extra={<Space>{sortButton}{refreshButton}</Space>}>
-         {data.length === 0 ? (
+      <Card title="所有基金 (去重)" extra={<Space>{refreshButton}</Space>}>
+         {sortedData.length === 0 ? (
             <div style={{ padding: 24, textAlign: 'center', color: 'rgba(0,0,0,0.45)', border: '1px dashed #d9d9d9', borderRadius: 6 }}>
                暂无基金数据，请先创建组合并添加基金。
             </div>
          ) : (
             <>
-               {renderTable(data)}
-               {renderMobileList(data)}
+               {renderTable(sortedData)}
+               {renderMobileList(sortedData)}
             </>
          )}
       </Card>
@@ -213,7 +236,7 @@ export function FlatFundsTable({
   }
 
   // Grouped logic
-  const groupedData = data.reduce((acc, item) => {
+  const groupedData = sortedData.reduce((acc: Record<string, { name: string; items: FlatFundItem[] }>, item) => {
     const key = item.portfolioId ?? "other";
     const name = item.portfolioName ?? "其他";
     if (!acc[key]) {
@@ -221,12 +244,11 @@ export function FlatFundsTable({
     }
     acc[key].items.push(item);
     return acc;
-  }, {} as Record<string, { name: string; items: FlatFundItem[] }>);
+  }, {});
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+    <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          {sortButton}
           {refreshButton}
        </div>
        {Object.keys(groupedData).length === 0 ? (

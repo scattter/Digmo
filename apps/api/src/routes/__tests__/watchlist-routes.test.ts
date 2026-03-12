@@ -950,6 +950,60 @@ describe("watchlist routes", () => {
     await app.close();
   });
 
+  test("persists portfolio tab layout preference in backend", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.015
+    });
+
+    const initialResp = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios/tab-layout"
+    });
+    expect(initialResp.statusCode).toBe(200);
+    expect((initialResp.json() as { fundsTabIndex: number }).fundsTabIndex).toBe(0);
+
+    const updateResp = await app.inject({
+      method: "PATCH",
+      url: "/v1/portfolios/tab-layout",
+      payload: {
+        fundsTabIndex: 2
+      }
+    });
+    expect(updateResp.statusCode).toBe(200);
+
+    const readAfterUpdateResp = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios/tab-layout"
+    });
+    expect(readAfterUpdateResp.statusCode).toBe(200);
+    expect((readAfterUpdateResp.json() as { fundsTabIndex: number }).fundsTabIndex).toBe(2);
+    await app.close();
+
+    const storeAfterRestart = new SqliteWatchlistStore(ctx.dbPath);
+    const appAfterRestart = await createRouteApp(storeAfterRestart, {
+      "161725": 0.015
+    });
+    const readAfterRestartResp = await appAfterRestart.inject({
+      method: "GET",
+      url: "/v1/portfolios/tab-layout"
+    });
+    expect(readAfterRestartResp.statusCode).toBe(200);
+    expect((readAfterRestartResp.json() as { fundsTabIndex: number }).fundsTabIndex).toBe(2);
+
+    const invalidResp = await appAfterRestart.inject({
+      method: "PATCH",
+      url: "/v1/portfolios/tab-layout",
+      payload: {
+        fundsTabIndex: -1
+      }
+    });
+    expect(invalidResp.statusCode).toBe(400);
+
+    await appAfterRestart.close();
+  });
+
   test("rejects invalid reorder payload for portfolios", async () => {
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);

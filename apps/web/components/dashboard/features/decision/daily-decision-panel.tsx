@@ -90,7 +90,7 @@ export function DailyDecisionPanel(props: DailyDecisionPanelProps) {
            </div>
         }
       >
-        <Spin spinning={isGeneratingSuggestion} tip="正在更新建议...">
+        <Spin spinning={isGeneratingSuggestion} description="正在更新建议...">
            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {!hasUploadedDoc ? (
                 <div style={{ padding: 24, textAlign: 'center', color: 'rgba(0,0,0,0.45)', border: '1px dashed #d9d9d9', borderRadius: 6 }}>

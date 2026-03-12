@@ -191,6 +191,31 @@ export async function reorderPortfolios(portfolioIds: string[]): Promise<void> {
   await ensureOk(response, "Reorder portfolios failed");
 }
 
+export async function fetchPortfolioTabLayout(): Promise<{ fundsTabIndex: number }> {
+  const response = await apiRequest("/v1/portfolios/tab-layout", {
+    auth: true
+  });
+
+  await ensureOk(response, "Fetch portfolio tab layout failed");
+  const data = (await response.json()) as { fundsTabIndex?: number };
+  return {
+    fundsTabIndex: typeof data.fundsTabIndex === "number" ? data.fundsTabIndex : 0
+  };
+}
+
+export async function updatePortfolioTabLayout(fundsTabIndex: number): Promise<void> {
+  const response = await apiRequest("/v1/portfolios/tab-layout", {
+    method: "PATCH",
+    auth: true,
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({ fundsTabIndex })
+  });
+
+  await ensureOk(response, "Update portfolio tab layout failed");
+}
+
 export async function fetchPortfolioFunds(
   portfolioId: string
 ): Promise<{

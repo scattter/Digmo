@@ -52,7 +52,7 @@ export function DashboardOverview({
       <Row gutter={[12, 12]}>
         <Col xs={24} md={12}>
           <Card
-            bordered={false}
+            variant="borderless"
             style={{
               background: "linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%)",
               filter: isLoading ? "grayscale(0.95)" : "none",
@@ -83,7 +83,7 @@ export function DashboardOverview({
 
         <Col xs={24} md={12}>
           <Card
-            bordered={false}
+            variant="borderless"
             style={{
               background: intradayProfit ? "#fff1f0" : intradayLoss ? "#f6ffed" : "#f5f5f5",
               filter: isLoading ? "grayscale(0.95)" : "none",

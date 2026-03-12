@@ -22,7 +22,6 @@ import {
   PositionOperationType,
 } from "@digmo/shared";
 import { 
-  MenuOutlined, 
   MoreOutlined, 
   EditOutlined, 
   DeleteOutlined, 
@@ -37,7 +36,6 @@ import type { TableProps, MenuProps } from "antd";
 
 import { UpdateFundDialog } from "@/components/dashboard/dialogs/update-fund-dialog";
 import { FundEditState, formatCurrency, formatSignedPct } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 
 const { Text, Title } = Typography;
@@ -189,16 +187,20 @@ export function PortfolioFundsTable({
   }
 
   const columns: TableProps<PortfolioFundItem>["columns"] = [
-    {
-      key: "sort",
-      width: 50,
-      fixed: "left",
-      render: () => <DragHandle />,
-    },
+    ...(isMobile
+      ? []
+      : [
+          {
+            key: "sort",
+            width: 50,
+            fixed: "left" as const,
+            render: () => <DragHandle />,
+          },
+        ]),
     {
       title: "基金名称",
       key: "name",
-      width: 140,
+      width: isMobile ? 86 : 140,
       fixed: "left",
       render: (_, record) => (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
@@ -216,14 +218,14 @@ export function PortfolioFundsTable({
       dataIndex: "holdingAmount",
       key: "holdingAmount",
       align: "center",
-      width: isMobile ? 100 : 120,
+      width: isMobile ? 86 : 120,
       render: (value) => `¥${formatCurrency(value)}`,
     },
     {
       title: "持有收益",
       key: "holdingProfit",
       align: "center",
-      width: isMobile ? 100 : 120,
+      width: isMobile ? 86 : 120,
       render: (_, record) => {
         const profit = record.holdingProfitAmount;
         const pct = record.holdingProfitPct;
@@ -240,7 +242,7 @@ export function PortfolioFundsTable({
       title: "当日收益",
       key: "dailyProfit",
       align: "center",
-      width: isMobile ? 100 : 120,
+      width: isMobile ? 86 : 120,
       render: (_, record) => {
         const pct = typeof record.dailyProfitPct === "number" ? record.dailyProfitPct : record.estimateChangePct ?? 0;
         const amount = typeof record.dailyProfitAmount === "number"
@@ -258,39 +260,43 @@ export function PortfolioFundsTable({
         );
       },
     },
-    {
-      title: "配比",
-      key: "ratio",
-      align: "center",
-      width: isMobile ? 100 : 120,
-      render: (_, record) => {
-        if (record.portfolioType !== "RATIO" || typeof record.actualRatio !== "number" || typeof record.plannedRatio !== "number") {
-           return <Text type="secondary">-</Text>;
-        }
-        const actualPct = record.actualRatio * 100;
-        const plannedPct = record.plannedRatio * 100;
-        const diffPct = actualPct - plannedPct;
-        const diffText = `${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%`;
-        const color = diffPct > 0 ? "orange" : diffPct < 0 ? "green" : "default";
-        
-        return (
-           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 4 }}>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                 实{actualPct.toFixed(1)}%/计{plannedPct.toFixed(1)}%
-              </Text>
-              <div>
-                 <Tag color={color} style={{ margin: 0, fontSize: 10 }}>{diffText}</Tag>
-              </div>
-           </div>
-        );
-      },
-    },
+    ...(portfolioType === "RATIO"
+      ? [
+          {
+            title: "配比",
+            key: "ratio",
+            align: "center" as const,
+            width: isMobile ? 86 : 120,
+            render: (_: unknown, record: PortfolioFundItem) => {
+              if (typeof record.actualRatio !== "number" || typeof record.plannedRatio !== "number") {
+                return <Text type="secondary">-</Text>;
+              }
+              const actualPct = record.actualRatio * 100;
+              const plannedPct = record.plannedRatio * 100;
+              const diffPct = actualPct - plannedPct;
+              const diffText = `${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%`;
+              const color = diffPct > 0 ? "orange" : diffPct < 0 ? "green" : "default";
+
+              return (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 4 }}>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {actualPct.toFixed(1)}%/{plannedPct.toFixed(1)}%
+                  </Text>
+                  <div>
+                    <Tag color={color} style={{ margin: 0, fontSize: 10 }}>{diffText}</Tag>
+                  </div>
+                </div>
+              );
+            },
+          },
+        ]
+      : []),
     {
       title: "操作",
       key: "action",
       fixed: "right",
       align: "center",
-      width: 60,
+      width: isMobile ? 36 : 60,
       render: (_, record) => {
         const items: MenuProps['items'] = [
             { key: 'update', label: '更新持仓', icon: <EditOutlined />, onClick: () => onOpenUpdateDialog(record) },
@@ -320,10 +326,10 @@ export function PortfolioFundsTable({
         title={
            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                 <Title level={isMobile ? 5 : 5} style={{ margin: 0, fontSize: isMobile ? 14 : 16 }}>{portfolioName}</Title>
-                 <Text type="secondary" style={{ fontSize: isMobile ? 10 : 12, fontWeight: 'normal' }}>
-                    {portfolioType === "FREE" ? "自由组合" : "按比例组合"} · 共 {funds.length} 只基金
-                 </Text>
+                 <Title level={isMobile ? 5 : 5} style={{ margin: 0, fontSize: isMobile ? 14 : 16 }}>{portfolioType === "FREE" ? "自由组合" : "按比例组合"} · 共 {funds.length} 只基金</Title>
+                 {/*<Text type="secondary" style={{ fontSize: isMobile ? 10 : 12, fontWeight: 'normal' }}>*/}
+                 {/*   {portfolioType === "FREE" ? "自由组合" : "按比例组合"} · 共 {funds.length} 只基金*/}
+                 {/*</Text>*/}
               </div>
               <Space>
                  <Button icon={<ReloadOutlined />} onClick={() => void onRefresh()} disabled={isBusy} loading={isBusy} size={isMobile ? "small" : "middle"}>
@@ -336,7 +342,11 @@ export function PortfolioFundsTable({
            </div>
         }
         style={{ marginBottom: 24, borderTop: '4px solid #1677ff' }}
-        bodyStyle={{ padding: isMobile ? 12 : 24 }}
+        styles={{
+          body: {
+            padding: isMobile ? 12 : 24
+          }
+        }}
       >
         {funds.length === 0 ? (
           <Empty
@@ -360,7 +370,7 @@ export function PortfolioFundsTable({
                 dataSource={funds}
                 rowKey="fundCode"
                 pagination={false}
-                scroll={{ x: 800 }}
+                scroll={{ x: isMobile ? 640 : 800 }}
                 size={isMobile ? "small" : "middle"}
                 components={{
                   body: {

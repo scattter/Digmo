@@ -33,7 +33,7 @@ export function FundKpiCards({ snapshot }: FundKpiCardsProps) {
     <Row gutter={[12, 12]}>
       {items.map((item) => (
         <Col xs={24} md={12} xl={6} key={item.label}>
-          <Card bordered={false}>
+          <Card variant="borderless">
             <Statistic
               title={item.label}
               value={item.value}

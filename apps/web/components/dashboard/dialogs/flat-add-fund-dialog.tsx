@@ -18,6 +18,7 @@ interface FlatAddFundDialogProps {
   onSubmit: (values: FlatAddFundFormValues) => Promise<void>;
   portfolios: PortfolioSummary[];
   isBusy?: boolean;
+  initialPortfolioId?: string;
 }
 
 export function FlatAddFundDialog({
@@ -26,6 +27,7 @@ export function FlatAddFundDialog({
   onSubmit,
   portfolios,
   isBusy,
+  initialPortfolioId,
 }: FlatAddFundDialogProps) {
   const [form] = Form.useForm<FlatAddFundFormValues>();
   const portfolioId = Form.useWatch("portfolioId", form);
@@ -34,6 +36,12 @@ export function FlatAddFundDialog({
     () => portfolios.find((p) => p.id === portfolioId),
     [portfolios, portfolioId]
   );
+
+  useEffect(() => {
+    if (open && initialPortfolioId) {
+      form.setFieldsValue({ portfolioId: initialPortfolioId });
+    }
+  }, [open, initialPortfolioId, form]);
 
   const handleOk = async () => {
     try {
@@ -69,7 +77,8 @@ export function FlatAddFundDialog({
       confirmLoading={isBusy}
       okText="确认添加"
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
+      centered
     >
       <div style={{ marginBottom: 16, color: 'rgba(0, 0, 0, 0.45)' }}>
         先选择目标组合，再填写基金信息。
