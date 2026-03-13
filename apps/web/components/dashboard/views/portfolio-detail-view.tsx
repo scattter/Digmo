@@ -46,6 +46,7 @@ interface PortfolioDetailViewProps {
   onDeleteFund: (item: PortfolioFundItem) => void;
   onDragEnd: (event: DragEndEvent) => void;
   onOpenAddFundDialog: () => void;
+  onOpenShareDialog: () => void;
   onRefresh: () => Promise<void>;
   isBusy: boolean;
   isLoading: boolean;
@@ -61,6 +62,7 @@ export function PortfolioDetailView({
   onDeleteFund,
   onDragEnd,
   onOpenAddFundDialog,
+  onOpenShareDialog,
   onRefresh,
   isBusy,
   isLoading,
@@ -315,6 +317,7 @@ export function PortfolioDetailView({
          onDragEnd={onDragEnd}
          onRefresh={onRefresh}
          onOpenAddFundDialog={onOpenAddFundDialog}
+         onOpenShareDialog={onOpenShareDialog}
       />
 
       <Modal

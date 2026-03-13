@@ -9,6 +9,7 @@ export interface PortfolioItem {
   id: string;
   name: string;
   type: PortfolioType;
+  shareCode: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -107,6 +108,19 @@ export interface PositionOperationItem {
   createdAt: string;
 }
 
+export interface PortfolioShareRecord {
+  id: string;
+  userId: string;
+  portfolioId: string;
+  shareCode: string;
+  status: "ACTIVE" | "INACTIVE";
+  snapshotJson: string;
+  passwordHash?: string;
+  expiresAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ExportDataPayload {
   meta: {
     version: number;
@@ -126,6 +140,7 @@ export interface ExportDataPayload {
     id: string;
     name: string;
     type: PortfolioType;
+    shareCode: string;
     displayOrder: number;
     createdAt: string;
     updatedAt: string;
@@ -185,6 +200,16 @@ export interface WatchlistStore {
   ensureFundState(userId: string, fundCode: string): Promise<void>;
   accumulateOfficialReturn(userId: string, fundCode: string, navDate: string, dailyReturn: number): Promise<boolean>;
   cleanupOrphanFundStates(userId: string): Promise<void>;
+
+  getActivePortfolioShareByCode(shareCode: string): Promise<PortfolioShareRecord | undefined>;
+  replaceActivePortfolioShare(input: {
+    userId: string;
+    portfolioId: string;
+    shareCode: string;
+    snapshotJson: string;
+    passwordHash?: string;
+    expiresAt?: string;
+  }): Promise<PortfolioShareRecord>;
 }
 
 export interface SqliteWatchlistStoreOptions {
@@ -220,7 +245,21 @@ interface PortfolioRow {
   id: string;
   name: string;
   type: string;
+  shareCode: string | null;
   displayOrder: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PortfolioShareRow {
+  id: string;
+  userId: string;
+  portfolioId: string;
+  shareCode: string;
+  status: "ACTIVE" | "INACTIVE";
+  snapshotJson: string;
+  passwordHash: string | null;
+  expiresAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -277,6 +316,8 @@ interface PositionOperationRow {
 const DEFAULT_PORTFOLIO_NAME = "默认组合";
 const DEFAULT_ADMIN_USERNAME = "admin";
 const DEFAULT_ADMIN_PASSWORD = "admin123456";
+const SHARE_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const SHARE_CODE_LENGTH = 8;
 
 function toPortfolioType(type: string): PortfolioType {
   return type === "RATIO" ? "RATIO" : "FREE";
@@ -296,6 +337,15 @@ function toChanges(result: SqliteRunResult): number {
 
 function toIsoLike(value: string | null | undefined): string {
   return value ?? new Date().toISOString();
+}
+
+function randomShareCode(): string {
+  let result = "";
+  for (let i = 0; i < SHARE_CODE_LENGTH; i += 1) {
+    const index = Math.floor(Math.random() * SHARE_CODE_CHARS.length);
+    result += SHARE_CODE_CHARS[index];
+  }
+  return result;
 }
 
 export class SqliteWatchlistStore implements WatchlistStore {
@@ -480,9 +530,12 @@ export class SqliteWatchlistStore implements WatchlistStore {
   private ensureUserScopedSchema(defaultUserId: string): void {
     const schemaVersion = this.getMetaValue("schema_version");
     const hasUserScopedPortfolio = this.tableExists("user_portfolio") && this.hasColumn("user_portfolio", "user_id");
+    const hasShareCode = this.hasColumn("user_portfolio", "share_code");
 
-    if (schemaVersion === "2" && hasUserScopedPortfolio) {
+    if (schemaVersion === "3" && hasUserScopedPortfolio && hasShareCode) {
       this.ensureUserScopedTables();
+      this.ensurePortfolioShareSchema();
+      this.ensurePortfolioShareCodeBackfill();
       this.normalizePortfolioDisplayOrder();
       this.normalizePortfolioFundDisplayOrder();
       return;
@@ -501,11 +554,13 @@ export class SqliteWatchlistStore implements WatchlistStore {
       }
 
       this.ensureUserScopedTables();
+      this.ensurePortfolioShareSchema();
       this.migrateLegacyPortfolioTables(defaultUserId);
       this.migrateLegacyWatchlistIfNeeded(defaultUserId);
+      this.ensurePortfolioShareCodeBackfill();
       this.normalizePortfolioDisplayOrder();
       this.normalizePortfolioFundDisplayOrder();
-      this.setMetaValue("schema_version", "2");
+      this.setMetaValue("schema_version", "3");
 
       this.db.exec("COMMIT;");
     } catch (error) {
@@ -521,6 +576,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
         id TEXT NOT NULL,
         name TEXT NOT NULL,
         type TEXT NOT NULL CHECK(type IN ('FREE', 'RATIO')),
+        share_code TEXT,
         display_order INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -603,6 +659,85 @@ export class SqliteWatchlistStore implements WatchlistStore {
     }
   }
 
+  private ensurePortfolioShareSchema(): void {
+    if (!this.hasColumn("user_portfolio", "share_code")) {
+      this.db.exec("ALTER TABLE user_portfolio ADD COLUMN share_code TEXT;");
+    }
+
+    this.db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_user_portfolio_share_code ON user_portfolio(share_code);
+
+      CREATE TABLE IF NOT EXISTS user_portfolio_share (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        portfolio_id TEXT NOT NULL,
+        share_code TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('ACTIVE', 'INACTIVE')),
+        snapshot_json TEXT NOT NULL,
+        password_hash TEXT,
+        expires_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id, portfolio_id) REFERENCES user_portfolio(user_id, id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_user_portfolio_share_code_status
+        ON user_portfolio_share(share_code, status);
+      CREATE UNIQUE INDEX IF NOT EXISTS ux_user_portfolio_share_active
+        ON user_portfolio_share(user_id, portfolio_id)
+        WHERE status = 'ACTIVE';
+    `);
+  }
+
+  private nextUniqueShareCodeSync(): string {
+    const exists = this.db.prepare(
+      `
+        SELECT 1 AS ok
+        FROM user_portfolio
+        WHERE share_code = ?
+        LIMIT 1
+      `,
+    );
+
+    for (let i = 0; i < 20; i += 1) {
+      const candidate = randomShareCode();
+      const hit = exists.get(candidate) as { ok: number } | undefined;
+      if (!hit) {
+        return candidate;
+      }
+    }
+    throw new Error("failed to generate unique share code");
+  }
+
+  private ensurePortfolioShareCodeBackfill(): void {
+    const rows = this.db
+      .prepare(
+        `
+          SELECT user_id AS userId, id
+          FROM user_portfolio
+          WHERE share_code IS NULL OR TRIM(share_code) = ''
+          ORDER BY created_at ASC
+        `,
+      )
+      .all() as Array<{ userId: string; id: string }>;
+
+    if (rows.length === 0) {
+      return;
+    }
+
+    const update = this.db.prepare(
+      `
+        UPDATE user_portfolio
+        SET share_code = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ? AND id = ?
+      `,
+    );
+
+    for (const row of rows) {
+      update.run(this.nextUniqueShareCodeSync(), row.userId, row.id);
+    }
+  }
+
   private migrateLegacyPortfolioTables(defaultUserId: string): void {
     if (this.tableExists("user_portfolio_legacy")) {
       const rows = this.db
@@ -635,14 +770,16 @@ export class SqliteWatchlistStore implements WatchlistStore {
             id,
             name,
             type,
+            share_code,
             display_order,
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(user_id, id) DO UPDATE SET
             name = excluded.name,
             type = excluded.type,
+            share_code = excluded.share_code,
             display_order = excluded.display_order,
             updated_at = excluded.updated_at
         `
@@ -654,6 +791,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           row.id,
           row.name,
           row.type === "RATIO" ? "RATIO" : "FREE",
+          this.nextUniqueShareCodeSync(),
           row.displayOrder ?? 0,
           toIsoLike(row.createdAt),
           toIsoLike(row.updatedAt)
@@ -857,11 +995,11 @@ export class SqliteWatchlistStore implements WatchlistStore {
     this.db
       .prepare(
         `
-          INSERT INTO user_portfolio (user_id, id, name, type, display_order, created_at, updated_at)
-          VALUES (?, ?, ?, 'FREE', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO user_portfolio (user_id, id, name, type, share_code, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, 'FREE', ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `
       )
-      .run(defaultUserId, portfolioId, DEFAULT_PORTFOLIO_NAME);
+      .run(defaultUserId, portfolioId, DEFAULT_PORTFOLIO_NAME, this.nextUniqueShareCodeSync());
 
     const insertFundState = this.db.prepare(
       `
@@ -994,6 +1132,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
       id: row.id,
       name: row.name,
       type: toPortfolioType(row.type),
+      shareCode: row.shareCode ?? "",
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     };
@@ -1012,6 +1151,21 @@ export class SqliteWatchlistStore implements WatchlistStore {
       lastHoldingRollNavDate: row.lastHoldingRollNavDate ?? undefined,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
+    };
+  }
+
+  private toPortfolioShare(row: PortfolioShareRow): PortfolioShareRecord {
+    return {
+      id: row.id,
+      userId: row.userId,
+      portfolioId: row.portfolioId,
+      shareCode: row.shareCode,
+      status: row.status,
+      snapshotJson: row.snapshotJson,
+      ...(row.passwordHash ? { passwordHash: row.passwordHash } : {}),
+      ...(row.expiresAt ? { expiresAt: row.expiresAt } : {}),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
     };
   }
 
@@ -1203,6 +1357,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
                   id,
                   name,
                   type,
+                  share_code AS shareCode,
                   display_order AS displayOrder,
                   created_at AS createdAt,
                   updated_at AS updatedAt
@@ -1259,7 +1414,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
 
     return {
       meta: {
-        version: 1,
+        version: 2,
         exportedAt: new Date().toISOString()
       },
       users: users.map((user) => ({
@@ -1347,11 +1502,12 @@ export class SqliteWatchlistStore implements WatchlistStore {
 
       const upsertPortfolio = this.db.prepare(
         `
-          INSERT INTO user_portfolio (user_id, id, name, type, display_order, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO user_portfolio (user_id, id, name, type, share_code, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(user_id, id) DO UPDATE SET
             name = excluded.name,
             type = excluded.type,
+            share_code = excluded.share_code,
             display_order = excluded.display_order,
             updated_at = excluded.updated_at
         `
@@ -1364,6 +1520,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           row.id,
           row.name,
           row.type,
+          row.shareCode ?? this.nextUniqueShareCodeSync(),
           row.displayOrder,
           toIsoLike(row.createdAt),
           toIsoLike(row.updatedAt)
@@ -1469,6 +1626,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
             id,
             name,
             type,
+            share_code AS shareCode,
             display_order AS displayOrder,
             created_at AS createdAt,
             updated_at AS updatedAt
@@ -1491,6 +1649,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
             id,
             name,
             type,
+            share_code AS shareCode,
             display_order AS displayOrder,
             created_at AS createdAt,
             updated_at AS updatedAt
@@ -1509,6 +1668,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
 
   async createPortfolio(userId: string, name: string, type: PortfolioType): Promise<PortfolioItem> {
     const id = randomUUID();
+    const shareCode = this.nextUniqueShareCodeSync();
     const row = this.db
       .prepare(
         `
@@ -1523,11 +1683,11 @@ export class SqliteWatchlistStore implements WatchlistStore {
     this.db
       .prepare(
         `
-          INSERT INTO user_portfolio (user_id, id, name, type, display_order, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO user_portfolio (user_id, id, name, type, share_code, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `
       )
-      .run(userId, id, name, type, nextDisplayOrder);
+      .run(userId, id, name, type, shareCode, nextDisplayOrder);
 
     const created = await this.getPortfolio(userId, id);
     if (!created) {
@@ -2152,6 +2312,106 @@ export class SqliteWatchlistStore implements WatchlistStore {
       .get(userId, portfolioId) as { sumRatio: number | null } | undefined;
 
     return Number((row?.sumRatio ?? 0).toFixed(6));
+  }
+
+  async getActivePortfolioShareByCode(shareCode: string): Promise<PortfolioShareRecord | undefined> {
+    const normalizedCode = shareCode.trim().toUpperCase();
+    if (!normalizedCode) {
+      return undefined;
+    }
+
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            user_id AS userId,
+            portfolio_id AS portfolioId,
+            share_code AS shareCode,
+            status,
+            snapshot_json AS snapshotJson,
+            password_hash AS passwordHash,
+            expires_at AS expiresAt,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM user_portfolio_share
+          WHERE share_code = ? AND status = 'ACTIVE'
+          ORDER BY updated_at DESC
+          LIMIT 1
+        `
+      )
+      .get(normalizedCode) as PortfolioShareRow | undefined;
+
+    if (!row) {
+      return undefined;
+    }
+
+    return this.toPortfolioShare(row);
+  }
+
+  async replaceActivePortfolioShare(input: {
+    userId: string;
+    portfolioId: string;
+    shareCode: string;
+    snapshotJson: string;
+    passwordHash?: string;
+    expiresAt?: string;
+  }): Promise<PortfolioShareRecord> {
+    const id = randomUUID();
+    const normalizedCode = input.shareCode.trim().toUpperCase();
+
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      this.db
+        .prepare(
+          `
+            UPDATE user_portfolio_share
+            SET status = 'INACTIVE', updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = ? AND portfolio_id = ? AND status = 'ACTIVE'
+          `
+        )
+        .run(input.userId, input.portfolioId);
+
+      this.db
+        .prepare(
+          `
+            INSERT INTO user_portfolio_share (
+              id,
+              user_id,
+              portfolio_id,
+              share_code,
+              status,
+              snapshot_json,
+              password_hash,
+              expires_at,
+              created_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `
+        )
+        .run(
+          id,
+          input.userId,
+          input.portfolioId,
+          normalizedCode,
+          input.snapshotJson,
+          input.passwordHash ?? null,
+          input.expiresAt ?? null,
+        );
+
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+
+    const created = await this.getActivePortfolioShareByCode(normalizedCode);
+    if (!created || created.id !== id) {
+      throw new Error("failed to create portfolio share");
+    }
+
+    return created;
   }
 
   async listUniqueFundCodes(userId: string): Promise<string[]> {

@@ -15,6 +15,7 @@ import {
   DecisionGenerationInput,
   DecisionGenerationResult,
 } from "../../modules/decision/provider.js";
+import { ShareService } from "../../modules/share/service.js";
 
 interface TestCtx {
   root: string;
@@ -100,6 +101,7 @@ async function createApp(store: SqliteWatchlistStore, dbPath: string, provider: 
   registerWatchlistRoutes(app, {
     store,
     service: service as never,
+    shareService: new ShareService({ store }),
     requireAuth
   });
 

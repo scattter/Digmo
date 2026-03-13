@@ -188,6 +188,36 @@ describe("OpenAIDecisionProvider", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://compat.example.com/v1/responses");
   });
 
+  test("retries transient network failure on responses endpoint", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          output_text: buildValidDecisionJson(),
+          usage: { input_tokens: 88, output_tokens: 44, total_tokens: 132 },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new OpenAIDecisionProvider({
+      apiKey: "test-key",
+      model: "test-model",
+      timeoutMs: 5000,
+      maxOutputTokens: 1200,
+      enableWebSearch: false,
+      baseUrl: "https://compat.example.com",
+    });
+
+    const result = await provider.generateDailyDecision(createInput());
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://compat.example.com/v1/responses");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://compat.example.com/v1/responses");
+    expect(result.summary).toContain("防守");
+    expect(result.usage?.totalTokens).toBe(132);
+  });
+
   test("falls back to plain text suggestion when structured output is non-json", async () => {
     const fetchMock = vi
       .fn()

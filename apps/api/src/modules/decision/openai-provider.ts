@@ -56,6 +56,19 @@ interface OpenAIChatPayload {
 
 const RESPONSES_FALLBACK_STATUS_CODES = new Set([404, 405, 415, 422, 501]);
 const DEFAULT_DOC_MAX_CHARS = 12_000;
+const MAX_FETCH_ATTEMPTS = 2;
+const RETRIABLE_FETCH_ERROR_NAMES = new Set(["AbortError", "TimeoutError"]);
+const RETRIABLE_FETCH_ERROR_PATTERNS = [
+  "fetch failed",
+  "network",
+  "timeout",
+  "timed out",
+  "econnreset",
+  "econnrefused",
+  "enotfound",
+  "eai_again",
+  "socket hang up",
+];
 const PLAIN_TEXT_FALLBACK_SYSTEM_PROMPT = [
   "你是我的专属投资顾问，根据组合的策略文档，当前持仓，当日涨跌，历史操作要求给出操作建议。",
   "请输出简洁中文纯文本建议，必须包含以下小节, 且需要严格按照顺序返回：",
@@ -296,6 +309,38 @@ async function fetchWithTimeout(
   }
 }
 
+function isRetriableFetchError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  if (RETRIABLE_FETCH_ERROR_NAMES.has(error.name)) {
+    return true;
+  }
+  const normalized = error.message.toLowerCase();
+  return RETRIABLE_FETCH_ERROR_PATTERNS.some((pattern) =>
+    normalized.includes(pattern),
+  );
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt += 1) {
+    try {
+      return await fetchWithTimeout(url, init, timeoutMs);
+    } catch (error) {
+      lastError = error;
+      if (attempt >= MAX_FETCH_ATTEMPTS || !isRetriableFetchError(error)) {
+        throw error;
+      }
+    }
+  }
+  throw lastError;
+}
+
 export class OpenAIDecisionProvider implements DecisionAIProvider {
   readonly name = "openai";
   readonly model: string;
@@ -324,7 +369,7 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
   }
 
   private async requestResponses(inputText: string): Promise<Response> {
-    return fetchWithTimeout(
+    return fetchWithRetry(
       buildApiEndpoint(this.baseUrl, "responses"),
       {
         method: "POST",
@@ -365,7 +410,7 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
   }
 
   private async requestChatCompletions(inputText: string): Promise<Response> {
-    return fetchWithTimeout(
+    return fetchWithRetry(
       buildApiEndpoint(this.baseUrl, "chat/completions"),
       {
         method: "POST",
@@ -403,7 +448,7 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
   private async requestPlainTextFallback(
     inputText: string,
   ): Promise<{ text: string; usage: DecisionGenerationResult["usage"] }> {
-    const response = await fetchWithTimeout(
+    const response = await fetchWithRetry(
       buildApiEndpoint(this.baseUrl, "chat/completions"),
       {
         method: "POST",

@@ -1,7 +1,13 @@
 "use client";
 
 import { Layout, Avatar, Dropdown, theme } from "antd";
-import { UserOutlined, LogoutOutlined, WalletOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  UserOutlined,
+  LogoutOutlined,
+  WalletOutlined,
+  PlusOutlined,
+  ImportOutlined,
+} from "@ant-design/icons";
 import { DraggableTabList, TabItem } from "../navigation/draggable-tab-list";
 import { DragEndEvent } from "@dnd-kit/core";
 import { formatCurrency, formatSignedAmount } from "@/lib/format";
@@ -18,6 +24,7 @@ interface TopNavLayoutProps {
   username?: string;
   onLogout?: () => void;
   onCreatePortfolio: () => void;
+  onImportPortfolio: () => void;
   summaryBar: HeaderSummaryBar;
   tabs: TabItem[];
   activeTabId: string;
@@ -30,6 +37,7 @@ export function TopNavLayout({
   username,
   onLogout,
   onCreatePortfolio,
+  onImportPortfolio,
   summaryBar,
   tabs,
   activeTabId,
@@ -99,14 +107,24 @@ export function TopNavLayout({
               onDragEnd={onTabDragEnd}
               className="w-full gap-1"
               mobileEndSlot={
-                <button
-                  type="button"
-                  aria-label="创建组合"
-                  onClick={onCreatePortfolio}
-                  className="h-8 w-8 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
-                >
-                  <PlusOutlined />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label="导入组合"
+                    onClick={onImportPortfolio}
+                    className="h-8 w-8 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
+                  >
+                    <ImportOutlined />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="创建组合"
+                    onClick={onCreatePortfolio}
+                    className="h-8 w-8 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
+                  >
+                    <PlusOutlined />
+                  </button>
+                </div>
               }
             />
           </div>
@@ -119,14 +137,24 @@ export function TopNavLayout({
               onDragEnd={onTabDragEnd}
               className="min-w-0 flex-1 gap-1"
             />
-            <button
-              type="button"
-              aria-label="创建组合"
-              onClick={onCreatePortfolio}
-              className="h-8 w-8 shrink-0 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
-            >
-              <PlusOutlined />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="导入组合"
+                onClick={onImportPortfolio}
+                className="h-8 w-8 shrink-0 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
+              >
+                <ImportOutlined />
+              </button>
+              <button
+                type="button"
+                aria-label="创建组合"
+                onClick={onCreatePortfolio}
+                className="h-8 w-8 shrink-0 rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50"
+              >
+                <PlusOutlined />
+              </button>
+            </div>
           </div>
         </div>
 

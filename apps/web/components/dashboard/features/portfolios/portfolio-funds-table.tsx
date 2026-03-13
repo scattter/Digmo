@@ -66,6 +66,7 @@ interface PortfolioFundsTableProps {
   onDragEnd: (event: DragEndEvent) => void;
   onRefresh: () => Promise<void>;
   onOpenAddFundDialog: () => void;
+  onOpenShareDialog: () => void;
 }
 
 function formatSignedCurrencyValue(value: number): string {
@@ -145,6 +146,7 @@ export function PortfolioFundsTable({
   onDragEnd,
   onRefresh,
   onOpenAddFundDialog,
+  onOpenShareDialog,
 }: PortfolioFundsTableProps) {
   const [updateTarget, setUpdateTarget] = useState<PortfolioFundItem | null>(null);
   const isMobile = useIsMobile();
@@ -326,7 +328,7 @@ export function PortfolioFundsTable({
         title={
            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                 <Title level={isMobile ? 5 : 5} style={{ margin: 0, fontSize: isMobile ? 14 : 16 }}>{portfolioType === "FREE" ? "自由组合" : "按比例组合"} · 共 {funds.length} 只基金</Title>
+                 <Title level={isMobile ? 5 : 5} style={{ margin: 0, fontSize: isMobile ? 14 : 16 }}>{portfolioType === "FREE" ? "自由组合" : "按比例组合"} · {funds.length} 只</Title>
                  {/*<Text type="secondary" style={{ fontSize: isMobile ? 10 : 12, fontWeight: 'normal' }}>*/}
                  {/*   {portfolioType === "FREE" ? "自由组合" : "按比例组合"} · 共 {funds.length} 只基金*/}
                  {/*</Text>*/}
@@ -334,6 +336,9 @@ export function PortfolioFundsTable({
               <Space>
                  <Button icon={<ReloadOutlined />} onClick={() => void onRefresh()} disabled={isBusy} loading={isBusy} size={isMobile ? "small" : "middle"}>
                     {isMobile ? "刷新" : "刷新"}
+                 </Button>
+                 <Button onClick={onOpenShareDialog} disabled={isBusy} size={isMobile ? "small" : "middle"}>
+                    {isMobile ? "分享" : "分享组合"}
                  </Button>
                  <Button type="primary" icon={<PlusOutlined />} onClick={onOpenAddFundDialog} disabled={isBusy} size={isMobile ? "small" : "middle"}>
                     {isMobile ? "添加" : "添加基金"}
@@ -345,6 +350,9 @@ export function PortfolioFundsTable({
         styles={{
           body: {
             padding: isMobile ? 12 : 24
+          },
+          header: {
+            padding: '0 14px'
           }
         }}
       >

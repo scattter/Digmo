@@ -126,6 +126,7 @@ export interface LoginResponse {
 }
 
 export type PortfolioType = "FREE" | "RATIO";
+export type PortfolioShareValidity = "SEVEN_DAYS" | "PERMANENT";
 
 export type TrendType = "UP" | "DOWN" | "FLAT";
 
@@ -149,6 +150,17 @@ export interface PortfolioSummary {
   dailyProfitPct: number;
   allFundsDailyUpdated: boolean;
   intradayEstimatePct: number;
+}
+
+export interface PortfolioShareResult {
+  shareCode: string;
+  expiresAt: string | null;
+  hasPassword: boolean;
+}
+
+export interface ImportPortfolioByShareCodeResult {
+  portfolio: PortfolioSummary;
+  importedFundCount: number;
 }
 
 export interface PortfolioFundItem {

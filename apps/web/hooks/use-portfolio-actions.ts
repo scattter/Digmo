@@ -6,10 +6,13 @@ import {
   createPositionOperation,
   createPortfolio,
   deletePortfolio,
+  importPortfolioByShareCode,
   removePortfolioFund,
   renamePortfolio,
+  sharePortfolio,
   updatePortfolioFund
 } from "@/lib/api";
+import { ImportPortfolioByShareCodeResult, PortfolioShareResult } from "@digmo/shared";
 import { parseNonNegativeNumber, parseRatioPercent, parseSignedNumber } from "@/lib/format";
 
 interface UsePortfolioActionsArgs {
@@ -272,6 +275,55 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
     }
   }
 
+  async function sharePortfolioAction(input: {
+    portfolioId: string;
+    validity?: "SEVEN_DAYS" | "PERMANENT";
+    password?: string;
+  }): Promise<PortfolioShareResult> {
+    setIsLoading(true);
+    setErrorText("");
+    setStatusText("");
+    try {
+      const result = await sharePortfolio({
+        portfolioId: input.portfolioId,
+        validity: input.validity ?? "SEVEN_DAYS",
+        password: input.password,
+      });
+      setStatusText("组合分享码已生成");
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "生成分享码失败";
+      setErrorText(message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function importPortfolioByShareCodeAction(input: {
+    shareCode: string;
+    password?: string;
+  }): Promise<ImportPortfolioByShareCodeResult> {
+    setIsLoading(true);
+    setErrorText("");
+    setStatusText("");
+    try {
+      const result = await importPortfolioByShareCode({
+        shareCode: input.shareCode,
+        password: input.password,
+      });
+      await refreshData();
+      setStatusText(`已导入组合 ${result.portfolio.name}`);
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "导入组合失败";
+      setErrorText(message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return {
     createPortfolioAction,
     renamePortfolioAction,
@@ -280,6 +332,8 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
     updateFundAction,
     deleteFundAction,
     manualRefreshAction,
-    operatePositionAction
+    operatePositionAction,
+    sharePortfolioAction,
+    importPortfolioByShareCodeAction
   };
 }

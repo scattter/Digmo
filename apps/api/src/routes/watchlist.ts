@@ -4,6 +4,7 @@ import {
   ERROR_CODES,
   FlatFundItem,
   FundEstimateSnapshot,
+  PortfolioShareValidity,
   PortfolioFundItem,
   PositionOperationType,
   PortfolioSummary,
@@ -18,6 +19,7 @@ import {
   UpdatePortfolioFundInput,
   WatchlistStore
 } from "../infra/watchlist/sqlite-watchlist-store.js";
+import { ShareService } from "../modules/share/service.js";
 import { ValuationService } from "../modules/valuation/service.js";
 import { AppError } from "../utils/app-error.js";
 import { formatDate, isTradingDay, nowInShanghai } from "../utils/time.js";
@@ -27,6 +29,7 @@ interface RegisterWatchlistRoutesDeps {
   store: WatchlistStore;
   decisionStore?: DecisionStore;
   service: ValuationService;
+  shareService: ShareService;
   requireAuth: preHandlerHookHandler;
 }
 
@@ -148,6 +151,35 @@ function parseFundsTabIndex(raw: unknown): number {
   const value = typeof raw === "string" ? Number(raw.trim()) : Number(raw);
   if (!Number.isFinite(value) || value < 0 || Math.floor(value) !== value) {
     throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "fundsTabIndex must be a non-negative integer", 400);
+  }
+  return value;
+}
+
+function parseShareValidity(raw: unknown): PortfolioShareValidity {
+  if (raw === undefined || raw === null || raw === "") {
+    return "SEVEN_DAYS";
+  }
+  if (raw === "SEVEN_DAYS" || raw === "PERMANENT") {
+    return raw;
+  }
+  throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "validity must be SEVEN_DAYS or PERMANENT", 400);
+}
+
+function parseOptionalSharePassword(raw: unknown): string | undefined {
+  if (raw === undefined || raw === null || raw === "") {
+    return undefined;
+  }
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (!/^\d{6}$/.test(value)) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "password must be 6 digits", 400);
+  }
+  return value;
+}
+
+function parseShareCode(raw: unknown): string {
+  const value = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+  if (!/^[A-Z0-9]{8}$/.test(value)) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "shareCode must be an 8-char alphanumeric code", 400);
   }
   return value;
 }
@@ -572,6 +604,44 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
         }
         throw error;
       }
+    });
+
+    protectedApp.post("/v1/portfolios/:portfolioId/share", async (request) => {
+      const userId = requireUserId(request);
+      const params = request.params as { portfolioId: string };
+      ensurePortfolioId(params.portfolioId);
+
+      const body = request.body as {
+        validity?: unknown;
+        password?: unknown;
+      };
+      const validity = parseShareValidity(body?.validity);
+      const password = parseOptionalSharePassword(body?.password);
+
+      await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+      const result = await deps.shareService.createShare({
+        userId,
+        portfolioId: params.portfolioId,
+        validity,
+        password,
+      });
+      return result;
+    });
+
+    protectedApp.post("/v1/portfolios/import-by-share-code", async (request) => {
+      const userId = requireUserId(request);
+      const body = request.body as {
+        shareCode?: unknown;
+        password?: unknown;
+      };
+      const shareCode = parseShareCode(body?.shareCode);
+      const password = parseOptionalSharePassword(body?.password);
+
+      return deps.shareService.importByShareCode({
+        userId,
+        shareCode,
+        password,
+      });
     });
 
     protectedApp.patch("/v1/portfolios/order", async (request) => {

@@ -1,106 +1,154 @@
-# 010 当前代码变更汇总（2026-03-12）
+# 010 当前代码变更汇总（2026-03-13）
 
 ## 1. 变更范围概览
-1. 后端：组合页签布局偏好持久化能力（SQLite + API + 测试）。
-2. 前端：仪表盘主页面结构重构为顶部导航 + 可拖拽页签 + 三视图（账户汇总 / 全部基金 / 单组合详情）。
-3. 组件与交互：新增多组 dashboard 视图与卡片组件，优化弹窗与列表移动端体验。
-4. UI 与样式：补充滚动条隐藏样式、统一全局加载态视觉、修复空态居中展示。
-5. 依赖升级适配：批量迁移 Ant Design v6 弃用 API（`Spin.tip`、`Card.bordered`、`Space.direction`、`List`）。
+1. 后端新增「组合分享码」能力：支持生成分享快照、密码保护、有效期控制、按分享码导入。
+2. 数据层升级为 `schema_version=3`，为组合增加固定 `share_code`，并新增分享记录表。
+3. 可选接入 Redis 作为分享快照缓存，不可用时自动降级 SQLite。
+4. 决策 AI 请求补充网络瞬时错误重试机制，降低外部网络抖动导致的失败率。
+5. 前端仪表盘接入「分享组合 / 导入组合」完整交互链路。
 
 ## 2. 后端改动（apps/api）
-### 2.1 组合页签布局偏好
+### 2.1 配置与依赖
+- 文件：`apps/api/.env.example`
+  - 新增 Redis 配置项：`REDIS_ENABLED`、`REDIS_URL`、`REDIS_KEY_PREFIX`、`REDIS_CONNECT_TIMEOUT_MS`。
+- 文件：`apps/api/package.json`
+  - 新增依赖：`redis@^5.9.0`。
+- 文件：`apps/api/src/config.ts`
+  - 新增 `config.redis` 配置结构，支持自动推导启用状态（显式开关或存在 `REDIS_URL`）。
+
+### 2.2 应用装配
+- 文件：`apps/api/src/app.ts`
+  - 新增 `createShareCache` + `ShareService` 初始化与注入。
+  - `registerWatchlistRoutes` 增加 `shareService` 依赖。
+
+### 2.3 存储层与迁移
 - 文件：`apps/api/src/infra/watchlist/sqlite-watchlist-store.ts`
-- 新增 `PortfolioTabLayoutPreference` 类型与 `WatchlistStore` 接口能力：
-  - `getPortfolioTabLayoutPreference(userId)`
-  - `setPortfolioTabLayoutPreference(userId, preference)`
-- 新增表：`user_portfolio_layout_preference`
-  - 字段：`user_id`、`funds_tab_index`、`created_at`、`updated_at`
-  - `funds_tab_index` 约束为非负整数。
-- 新增读写实现，包含默认值兜底与入参归一化（`Math.max(0, Math.floor(...))`）。
+  - `PortfolioItem` 新增 `shareCode` 字段。
+  - `ExportDataPayload` 的 portfolio 项新增 `shareCode`，导出版本从 `1` 升级到 `2`。
+  - 新增 `PortfolioShareRecord` 与存储接口方法：
+    - `getActivePortfolioShareByCode(shareCode)`
+    - `replaceActivePortfolioShare(input)`
+  - 数据库迁移要点：
+    - `user_portfolio` 新增 `share_code` 列与唯一索引；
+    - 新建 `user_portfolio_share` 表记录分享快照与状态；
+    - 启动时对历史组合执行 `share_code` 回填；
+    - 旧表迁移、导入导出、创建组合流程均接入 `share_code`。
+  - 新增 8 位大写字母数字分享码生成逻辑及唯一性检测。
 
-### 2.2 路由与参数校验
+### 2.4 分享模块（新增）
+- 文件：`apps/api/src/modules/share/service.ts`（新增）
+  - 提供 `createShare`：
+    - 基于组合当前基金快照生成分享记录；
+    - 支持 `SEVEN_DAYS / PERMANENT` 有效期；
+    - 支持 6 位数字可选密码（哈希存储）。
+  - 提供 `importByShareCode`：
+    - 校验分享可用性、过期状态与密码；
+    - 按快照创建新组合并导入基金（持仓金额归零，比例组合保留 `plannedRatio`）；
+    - 自动处理导入命名冲突（`(导入) / (导入2)...`）。
+- 文件：`apps/api/src/modules/share/cache.ts`（新增）
+  - 可选 Redis 缓存实现，支持 TTL 与异常自动降级。
+
+### 2.5 路由扩展
 - 文件：`apps/api/src/routes/watchlist.ts`
-- 新增参数解析：`parseFundsTabIndex`（非负整数校验，不合法返回 400）。
-- 新增接口：
-  - `GET /v1/portfolios/tab-layout`
-  - `PATCH /v1/portfolios/tab-layout`
+  - 新增参数解析：
+    - `parseShareValidity`
+    - `parseOptionalSharePassword`（6 位数字）
+    - `parseShareCode`（8 位字母数字，自动大写）
+  - 新增接口：
+    - `POST /v1/portfolios/:portfolioId/share`
+    - `POST /v1/portfolios/import-by-share-code`
 
-### 2.3 测试与数据文件
+### 2.6 决策模块健壮性增强
+- 文件：`apps/api/src/modules/decision/openai-provider.ts`
+  - 新增 `fetchWithRetry`，对瞬时网络错误进行最多 2 次请求尝试。
+  - `responses`、`chat/completions`、纯文本 fallback 全部接入重试。
+- 文件：`apps/api/src/modules/decision/__tests__/openai-provider.test.ts`
+  - 新增网络失败后重试成功的用例。
+
+### 2.7 测试补充
 - 文件：`apps/api/src/routes/__tests__/watchlist-routes.test.ts`
-- 新增集成测试：
-  - 默认值为 0；
-  - PATCH 后可读回；
-  - 重启后仍持久化；
-  - 非法输入（如 `-1`）返回 400。
-- 文件：`apps/api/data/watchlist.sqlite`
-  - 本地 SQLite 数据文件随结构/数据同步更新。
+  - 新增分享与导入相关集成测试：
+    - 缺少 `share_code` 列时的历史数据迁移；
+    - 组合创建时生成固定分享码；
+    - 密码分享与按码导入（含错误密码/缺密码）；
+    - 分享快照不可变导入与同名自动后缀；
+    - 过期分享返回不可用。
+- 文件：`apps/api/src/routes/__tests__/decision-routes.test.ts`
+  - 测试应用装配补充 `ShareService` 注入。
 
 ## 3. 前端改动（apps/web）
-### 3.1 页面主结构重构
+### 3.1 仪表盘主流程接入分享/导入
 - 文件：`apps/web/app/fund-dashboard.tsx`
-- 从旧的分段滚动布局切换为 TopNav 驱动布局：
-  - 顶部摘要栏 + 页签导航；
-  - 视图切换为 `summary | funds | portfolio`。
-- 新增页签拖拽排序逻辑（基于 dnd-kit），并接入后端持久化：
-  - 首次加载 `fetchPortfolioTabLayout()`；
-  - 拖拽后 `updatePortfolioTabLayout()` 与 `reorderPortfolios()` 并发提交；
-  - 失败回滚 UI 状态。
-- 新增首屏全局 Loading 蒙层（仅首轮加载生效），并统一加载文案颜色为项目蓝色。
-- 登录校验态提示改为 `Spin.description`。
+  - 新增 `ImportPortfolioDialog` 与 `SharePortfolioDialog` 的状态管理和渲染。
+  - 顶部导航新增「导入组合」入口。
+  - 组合详情视图新增「分享组合」入口。
+  - 导入成功后自动切换到新导入组合页签。
 
-### 3.2 API 客户端扩展
+### 3.2 交互组件调整
+- 文件：`apps/web/components/dashboard/layout/top-nav-layout.tsx`
+  - 新增导入按钮（桌面端与移动端均支持）。
+- 文件：`apps/web/components/dashboard/views/portfolio-detail-view.tsx`
+  - 透传 `onOpenShareDialog`。
+- 文件：`apps/web/components/dashboard/features/portfolios/portfolio-funds-table.tsx`
+  - 新增「分享组合」按钮；
+  - 头部文案与 header padding 微调。
+
+### 3.3 新增弹窗（新增文件）
+- 文件：`apps/web/components/dashboard/dialogs/import-portfolio-dialog.tsx`（新增）
+  - 输入分享码与可选密码，前端规则校验格式后提交。
+- 文件：`apps/web/components/dashboard/dialogs/share-portfolio-dialog.tsx`（新增）
+  - 设置有效期与可选密码，生成后展示分享码并支持复制。
+
+### 3.4 前端 API 与动作层
 - 文件：`apps/web/lib/api.ts`
-- 新增接口：
-  - `fetchPortfolioTabLayout()`
-  - `updatePortfolioTabLayout(fundsTabIndex)`
+  - 新增：
+    - `sharePortfolio(...)`
+    - `importPortfolioByShareCode(...)`
+- 文件：`apps/web/hooks/use-portfolio-actions.ts`
+  - 新增：
+    - `sharePortfolioAction(...)`
+    - `importPortfolioByShareCodeAction(...)`
+  - 接入 loading/status/error 流程与导入后刷新逻辑。
 
-### 3.3 新增组件（未跟踪文件）
-- `apps/web/components/dashboard/layout/top-nav-layout.tsx`
-  - 顶部品牌区、用户操作区、可拖拽页签区、资产摘要条。
-- `apps/web/components/dashboard/navigation/draggable-tab-list.tsx`
-  - 固定页签 + 可拖拽页签混排，支持移动端横向滚动。
-- `apps/web/components/dashboard/views/account-summary-view.tsx`
-  - 账户汇总网格视图，空态“暂无组合，请先创建”居中展示。
-- `apps/web/components/dashboard/views/portfolio-detail-view.tsx`
-  - 单组合详情视图，整合决策摘要、达成情况、持仓表格与历史弹窗。
-- `apps/web/components/dashboard/cards/portfolio-summary-card.tsx`
-  - 组合摘要卡片（资产、持有收益、当日收益）。
-- `apps/web/components/dashboard/cards/decision-card.tsx`
-  - 决策动作卡片（标签、置信度、引用来源等）。
-- `apps/web/components/dashboard/cards/plan-completion-card.tsx`
-  - 比例计划达成卡片（计划/实际/超配进度）。
+## 4. 共享协议层改动（packages/shared）
+- 文件：`packages/shared/src/constants.ts`
+  - 新增错误码：
+    - `SHARE_NOT_AVAILABLE`
+    - `SHARE_PASSWORD_REQUIRED`
+    - `SHARE_PASSWORD_INVALID`
+- 文件：`packages/shared/src/types.ts`
+  - 新增类型：
+    - `PortfolioShareValidity`
+    - `PortfolioShareResult`
+    - `ImportPortfolioByShareCodeResult`
 
-### 3.4 业务组件与弹窗优化
-- `flat-add-fund-dialog.tsx`
-  - 新增 `initialPortfolioId` 入参，打开时自动回填目标组合；
-  - `destroyOnClose` -> `destroyOnHidden`；弹窗居中。
-- `portfolio-add-fund-dialog.tsx`、`create-portfolio-dialog.tsx`、`update-fund-dialog.tsx`、`decision-history-dialog.tsx`
-  - 弹窗统一 `centered`；部分内部文案与控件新 API 适配。
+## 5. 数据文件变更
+- 文件：`apps/api/data/watchlist.sqlite`
+  - 本地 SQLite 数据文件已随分享相关结构/数据变更更新（binary diff）。
 
-### 3.5 表格与列表体验优化
-- `features/funds/flat-funds-table.tsx`
-  - 增加客户端列排序（金额/涨跌/估算）；
-  - 去除旧排序按钮，改由表头排序；
-  - 移动端 `List` 改为 `Flex + Card` 渲染（规避 antd List 弃用）；
-  - `Space.direction` 迁移为 `Space.orientation`。
-- `features/portfolios/portfolio-funds-table.tsx`
-  - 移动端收窄列宽与横向滚动阈值；
-  - 拖拽列仅在非移动端显示；
-  - 比例列按组合类型条件渲染；
-  - `bodyStyle` 迁移为 `styles.body`。
-- `features/analytics/estimate-analysis-panel.tsx`
-  - `List` 改为 `Flex` 列表渲染，保留原信息结构。
-
-## 4. 样式与 UI 细节
-- 文件：`apps/web/app/globals.css`
-- 新增 `.scrollbar-hide` 工具类（含 WebKit 与 Firefox/IE 兼容处理），用于移动端横向滚动容器。
-
-## 5. Ant Design 弃用 API 迁移清单
-1. `Spin`：`tip` -> `description`。
-2. `Card`：`bordered={false}` -> `variant="borderless"`。
-3. `Space`：`direction` -> `orientation`。
-4. `List`：业务代码中移除 `antd List` 使用，改为 `Flex + map` 渲染。
-
-## 6. 其他变更
-1. `apps/web/tsconfig.tsbuildinfo`：TypeScript 增量编译产物更新。
-2. 本次改动涉及 tracked + untracked 文件并行演进，已统一纳入本汇总。
+## 6. 本次纳入的改动文件
+- 修改：
+  - `apps/api/.env.example`
+  - `apps/api/data/watchlist.sqlite`
+  - `apps/api/package.json`
+  - `apps/api/src/app.ts`
+  - `apps/api/src/config.ts`
+  - `apps/api/src/infra/watchlist/sqlite-watchlist-store.ts`
+  - `apps/api/src/modules/decision/__tests__/openai-provider.test.ts`
+  - `apps/api/src/modules/decision/openai-provider.ts`
+  - `apps/api/src/routes/__tests__/decision-routes.test.ts`
+  - `apps/api/src/routes/__tests__/watchlist-routes.test.ts`
+  - `apps/api/src/routes/watchlist.ts`
+  - `apps/web/app/fund-dashboard.tsx`
+  - `apps/web/components/dashboard/features/portfolios/portfolio-funds-table.tsx`
+  - `apps/web/components/dashboard/layout/top-nav-layout.tsx`
+  - `apps/web/components/dashboard/views/portfolio-detail-view.tsx`
+  - `apps/web/hooks/use-portfolio-actions.ts`
+  - `apps/web/lib/api.ts`
+  - `packages/shared/src/constants.ts`
+  - `packages/shared/src/types.ts`
+- 新增：
+  - `apps/api/src/modules/share/cache.ts`
+  - `apps/api/src/modules/share/service.ts`
+  - `apps/web/components/dashboard/dialogs/import-portfolio-dialog.tsx`
+  - `apps/web/components/dashboard/dialogs/share-portfolio-dialog.tsx`

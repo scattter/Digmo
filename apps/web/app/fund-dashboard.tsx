@@ -19,6 +19,8 @@ import { PortfolioDetailView } from "@/components/dashboard/views/portfolio-deta
 
 import { CreatePortfolioDialog } from "@/components/dashboard/dialogs/create-portfolio-dialog";
 import { FlatAddFundDialog } from "@/components/dashboard/dialogs/flat-add-fund-dialog";
+import { ImportPortfolioDialog } from "@/components/dashboard/dialogs/import-portfolio-dialog";
+import { SharePortfolioDialog } from "@/components/dashboard/dialogs/share-portfolio-dialog";
 
 import { FlatFundsTable } from "@/components/dashboard/features/funds/flat-funds-table";
 
@@ -59,6 +61,8 @@ export default function FundDashboard() {
   // Dialog states
   const [isCreatePortfolioDialogOpen, setIsCreatePortfolioDialogOpen] = useState(false);
   const [isFlatAddFundDialogOpen, setIsFlatAddFundDialogOpen] = useState(false);
+  const [isImportPortfolioDialogOpen, setIsImportPortfolioDialogOpen] = useState(false);
+  const [isSharePortfolioDialogOpen, setIsSharePortfolioDialogOpen] = useState(false);
 
   const computeIntradayProfitAmount = (totalAmount: number, intradayEstimatePct: number) =>
     totalAmount - totalAmount / (1 + intradayEstimatePct);
@@ -210,6 +214,11 @@ export default function FundDashboard() {
 
     return [summaryTab, ...draggable];
   }, [dashboard.portfolios, fundsTabIndex]);
+
+  const activePortfolio = useMemo(
+    () => dashboard.portfolios.find((item) => item.id === activeTabId),
+    [dashboard.portfolios, activeTabId]
+  );
 
   function handleTabDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -393,6 +402,7 @@ export default function FundDashboard() {
               // `FundDashboard` doesn't import `useFundReorder`.
               // I should check if `useFundReorder` exists.
               onOpenAddFundDialog={() => setIsFlatAddFundDialogOpen(true)} // Wait, FlatAddFundDialog adds to *selected* portfolio?
+              onOpenShareDialog={() => setIsSharePortfolioDialogOpen(true)}
               // `FlatAddFundDialog` has a portfolio select dropdown.
               // We want to pre-select the current portfolio.
               // We can pass `initialPortfolioId={activeTabId}` to it.
@@ -422,6 +432,7 @@ export default function FundDashboard() {
         username={currentUser.username}
         onLogout={handleLogout}
         onCreatePortfolio={() => setIsCreatePortfolioDialogOpen(true)}
+        onImportPortfolio={() => setIsImportPortfolioDialogOpen(true)}
         summaryBar={activeSummaryBar}
         tabs={tabs}
         activeTabId={activeTabId}
@@ -438,6 +449,26 @@ export default function FundDashboard() {
             setIsCreatePortfolioDialogOpen(false);
           }}
           isBusy={dashboard.isBusy}
+        />
+
+        <ImportPortfolioDialog
+          open={isImportPortfolioDialogOpen}
+          onOpenChange={setIsImportPortfolioDialogOpen}
+          isBusy={dashboard.isBusy}
+          onSubmit={async (values) => {
+            const result = await actions.importPortfolioByShareCodeAction(values);
+            setIsImportPortfolioDialogOpen(false);
+            setActiveTabId(result.portfolio.id);
+          }}
+        />
+
+        <SharePortfolioDialog
+          open={isSharePortfolioDialogOpen}
+          onOpenChange={setIsSharePortfolioDialogOpen}
+          portfolioId={activePortfolio?.id}
+          portfolioName={activePortfolio?.name}
+          isBusy={dashboard.isBusy}
+          onSubmit={(values) => actions.sharePortfolioAction(values)}
         />
 
         <FlatAddFundDialog

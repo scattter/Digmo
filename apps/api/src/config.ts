@@ -35,6 +35,12 @@ export interface AppConfig {
     bootstrapAdminUsername: string;
     bootstrapAdminPassword: string;
   };
+  redis: {
+    enabled: boolean;
+    url?: string;
+    keyPrefix: string;
+    connectTimeoutMs: number;
+  };
 }
 
 function toPositiveInt(raw: string | undefined, defaultValue: number): number {
@@ -70,6 +76,11 @@ export function getConfig(): AppConfig {
 
   const eastmoneyEnabled =
     (process.env.EASTMONEY_ENABLED ?? "true").toLowerCase() === "true";
+  const redisUrl = process.env.REDIS_URL?.trim();
+  const redisEnabledRaw = (process.env.REDIS_ENABLED ?? "").trim().toLowerCase();
+  const redisEnabled = redisEnabledRaw
+    ? redisEnabledRaw !== "false"
+    : Boolean(redisUrl);
   const decisionProviderRaw = (
     process.env.DECISION_AI_PROVIDER ?? "openai"
   ).toLowerCase();
@@ -116,6 +127,12 @@ export function getConfig(): AppConfig {
         process.env.AUTH_BOOTSTRAP_ADMIN_USERNAME ?? "admin",
       bootstrapAdminPassword:
         process.env.AUTH_BOOTSTRAP_ADMIN_PASSWORD ?? "admin123456",
+    },
+    redis: {
+      enabled: redisEnabled,
+      url: redisUrl,
+      keyPrefix: process.env.REDIS_KEY_PREFIX ?? "digmo:portfolio-share:",
+      connectTimeoutMs: toPositiveInt(process.env.REDIS_CONNECT_TIMEOUT_MS, 1000),
     },
   };
 }

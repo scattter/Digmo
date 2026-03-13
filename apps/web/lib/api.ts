@@ -5,9 +5,12 @@ import {
   DecisionDocFormat,
   FlatFundItem,
   FundEstimateSnapshot,
+  ImportPortfolioByShareCodeResult,
   LoginResponse,
   PortfolioDecisionDoc,
   PortfolioFundItem,
+  PortfolioShareResult,
+  PortfolioShareValidity,
   PositionOperationRecord,
   PositionOperationType,
   PortfolioSummary,
@@ -440,4 +443,45 @@ export async function fetchDailyDecisionHistory(portfolioId: string, limit = 10)
   await ensureOk(response, "Fetch daily decision history failed");
   const data = (await response.json()) as { items?: DailyDecision[] };
   return data.items ?? [];
+}
+
+export async function sharePortfolio(params: {
+  portfolioId: string;
+  validity?: PortfolioShareValidity;
+  password?: string;
+}): Promise<PortfolioShareResult> {
+  const response = await apiRequest(`/v1/portfolios/${params.portfolioId}/share`, {
+    method: "POST",
+    auth: true,
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      validity: params.validity ?? "SEVEN_DAYS",
+      password: params.password
+    })
+  });
+
+  await ensureOk(response, "Share portfolio failed");
+  return response.json() as Promise<PortfolioShareResult>;
+}
+
+export async function importPortfolioByShareCode(params: {
+  shareCode: string;
+  password?: string;
+}): Promise<ImportPortfolioByShareCodeResult> {
+  const response = await apiRequest("/v1/portfolios/import-by-share-code", {
+    method: "POST",
+    auth: true,
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      shareCode: params.shareCode,
+      password: params.password
+    })
+  });
+
+  await ensureOk(response, "Import portfolio failed");
+  return response.json() as Promise<ImportPortfolioByShareCodeResult>;
 }

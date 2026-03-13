@@ -23,6 +23,8 @@ import { ValuationScheduler } from "./modules/valuation/scheduler.js";
 import { ValuationService } from "./modules/valuation/service.js";
 import { ValuationTaskRunner } from "./modules/valuation/task.js";
 import { createRequireAuth } from "./routes/middleware/require-auth.js";
+import { createShareCache } from "./modules/share/cache.js";
+import { ShareService } from "./modules/share/service.js";
 
 export interface AppContext {
   app: FastifyInstance;
@@ -82,6 +84,12 @@ export async function buildApp(): Promise<AppContext> {
     bootstrapAdminPassword: config.auth.bootstrapAdminPassword,
   });
   const decisionStore = new SqliteDecisionStore(config.watchlist.dbPath);
+  const shareCache = await createShareCache(config.redis, app.log);
+  const shareService = new ShareService({
+    store: watchlistStore,
+    cache: shareCache,
+    logger: app.log,
+  });
   const lock = new MemoryLockProvider();
   const provider = new EastmoneyFundDataProvider(
     config.targetFunds,
@@ -136,6 +144,7 @@ export async function buildApp(): Promise<AppContext> {
     store: watchlistStore,
     decisionStore,
     service,
+    shareService,
     requireAuth,
   });
   registerDecisionRoutes(app, {

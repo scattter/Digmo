@@ -13,6 +13,7 @@ import { createRequireAuth } from "../middleware/require-auth.js";
 import { signAccessToken } from "../../modules/auth/token.js";
 import { formatDate, isTradingDay, nowInShanghai } from "../../utils/time.js";
 import { registerWatchlistRoutes } from "../watchlist.js";
+import { ShareService } from "../../modules/share/service.js";
 
 interface TestCtx {
   root: string;
@@ -162,6 +163,7 @@ async function createRouteApp(
     store,
     decisionStore: options?.decisionStore,
     service,
+    shareService: new ShareService({ store }),
     requireAuth
   });
 
@@ -431,6 +433,51 @@ describe("watchlist routes", () => {
     expect(secondPortfolios.length).toBe(1);
     const secondFunds = await secondStore.listPortfolioFunds(secondAdmin!.id, secondPortfolios[0].id);
     expect(secondFunds.length).toBe(1);
+  });
+
+  test("migrates legacy portfolio rows when user_portfolio misses share_code column", async () => {
+    const ctx = createTempCtx();
+
+    const legacyDb = new DatabaseSync(ctx.dbPath);
+    legacyDb.exec(`
+      CREATE TABLE user_portfolio (
+        user_id TEXT NOT NULL,
+        id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('FREE', 'RATIO')),
+        display_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, id)
+      );
+
+      CREATE TABLE user_portfolio_legacy (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('FREE', 'RATIO')),
+        display_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT,
+        updated_at TEXT
+      );
+    `);
+    legacyDb
+      .prepare(
+        `
+          INSERT INTO user_portfolio_legacy (id, name, type, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `
+      )
+      .run("legacy-free", "老组合", "FREE", 0, "2026-03-01 09:00:00", "2026-03-01 09:00:00");
+    legacyDb.close();
+
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const admin = await store.getUserByUsername("admin");
+    expect(admin).toBeDefined();
+
+    const portfolios = await store.listPortfolios(admin!.id);
+    const migrated = portfolios.find((item) => item.id === "legacy-free");
+    expect(migrated).toBeDefined();
+    expect(migrated!.shareCode).toHaveLength(8);
   });
 
   test("exports and imports user data payload", async () => {
@@ -1494,6 +1541,236 @@ describe("watchlist routes", () => {
     const payload = filteredResp.json() as { items: Array<{ fundCode: string }> };
     expect(payload.items.length).toBe(1);
     expect(payload.items[0].fundCode).toBe("161725");
+
+    await app.close();
+  });
+
+  test("creates fixed share code for each portfolio", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, { "161725": 0.01 });
+
+    await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "分享组合A", type: "FREE" },
+    });
+    await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "分享组合B", type: "FREE" },
+    });
+
+    const admin = await store.getUserByUsername("admin");
+    expect(admin).toBeDefined();
+    const portfolios = await store.listPortfolios(admin!.id);
+    const shareCodes = portfolios.map((item) => item.shareCode);
+    expect(shareCodes.length).toBe(2);
+    expect(shareCodes[0]).toMatch(/^[A-Z0-9]{8}$/);
+    expect(shareCodes[1]).toMatch(/^[A-Z0-9]{8}$/);
+    expect(new Set(shareCodes).size).toBe(2);
+
+    await app.close();
+  });
+
+  test("shares snapshot and imports with zero amounts while preserving planned ratios", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.01,
+      "110011": 0.02,
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "按比组合", type: "RATIO" },
+    });
+    const sourcePortfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${sourcePortfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 2000, holdingProfitAmount: 120, plannedRatio: 0.6 },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${sourcePortfolioId}/funds`,
+      payload: { fundCode: "110011", holdingAmount: 3000, holdingProfitAmount: -50, plannedRatio: 0.4 },
+    });
+
+    const shareResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${sourcePortfolioId}/share`,
+      payload: { password: "123456" },
+    });
+    expect(shareResp.statusCode).toBe(200);
+    const sharePayload = shareResp.json() as { shareCode: string; hasPassword: boolean };
+    expect(sharePayload.hasPassword).toBe(true);
+
+    const importResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios/import-by-share-code",
+      payload: {
+        shareCode: sharePayload.shareCode.toLowerCase(),
+        password: "123456",
+      },
+    });
+    expect(importResp.statusCode).toBe(200);
+    const importPayload = importResp.json() as {
+      portfolio: { id: string; type: string };
+      importedFundCount: number;
+    };
+    expect(importPayload.portfolio.type).toBe("RATIO");
+    expect(importPayload.importedFundCount).toBe(2);
+
+    const fundsResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${importPayload.portfolio.id}/funds`,
+    });
+    expect(fundsResp.statusCode).toBe(200);
+    const fundsPayload = fundsResp.json() as {
+      funds: Array<{ fundCode: string; holdingAmount: number; holdingProfitAmount: number; plannedRatio?: number }>;
+    };
+    expect(fundsPayload.funds.length).toBe(2);
+    const first = fundsPayload.funds.find((item) => item.fundCode === "161725");
+    const second = fundsPayload.funds.find((item) => item.fundCode === "110011");
+    expect(first?.holdingAmount).toBe(0);
+    expect(first?.holdingProfitAmount).toBe(0);
+    expect(first?.plannedRatio).toBe(0.6);
+    expect(second?.holdingAmount).toBe(0);
+    expect(second?.holdingProfitAmount).toBe(0);
+    expect(second?.plannedRatio).toBe(0.4);
+
+    const missingPasswordResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios/import-by-share-code",
+      payload: {
+        shareCode: sharePayload.shareCode,
+      },
+    });
+    expect(missingPasswordResp.statusCode).toBe(400);
+
+    const wrongPasswordResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios/import-by-share-code",
+      payload: {
+        shareCode: sharePayload.shareCode,
+        password: "654321",
+      },
+    });
+    expect(wrongPasswordResp.statusCode).toBe(400);
+
+    await app.close();
+  });
+
+  test("imports share snapshot immutably and auto-suffixes conflicting names", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.01,
+      "110011": 0.02,
+      "020273": 0.03,
+    });
+
+    const sourceResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "策略组合", type: "FREE" },
+    });
+    const sourcePortfolioId = (sourceResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${sourcePortfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000 },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${sourcePortfolioId}/share`,
+      payload: { validity: "PERMANENT" },
+    });
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${sourcePortfolioId}/funds`,
+      payload: { fundCode: "110011", holdingAmount: 1500 },
+    });
+
+    await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "策略组合 (导入)", type: "FREE" },
+    });
+
+    const admin = await store.getUserByUsername("admin");
+    expect(admin).toBeDefined();
+    const sourcePortfolio = await store.getPortfolio(admin!.id, sourcePortfolioId);
+    expect(sourcePortfolio).toBeDefined();
+
+    const importResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios/import-by-share-code",
+      payload: { shareCode: sourcePortfolio!.shareCode },
+    });
+    expect(importResp.statusCode).toBe(200);
+    const importPayload = importResp.json() as {
+      portfolio: { id: string; name: string };
+      importedFundCount: number;
+    };
+    expect(importPayload.portfolio.name).toBe("策略组合 (导入2)");
+    expect(importPayload.importedFundCount).toBe(1);
+
+    const importedFundsResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${importPayload.portfolio.id}/funds`,
+    });
+    const importedFunds = (importedFundsResp.json() as { funds: Array<{ fundCode: string }> }).funds;
+    expect(importedFunds.length).toBe(1);
+    expect(importedFunds[0].fundCode).toBe("161725");
+
+    await app.close();
+  });
+
+  test("returns unavailable for expired share", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, { "161725": 0.01 });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "过期分享组合", type: "FREE" },
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000 },
+    });
+    const shareResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/share`,
+      payload: { validity: "SEVEN_DAYS" },
+    });
+    const shareCode = (shareResp.json() as { shareCode: string }).shareCode;
+
+    const db = new DatabaseSync(ctx.dbPath);
+    db.prepare(
+      `
+        UPDATE user_portfolio_share
+        SET expires_at = ?
+        WHERE share_code = ? AND status = 'ACTIVE'
+      `,
+    ).run("2000-01-01T00:00:00.000Z", shareCode);
+    db.close();
+
+    const importResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios/import-by-share-code",
+      payload: { shareCode },
+    });
+    expect(importResp.statusCode).toBe(404);
 
     await app.close();
   });
