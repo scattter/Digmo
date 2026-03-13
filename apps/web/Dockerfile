@@ -25,6 +25,7 @@ ENV NEXT_PUBLIC_API_BASE_URL="${NEXT_PUBLIC_API_BASE_URL}"
 
 RUN pnpm --filter @digmo/shared build
 RUN pnpm --filter @digmo/web build
+RUN mkdir -p /app/apps/web/public
 
 FROM node:22-alpine AS runtime
 
