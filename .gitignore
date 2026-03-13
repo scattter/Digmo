@@ -9,6 +9,5 @@ coverage
 !.env.example
 apps/api/.env
 .DS_Store
-pnpm-lock.yaml
 .vercel
 .env*.local
