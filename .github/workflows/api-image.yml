@@ -1,4 +1,4 @@
-name: Build And Push API Image
+name: Build And Push Images
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/api-image.yml"
       - "apps/api/**"
+      - "apps/web/**"
       - "packages/shared/**"
       - "package.json"
       - "pnpm-lock.yaml"
@@ -20,11 +21,21 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/digmo-api
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: api
+            image_name: digmo-api
+            dockerfile: apps/api/Dockerfile
+          - component: web
+            image_name: digmo-web
+            dockerfile: apps/web/Dockerfile
 
     steps:
       - name: Checkout
@@ -47,7 +58,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.image_name }}
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -58,7 +69,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/api/Dockerfile
+          file: ${{ matrix.dockerfile }}
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
