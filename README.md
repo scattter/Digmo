@@ -22,3 +22,12 @@ Digmo 是一个围绕场外基金盘中估值的多端系统 MVP，优先交付�
 - 默认时区：`Asia/Shanghai`
 - 估值是盘中估算值，不等同基金公司官方净值
 - MVP 数据层优先 MCP 聚合，生产建议替换为持牌/商业数据源
+
+## GitHub 镜像 CI
+
+- 工作流文件：`.github/workflows/api-image.yml`
+- 触发条件：`push` 到 `master`（且涉及 `apps/api` / `packages/shared` / 关键构建文件）或手动触发
+- 镜像仓库：`ghcr.io/<github_owner>/digmo-api`
+- 标签策略：分支名、Tag、`sha-<commit>`，默认分支额外推送 `latest`
+
+首次使用前请确认仓库 `Actions` 已启用，且工作流权限允许 `Read and write`（用于向 GHCR 推送镜像）。
