@@ -37,7 +37,7 @@ interface RealtimeFundEstimate {
   fundCode: string;
   name?: string;
   officialNav?: number;
-  estimateNav: number;
+  estimateNav?: number;
   changePct: number;
   quoteTime: string;
 }
@@ -311,41 +311,41 @@ export class ValuationService {
       throw new AppError(ERROR_CODES.ESTIMATE_NOT_READY, `No NAV for fund ${fundCode}`, 503);
     }
 
-    const realtime = await this.realtimeEstimateFetcher(fundCode, options.now);
     const today = formatDate(options.now);
     const tradingDay = isTradingDay(options.now);
-    const realtimeIsToday = Boolean(realtime && isSameShanghaiDate(realtime.quoteTime, today));
-    const useRealtimeMode = tradingDay && realtimeIsToday;
-    const realtimeDuringTradingTime = useRealtimeMode && isTradingTime(options.now);
 
-    const method: ValuationMethod = realtimeDuringTradingTime ? "BETA_PROXY" : "INDEX_TRACKING";
+    let method: ValuationMethod = "INDEX_TRACKING";
     const fitScore = 1;
     const recentError = 0;
-    const quoteTime = useRealtimeMode && realtime ? realtime.quoteTime : options.now.toISOString();
-    const stalenessSec = useRealtimeMode && realtime ? secondsStaleness(realtime.quoteTime, options.now) : 0;
+    let quoteTime = options.now.toISOString();
+    let stalenessSec = 0;
+    const quoteCodes: string[] = [fundCode];
 
     let estimateNav = latestNav.nav;
-    let estimateChangePct = latestNav.dailyReturn;
+    let estimateChangePct = 0;
     let fundName = profile.fundName;
     let officialNav = latestNav.nav;
 
-    if (useRealtimeMode && realtime) {
-      estimateNav = realtime.estimateNav;
-      estimateChangePct = realtime.changePct;
-      fundName = realtime.name ?? profile.fundName;
-      officialNav = realtime.officialNav ?? latestNav.nav;
-    } else if (tradingDay) {
-      // 交易日必须使用当日实时估值；若接口不可用或非当日数据，盘中估算涨跌统一置 0，避免回退到上一交易日收益。
-      estimateNav = latestNav.nav;
-      estimateChangePct = 0;
-      fundName = realtime?.name ?? profile.fundName;
-      officialNav = latestNav.nav;
-    } else {
+    if (!tradingDay) {
       // 非交易日盘中估算涨跌固定为 0。
       estimateNav = latestNav.nav;
       estimateChangePct = 0;
-      fundName = realtime?.name ?? profile.fundName;
-      officialNav = latestNav.nav;
+    } else {
+      const realtime = await this.realtimeEstimateFetcher(fundCode, options.now);
+      const realtimeIsToday = Boolean(realtime && isSameShanghaiDate(realtime.quoteTime, today));
+      if (realtime && realtimeIsToday) {
+        method = "FUND_GZ_DIRECT";
+        estimateChangePct = realtime.changePct;
+        fundName = realtime.name ?? profile.fundName;
+        officialNav = realtime.officialNav ?? latestNav.nav;
+        estimateNav =
+          realtime.estimateNav ?? Number((officialNav * (1 + estimateChangePct)).toFixed(6));
+        quoteTime = realtime.quoteTime;
+        stalenessSec = secondsStaleness(realtime.quoteTime, options.now);
+      } else {
+        estimateNav = latestNav.nav;
+        estimateChangePct = 0;
+      }
     }
 
     const confidence = evaluateConfidence({
@@ -374,7 +374,7 @@ export class ValuationService {
       disclaimer: DISCLAIMER,
       estimateTimeBucket: options.bucketIso ?? floorToBucketIso(options.now, getBucketSeconds(options.now)),
       inputs: {
-        quoteCodes: [fundCode],
+        quoteCodes,
         quoteTime,
         fitScore,
         holdingReportDate: holding?.reportDate,
@@ -521,15 +521,12 @@ export class ValuationService {
       }
 
       const officialNav = toFiniteNumber(payload.dwjz);
-      const estimateNavFromPayload = toFiniteNumber(payload.gsz);
-      const changePctPercent = toFiniteNumber(payload.gszzl) ?? 0;
-      const changePct = Number((changePctPercent / 100).toFixed(6));
-
-      const estimateNav = estimateNavFromPayload;
-
-      if (typeof estimateNav !== "number") {
+      const estimateNav = toFiniteNumber(payload.gsz);
+      const changePctPercent = toFiniteNumber(payload.gszzl);
+      if (typeof changePctPercent !== "number") {
         return undefined;
       }
+      const changePct = Number((changePctPercent / 100).toFixed(6));
 
       return {
         fundCode: code,

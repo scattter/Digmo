@@ -27,4 +27,24 @@ describe("confidence scoring", () => {
     expect(result.level).toBe("LOW");
     expect(result.score).toBeLessThan(60);
   });
+
+  test("does not apply beta penalty to fundgz direct method", () => {
+    const baseInput = {
+      quoteStalenessSec: 10,
+      holdingAgeDays: 20,
+      fitScore: 0.9,
+      recentError: 0.001
+    };
+
+    const direct = evaluateConfidence({
+      ...baseInput,
+      method: "FUND_GZ_DIRECT"
+    });
+    const beta = evaluateConfidence({
+      ...baseInput,
+      method: "BETA_PROXY"
+    });
+
+    expect(direct.score).toBeGreaterThan(beta.score);
+  });
 });

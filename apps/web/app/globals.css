@@ -158,6 +158,14 @@
   display: none;
 }
 
+.decision-summary-spin-wrapper.ant-spin-nested-loading {
+  height: 100%;
+}
+
+.decision-summary-spin-wrapper .ant-spin-container {
+  height: 100%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

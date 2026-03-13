@@ -1,6 +1,6 @@
 export type ConfidenceLevel = "HIGH" | "MEDIUM" | "LOW";
 
-export type ValuationMethod = "INDEX_TRACKING" | "BETA_PROXY";
+export type ValuationMethod = "INDEX_TRACKING" | "BETA_PROXY" | "FUND_GZ_DIRECT";
 
 export interface FundEstimateSnapshot {
   fundCode: string;

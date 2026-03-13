@@ -93,6 +93,14 @@ async function ensureOk(response: Response, message: string): Promise<void> {
   throw new Error(detail ? `${message}: ${detail}` : `${message} (status ${response.status})`);
 }
 
+function normalizeFundCodeForPath(rawFundCode: string): string {
+  const sanitized = rawFundCode.trim().replace(/^[^0-9]+|[^0-9]+$/g, "");
+  if (!/^\d{6}$/.test(sanitized)) {
+    throw new Error("基金代码格式不正确，请检查后重试");
+  }
+  return sanitized;
+}
+
 export async function login(username: string, password: string): Promise<LoginResponse> {
   const response = await apiRequest("/v1/auth/login", {
     method: "POST",
@@ -129,7 +137,8 @@ export async function fetchBatchEstimates(fundCodes: string[]): Promise<BatchEst
 }
 
 export async function fetchSingleEstimate(fundCode: string): Promise<FundEstimateSnapshot> {
-  const response = await apiRequest(`/v1/funds/${fundCode}/estimate`);
+  const normalizedFundCode = normalizeFundCodeForPath(fundCode);
+  const response = await apiRequest(`/v1/funds/${normalizedFundCode}/estimate`);
   await ensureOk(response, "Fund request failed");
   return response.json() as Promise<FundEstimateSnapshot>;
 }
@@ -280,7 +289,8 @@ export async function updatePortfolioFund(params: {
   holdingProfitAmount?: number;
   plannedRatio?: number;
 }): Promise<void> {
-  const response = await apiRequest(`/v1/portfolios/${params.portfolioId}/funds/${params.fundCode}`, {
+  const normalizedFundCode = normalizeFundCodeForPath(params.fundCode);
+  const response = await apiRequest(`/v1/portfolios/${params.portfolioId}/funds/${normalizedFundCode}`, {
     method: "PATCH",
     auth: true,
     headers: {
@@ -297,7 +307,8 @@ export async function updatePortfolioFund(params: {
 }
 
 export async function removePortfolioFund(portfolioId: string, fundCode: string): Promise<void> {
-  const response = await apiRequest(`/v1/portfolios/${portfolioId}/funds/${fundCode}`, {
+  const normalizedFundCode = normalizeFundCodeForPath(fundCode);
+  const response = await apiRequest(`/v1/portfolios/${portfolioId}/funds/${normalizedFundCode}`, {
     method: "DELETE",
     auth: true
   });
@@ -315,7 +326,8 @@ export async function createPositionOperation(params: {
     actionOrder: number;
   };
 }): Promise<PositionOperationRecord> {
-  const response = await apiRequest(`/v1/portfolios/${params.portfolioId}/funds/${params.fundCode}/position-operations`, {
+  const normalizedFundCode = normalizeFundCodeForPath(params.fundCode);
+  const response = await apiRequest(`/v1/portfolios/${params.portfolioId}/funds/${normalizedFundCode}/position-operations`, {
     method: "POST",
     auth: true,
     headers: {

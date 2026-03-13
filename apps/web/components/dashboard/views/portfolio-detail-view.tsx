@@ -236,22 +236,29 @@ export function PortfolioDetailView({
 
       {/* 2. Decision Summary */}
       <Card title="决策与操作" size="small" styles={{
-        body: {paddingTop: 12, paddingBottom: 12}
+        body: {paddingTop: 12, paddingBottom: 12, overflow: "hidden"}
       }}>
-         <div style={{ maxHeight: 200, display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 4 }}>
-               <Spin spinning={isDecisionLoading || isGeneratingSuggestion} description="正在更新建议...">
-                  <Text type="secondary" style={{ whiteSpace: "pre-line", display: "block" }}>
-                     {latestDecision ? latestDecision.summary : "暂无今日建议，可在此更新建议并管理策略文档"}
-                  </Text>
+         <div style={{ height: 200, minHeight: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ minHeight: 0, flex: 1, overflow: "hidden" }}>
+               <Spin
+                 spinning={isDecisionLoading || isGeneratingSuggestion}
+                 description="正在更新建议..."
+                 wrapperClassName="decision-summary-spin-wrapper"
+                 style={{ display: "block", height: "100%" }}
+               >
+                  <div style={{ height: "100%", overflowY: "auto", paddingRight: 4, overscrollBehavior: "contain" }}>
+                     <Text type="secondary" style={{ whiteSpace: "pre-line", display: "block" }}>
+                        {latestDecision ? latestDecision.summary : "暂无今日建议，可在此更新建议并管理策略文档"}
+                     </Text>
+                     {!hasActiveDecisionDoc ? (
+                        <Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 12 }}>
+                           当前组合还没有策略文档，请先点击“管理文档”保存后再更新建议。
+                        </Text>
+                     ) : null}
+                  </div>
                </Spin>
             </div>
-            {!hasActiveDecisionDoc ? (
-               <Text type="secondary" style={{ fontSize: 12 }}>
-                  当前组合还没有策略文档，请先点击“管理文档”保存后再更新建议。
-               </Text>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2" style={{ flexShrink: 0 }}>
                <Button
                   size="small"
                   onClick={() => void onGenerateDecision()}

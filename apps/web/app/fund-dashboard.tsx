@@ -141,8 +141,20 @@ export default function FundDashboard() {
     selectedPortfolioId: dashboard.selectedPortfolioId,
     setSelectedPortfolioId: dashboard.setSelectedPortfolioId,
     setIsLoading: dashboard.setIsLoading,
-    setErrorText: (msg) => message.error(msg),
-    setStatusText: (msg) => message.success(msg),
+    setErrorText: (msg) => {
+      const text = msg.trim();
+      if (!text) {
+        return;
+      }
+      message.error(text);
+    },
+    setStatusText: (msg) => {
+      const text = msg.trim();
+      if (!text) {
+        return;
+      }
+      message.success(text);
+    },
   });
 
   // Sync activeTabId with selectedPortfolioId
