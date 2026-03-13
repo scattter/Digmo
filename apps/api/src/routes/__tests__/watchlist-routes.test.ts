@@ -345,6 +345,42 @@ describe("watchlist routes", () => {
     await app.close();
   });
 
+  test("accepts token when subject is missing but username maps to existing user", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(
+      store,
+      {
+        "161725": 0.01
+      },
+      { autoAuth: false }
+    );
+
+    const admin = await store.getUserByUsername("admin");
+    expect(admin).toBeDefined();
+
+    const tokenWithUnknownSubject = signAccessToken(
+      {
+        sub: "00000000-0000-0000-0000-000000000000",
+        username: admin!.username,
+        role: admin!.role
+      },
+      TEST_JWT_SECRET,
+      3600
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios",
+      headers: {
+        authorization: `Bearer ${tokenWithUnknownSubject}`
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    await app.close();
+  });
+
   test("migrates legacy watchlist into default portfolio and keeps migration idempotent", async () => {
     const ctx = createTempCtx();
 

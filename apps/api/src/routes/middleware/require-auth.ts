@@ -45,9 +45,15 @@ export function createRequireAuth(deps: CreateRequireAuthDeps): preHandlerHookHa
       throw error;
     }
 
-    const user = await deps.store.getUserById(payload.sub);
+    let user = await deps.store.getUserById(payload.sub);
     if (!user) {
-      throw new AppError(ERROR_CODES.AUTH_INVALID_TOKEN, "user in token is not found", 401);
+      // In stateless multi-instance deployments, bootstrap users may have different local IDs.
+      // Fallback to username+role keeps auth stable as long as the signed token is valid.
+      const userByUsername = await deps.store.getUserByUsername(payload.username);
+      if (!userByUsername || userByUsername.role !== payload.role) {
+        throw new AppError(ERROR_CODES.AUTH_INVALID_TOKEN, "user in token is not found", 401);
+      }
+      user = userByUsername;
     }
 
     if (user.status !== "active") {
