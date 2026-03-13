@@ -33,3 +33,124 @@ Digmo 是一个围绕场外基金盘中估值的多端系统 MVP，优先交付�
 - 标签策略：分支名、Tag、`sha-<commit>`，默认分支额外推送 `latest`
 
 首次使用前请确认仓库 `Actions` 已启用，且工作流权限允许 `Read and write`（用于向 GHCR 推送镜像）。
+
+## Docker Compose 部署操作
+
+以下示例用于在一台 Linux 服务器上通过 Docker Compose 同时部署 `api + web + postgres + redis`。
+
+### 1) 服务器准备
+
+```bash
+# 安装 Docker / Compose（按你的系统发行版安装）
+docker --version
+docker compose version
+```
+
+如镜像仓库是私有的 GHCR，请先登录（`<GHCR_TOKEN>` 需要 `read:packages` 权限）：
+
+```bash
+echo "<GHCR_TOKEN>" | docker login ghcr.io -u <github_username> --password-stdin
+```
+
+### 2) 准备部署目录
+
+```bash
+mkdir -p /opt/digmo
+cd /opt/digmo
+```
+
+创建 `docker-compose.prod.yml`（把 `<github_owner>` 替换为你的 GitHub 组织/用户名）：
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: digmo
+      POSTGRES_PASSWORD: digmo
+      POSTGRES_DB: digmo
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6379:6379"
+
+  api:
+    image: ghcr.io/<github_owner>/digmo-api:latest
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      TZ: Asia/Shanghai
+      PORT: 3001
+      WATCHLIST_DB_PATH: /app/apps/api/data/watchlist.sqlite
+      REDIS_ENABLED: "true"
+      REDIS_URL: redis://redis:6379
+      AUTH_JWT_SECRET: "change-this-in-production"
+    volumes:
+      - api_data:/app/apps/api/data
+    ports:
+      - "3001:3001"
+
+  web:
+    image: ghcr.io/<github_owner>/digmo-web:latest
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
+  redisdata:
+  api_data:
+```
+
+### 3) 首次部署
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml ps
+```
+
+### 4) 日常更新（拉最新镜像并重建容器）
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d --remove-orphans
+```
+
+### 5) 常用排查命令
+
+```bash
+docker compose -f docker-compose.prod.yml logs -f api
+docker compose -f docker-compose.prod.yml logs -f web
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml top
+```
+
+### 6) 回滚（按镜像标签回退）
+
+1. 将 `docker-compose.prod.yml` 中镜像标签从 `latest` 改为指定历史标签（如 `sha-xxxxxx`）。
+2. 执行：
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+### 7) 重要说明（前端 API 地址）
+
+`web` 镜像里的 `NEXT_PUBLIC_API_BASE_URL` 在镜像构建时注入，不是运行时动态注入。
+如果生产环境 API 地址不是默认值（`http://localhost:3001`），需要在构建 `digmo-web` 镜像时设置该值后再发布。
