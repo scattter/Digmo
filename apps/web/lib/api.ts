@@ -18,7 +18,7 @@ import {
 } from "@digmo/shared";
 import { getAccessToken } from "./auth-session";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
+const API_BASE_URL = "/api";
 const AUTH_REQUIRED_EVENT = "digmo-auth-required";
 
 export type FlatExpandMode = "dedup" | "expanded";

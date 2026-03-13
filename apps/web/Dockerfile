@@ -20,9 +20,6 @@ FROM deps AS build
 COPY apps/web apps/web
 COPY packages/shared packages/shared
 
-ARG NEXT_PUBLIC_API_BASE_URL="http://localhost:3001"
-ENV NEXT_PUBLIC_API_BASE_URL="${NEXT_PUBLIC_API_BASE_URL}"
-
 RUN pnpm --filter @digmo/shared build
 RUN pnpm --filter @digmo/web build
 RUN mkdir -p /app/apps/web/public
@@ -31,6 +28,7 @@ FROM node:22-alpine AS runtime
 
 ENV NODE_ENV="production"
 ENV PORT="3000"
+ENV API_UPSTREAM="http://127.0.0.1:3001"
 WORKDIR /app
 
 RUN addgroup -S digmo && adduser -S digmo -G digmo

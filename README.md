@@ -36,7 +36,7 @@ Digmo 是一个围绕场外基金盘中估值的多端系统 MVP，优先交付�
 
 ## Docker Compose 部署操作
 
-以下示例用于在一台 Linux 服务器上通过 Docker Compose 同时部署 `api + web + postgres + redis`。
+以下示例用于在一台 Linux 服务器上通过 Docker Compose 同时部署 `api + web + redis`。
 
 ### 1) 服务器准备
 
@@ -63,18 +63,6 @@ cd /opt/digmo
 
 ```yaml
 services:
-  postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: digmo
-      POSTGRES_PASSWORD: digmo
-      POSTGRES_DB: digmo
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
   redis:
     image: redis:7-alpine
     restart: unless-stopped
@@ -88,7 +76,6 @@ services:
     image: ghcr.io/<github_owner>/digmo-api:latest
     restart: unless-stopped
     depends_on:
-      - postgres
       - redis
     environment:
       TZ: Asia/Shanghai
@@ -107,11 +94,12 @@ services:
     restart: unless-stopped
     depends_on:
       - api
+    environment:
+      API_UPSTREAM: http://api:3001
     ports:
       - "3000:3000"
 
 volumes:
-  pgdata:
   redisdata:
   api_data:
 ```
@@ -150,7 +138,10 @@ docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-### 7) 重要说明（前端 API 地址）
+### 7) 重要说明（同源代理 + 运行时上游）
 
-`web` 镜像里的 `NEXT_PUBLIC_API_BASE_URL` 在镜像构建时注入，不是运行时动态注入。
-如果生产环境 API 地址不是默认值（`http://localhost:3001`），需要在构建 `digmo-web` 镜像时设置该值后再发布。
+`web` 前端默认请求同源路径 `/api/*`，由 Next.js 服务端代理到上游 API。
+
+- 运行时通过 `API_UPSTREAM` 配置后端地址（推荐 compose 内网地址：`http://api:3001`）。
+- `API_UPSTREAM` 可在容器启动时变更，不需要重新构建 `digmo-web` 镜像。
+- 未配置时默认值为 `http://127.0.0.1:3001`（仅适合 API 与 Web 在同一主机网络可达场景）。
