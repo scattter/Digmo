@@ -2,10 +2,19 @@
 
 import { FlatFundItem } from "@digmo/shared";
 import { ReloadOutlined } from "@ant-design/icons";
-import Link from "next/link";
-import { Card, Button, Table, Tag, Skeleton, Typography, Space, Flex } from "antd";
+import {
+  Card,
+  Button,
+  Table,
+  Tag,
+  Skeleton,
+  Typography,
+  Space,
+  Flex,
+  Radio,
+} from "antd";
 import type { TableProps } from "antd";
-import { FlatExpandMode, SortOrder } from "@/lib/api";
+import { FlatExpandMode } from "@/lib/api";
 import { formatCurrency, formatSignedPct, trendTone } from "@/lib/format";
 import { useState, useMemo } from "react";
 
@@ -14,11 +23,9 @@ const { Text } = Typography;
 interface FlatFundsTableProps {
   data: FlatFundItem[];
   expand: FlatExpandMode;
+  onExpandChange: (value: FlatExpandMode) => void;
   isLoading: boolean;
   isBusy: boolean;
-  flatSortOrder: SortOrder;
-  flatSortLabel: string;
-  onFlatSortToggle: () => void;
   onRefresh: () => Promise<void>;
 }
 
@@ -32,11 +39,9 @@ function getTrendColor(tone: string): string {
 export function FlatFundsTable({
   data,
   expand,
+  onExpandChange,
   isLoading,
   isBusy,
-  flatSortOrder,
-  flatSortLabel,
-  onFlatSortToggle,
   onRefresh,
 }: FlatFundsTableProps) {
   const [sortConfig, setSortConfig] = useState<{
@@ -49,20 +54,30 @@ export function FlatFundsTable({
     return [...data].sort((a, b) => {
       const aValue = (a as any)[sortConfig.key];
       const bValue = (b as any)[sortConfig.key];
-      
-      if (typeof aValue === 'number' && typeof bValue === 'number') {
-        return sortConfig.order === 'ascend' ? aValue - bValue : bValue - aValue;
+
+      if (typeof aValue === "number" && typeof bValue === "number") {
+        return sortConfig.order === "ascend"
+          ? aValue - bValue
+          : bValue - aValue;
       }
       return 0;
     });
   }, [data, sortConfig]);
 
-  const handleTableChange: TableProps<FlatFundItem>['onChange'] = (pagination, filters, sorter) => {
+  const handleTableChange: TableProps<FlatFundItem>["onChange"] = (
+    pagination,
+    filters,
+    sorter,
+  ) => {
     if (Array.isArray(sorter)) return;
-    setSortConfig(sorter.order ? {
-      key: sorter.columnKey as keyof FlatFundItem,
-      order: sorter.order
-    } : null);
+    setSortConfig(
+      sorter.order
+        ? {
+            key: sorter.columnKey as keyof FlatFundItem,
+            order: sorter.order,
+          }
+        : null,
+    );
   };
 
   const columns: TableProps<FlatFundItem>["columns"] = [
@@ -72,7 +87,14 @@ export function FlatFundsTable({
       fixed: "left",
       width: 140,
       render: (_, record) => (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            textAlign: "center",
+          }}
+        >
           <Text strong ellipsis={{ tooltip: record.fundName }}>
             {record.fundName ?? `基金 ${record.fundCode}`}
           </Text>
@@ -92,15 +114,22 @@ export function FlatFundsTable({
       sorter: true,
     },
     {
-      title: "历史总涨跌",
+      title: "总收益",
       dataIndex: "totalChangePct",
       key: "totalChangePct",
       align: "center",
-      render: (value) => (
-        <span style={{ color: value > 0 ? "#cf1322" : value < 0 ? "#389e0d" : "inherit" }}>
-          {formatSignedPct(value)}
-        </span>
-      ),
+      render: (value, record) => {
+        const totalProfitAmount = record.holdingAmount * value;
+        return (
+          <span
+            style={{
+              color: value > 0 ? "#cf1322" : value < 0 ? "#389e0d" : "inherit",
+            }}
+          >
+            {`¥${formatCurrency(totalProfitAmount)} / ${formatSignedPct(value)}`}
+          </span>
+        );
+      },
       sorter: true,
     },
     {
@@ -111,11 +140,7 @@ export function FlatFundsTable({
       render: (value, record) => {
         const tone = trendTone(record.trend);
         const color = getTrendColor(tone);
-        return (
-          <Tag color={color}>
-            {formatSignedPct(value)}
-          </Tag>
-        );
+        return <Tag color={color}>{formatSignedPct(value)}</Tag>;
       },
       sorter: true,
     },
@@ -128,24 +153,12 @@ export function FlatFundsTable({
               <Text type="secondary" style={{ fontSize: 12 }}>
                 {record.portfolioCount && record.portfolioCount > 1
                   ? `(${record.portfolioCount}) ${record.portfolioNames.join("/") || "-"}`
-                  : record.portfolioName ?? "-"}
+                  : (record.portfolioName ?? "-")}
               </Text>
             ),
           },
         ]
       : []),
-    {
-      title: "详情",
-      key: "action",
-      fixed: "right",
-      align: "center",
-      width: 100,
-      render: (_, record) => (
-        <Link href={`/funds/${record.fundCode}`} passHref legacyBehavior>
-           <Button type="link" size="small">查看详情</Button>
-        </Link>
-      ),
-    },
   ];
 
   if (isLoading) {
@@ -158,13 +171,17 @@ export function FlatFundsTable({
 
   // Mobile card list render
   const renderMobileList = (items: FlatFundItem[]) => (
-    <Flex vertical gap={16} className="md:hidden">
+    <Flex vertical gap={16}>
       {items.map((item, index) => (
         <Card
           key={`${item.fundCode}-${item.portfolioId ?? "all"}-${index}`}
           size="small"
           title={item.fundName ?? `基金 ${item.fundCode}`}
-          extra={<Tag color={getTrendColor(trendTone(item.trend))}>{formatSignedPct(item.estimateChangePct)}</Tag>}
+          extra={
+            <Tag color={getTrendColor(trendTone(item.trend))}>
+              {formatSignedPct(item.estimateChangePct)}
+            </Tag>
+          }
         >
           <Space orientation="vertical" style={{ width: "100%" }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -176,15 +193,19 @@ export function FlatFundsTable({
               <Text>¥{formatCurrency(item.holdingAmount)}</Text>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <Text type="secondary">历史总涨跌</Text>
-              <Text style={{ color: item.totalChangePct > 0 ? "#cf1322" : item.totalChangePct < 0 ? "#389e0d" : "inherit" }}>
-                {formatSignedPct(item.totalChangePct)}
+              <Text type="secondary">总收益</Text>
+              <Text
+                style={{
+                  color:
+                    item.totalChangePct > 0
+                      ? "#cf1322"
+                      : item.totalChangePct < 0
+                        ? "#389e0d"
+                        : "inherit",
+                }}
+              >
+                {`¥${formatCurrency(item.holdingAmount * item.totalChangePct)} / ${formatSignedPct(item.totalChangePct)}`}
               </Text>
-            </div>
-            <div style={{ textAlign: "right", marginTop: 8 }}>
-              <Link href={`/funds/${item.fundCode}`} passHref legacyBehavior>
-                <Button type="link" size="small" style={{ padding: 0 }}>查看详情</Button>
-              </Link>
             </div>
           </Space>
         </Card>
@@ -193,7 +214,7 @@ export function FlatFundsTable({
   );
 
   // Desktop Table Render
-  const renderTable = (items: FlatFundItem[]) => (
+  const renderDesktopTable = (items: FlatFundItem[]) => (
     <Table
       columns={columns}
       dataSource={items}
@@ -201,7 +222,6 @@ export function FlatFundsTable({
       pagination={false}
       scroll={{ x: 800 }}
       size="middle"
-      className="hidden md:block"
       onChange={handleTableChange}
     />
   );
@@ -212,59 +232,118 @@ export function FlatFundsTable({
       onClick={() => void onRefresh()}
       disabled={isBusy}
       loading={isBusy}
-    >
-      手动更新
-    </Button>
+      aria-label="手动更新"
+      title="手动更新"
+      style={{ width: 32, height: 32, padding: 0, borderRadius: 6 }}
+    />
   );
-  // Removed sortButton since we use table header sorting now
+  const expandToggle = (
+    <Radio.Group
+      value={expand}
+      onChange={(event) => onExpandChange(event.target.value)}
+      buttonStyle="solid"
+      size="middle"
+    >
+      <Radio.Button value="dedup">去重汇总</Radio.Button>
+      <Radio.Button value="expanded">按组合分组</Radio.Button>
+    </Radio.Group>
+  );
+
+  const toolbar = (
+    <div className="flex items-center justify-between gap-3">
+      {expandToggle}
+      {refreshButton}
+    </div>
+  );
 
   if (expand === "dedup") {
     return (
-      <Card title="所有基金 (去重)" extra={<Space>{refreshButton}</Space>}>
-         {sortedData.length === 0 ? (
-            <div style={{ padding: 24, textAlign: 'center', color: 'rgba(0,0,0,0.45)', border: '1px dashed #d9d9d9', borderRadius: 6 }}>
-               暂无基金数据，请先创建组合并添加基金。
+      <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+        {toolbar}
+        {sortedData.length === 0 ? (
+          <Card>
+            <div
+              style={{
+                padding: 24,
+                textAlign: "center",
+                color: "rgba(0,0,0,0.45)",
+                border: "1px dashed #d9d9d9",
+                borderRadius: 6,
+              }}
+            >
+              暂无基金数据，请先创建组合并添加基金。
             </div>
-         ) : (
-            <>
-               {renderTable(sortedData)}
-               {renderMobileList(sortedData)}
-            </>
-         )}
-      </Card>
+          </Card>
+        ) : (
+          <>
+            <div className="hidden md:block">
+              {renderDesktopTable(sortedData)}
+            </div>
+            <div className="md:hidden">{renderMobileList(sortedData)}</div>
+          </>
+        )}
+      </Space>
     );
   }
 
   // Grouped logic
-  const groupedData = sortedData.reduce((acc: Record<string, { name: string; items: FlatFundItem[] }>, item) => {
-    const key = item.portfolioId ?? "other";
-    const name = item.portfolioName ?? "其他";
-    if (!acc[key]) {
-      acc[key] = { name, items: [] };
-    }
-    acc[key].items.push(item);
-    return acc;
-  }, {});
+  const groupedData = sortedData.reduce(
+    (acc: Record<string, { name: string; items: FlatFundItem[] }>, item) => {
+      const key = item.portfolioId ?? "other";
+      const name = item.portfolioName ?? "其他";
+      if (!acc[key]) {
+        acc[key] = { name, items: [] };
+      }
+      acc[key].items.push(item);
+      return acc;
+    },
+    {},
+  );
+
+  const groupedEntries = Object.entries(groupedData);
 
   return (
-    <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
-       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          {refreshButton}
-       </div>
-       {Object.keys(groupedData).length === 0 ? (
-           <Card>
-              <div style={{ padding: 24, textAlign: 'center', color: 'rgba(0,0,0,0.45)', border: '1px dashed #d9d9d9', borderRadius: 6 }}>
-                 暂无基金数据，请先创建组合并添加基金。
-              </div>
-           </Card>
-       ) : (
-          Object.entries(groupedData).map(([key, group]) => (
-            <Card key={key} title={group.name} size="small">
-               {renderTable(group.items)}
-               {renderMobileList(group.items)}
-            </Card>
-          ))
-       )}
+    <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+      {toolbar}
+      {groupedEntries.length === 0 ? (
+        <Card>
+          <div
+            style={{
+              padding: 24,
+              textAlign: "center",
+              color: "rgba(0,0,0,0.45)",
+              border: "1px dashed #d9d9d9",
+              borderRadius: 6,
+            }}
+          >
+            暂无基金数据，请先创建组合并添加基金。
+          </div>
+        </Card>
+      ) : (
+        <>
+          <div className="hidden md:flex md:flex-col md:gap-4">
+            {groupedEntries.map(([key, group]) => (
+              <section
+                key={key}
+                className="rounded-lg border border-gray-200 p-3"
+              >
+                <Text strong>{group.name}</Text>
+                <div className="mt-3">{renderDesktopTable(group.items)}</div>
+              </section>
+            ))}
+          </div>
+          <div className="md:hidden">
+            <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+              {groupedEntries.map(([key, group]) => (
+                <section key={key}>
+                  <Text strong>{group.name}</Text>
+                  <div className="mt-2">{renderMobileList(group.items)}</div>
+                </section>
+              ))}
+            </Space>
+          </div>
+        </>
+      )}
     </Space>
   );
 }

@@ -379,14 +379,9 @@ export default function FundDashboard() {
            <FlatFundsTable
               data={dashboard.flatFunds}
               expand={dashboard.flatExpand}
+              onExpandChange={dashboard.setFlatExpand}
               isLoading={dashboard.isLoadingFlatFunds}
               isBusy={dashboard.isBusy}
-              // We don't use flatSortOrder from dashboard anymore for table sorting, 
-              // but we might need it for API fetching if we wanted server side sort.
-              // For now, FlatFundsTable handles client side sorting.
-              flatSortOrder={dashboard.flatSortOrder}
-              onFlatSortToggle={() => {}} // No-op or we can remove the button from FlatFundsTable
-              flatSortLabel="" 
               onRefresh={dashboard.refreshData}
            />
         </div>
