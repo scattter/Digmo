@@ -79,6 +79,20 @@ const PLAIN_TEXT_FALLBACK_SYSTEM_PROMPT = [
   "不要输出 Markdown 代码块，要有清晰的换行结构。",
   "不要推荐组合外基金。",
 ].join("\n");
+const THIRD_PARTY_CHAT_FIRST_MODEL_PREFIXES = [
+  "claude-",
+  "gemini-",
+  "minimax-",
+  "deepseek-",
+  "qwen-",
+  "glm-",
+  "kimi-",
+  "moonshot-",
+  "llama-",
+  "doubao-",
+  "yi-",
+  "hunyuan-",
+];
 
 const DECISION_OUTPUT_SCHEMA = {
   type: "object",
@@ -202,6 +216,13 @@ function shouldFallbackToChat(status: number, detail: string): boolean {
   }
 
   const normalized = detail.toLowerCase();
+  if (
+    status >= 500 &&
+    (normalized.includes("convert_request_failed") ||
+      normalized.includes("not implemented"))
+  ) {
+    return true;
+  }
   if (normalized.includes("unsupported")) {
     return true;
   }
@@ -265,6 +286,55 @@ function stripMarkdownCodeFence(content: string): string {
   const trimmed = content.trim();
   const match = trimmed.match(/^```(?:\w+)?\s*([\s\S]*?)\s*```$/);
   return match?.[1]?.trim() ?? trimmed;
+}
+
+function isOfficialOpenAIBaseUrl(baseUrl: string): boolean {
+  const normalized = baseUrl.replace(/\/$/, "");
+  return (
+    normalized === "https://api.openai.com" ||
+    normalized === "https://api.openai.com/v1"
+  );
+}
+
+function isLikelyOpenAINativeModel(model: string): boolean {
+  const normalized = model.trim().toLowerCase();
+  return (
+    normalized.startsWith("gpt-") ||
+    normalized.startsWith("chatgpt-") ||
+    normalized.startsWith("o1") ||
+    normalized.startsWith("o3") ||
+    normalized.startsWith("o4")
+  );
+}
+
+function isLikelyThirdPartyCompatModel(model: string): boolean {
+  const normalized = model.trim().toLowerCase();
+  return THIRD_PARTY_CHAT_FIRST_MODEL_PREFIXES.some((prefix) =>
+    normalized.startsWith(prefix),
+  );
+}
+
+function shouldPreferChatCompletions(baseUrl: string, model: string): boolean {
+  return (
+    !isOfficialOpenAIBaseUrl(baseUrl) &&
+    !isLikelyOpenAINativeModel(model) &&
+    isLikelyThirdPartyCompatModel(model)
+  );
+}
+
+function parseStructuredOutputText(outputText: string): {
+  normalizedText: string;
+  structured: unknown;
+} {
+  const normalizedText = stripMarkdownCodeFence(outputText);
+  try {
+    return {
+      normalizedText,
+      structured: JSON.parse(normalizedText),
+    };
+  } catch {
+    throw new Error("openai output is not valid JSON");
+  }
 }
 
 function inferOverallRiskLevel(summary: string): "LOW" | "MEDIUM" | "HIGH" {
@@ -351,6 +421,7 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
   private readonly baseUrl: string;
   private readonly systemPrompt: string;
   private readonly docMaxChars: number;
+  private readonly preferChatCompletions: boolean;
 
   constructor(options: OpenAIDecisionProviderOptions) {
     this.apiKey = options.apiKey;
@@ -366,6 +437,10 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
       ? options.systemPrompt.trim()
       : DEFAULT_SYSTEM_PROMPT;
     this.docMaxChars = normalizeDocMaxChars(options.docMaxChars);
+    this.preferChatCompletions = shouldPreferChatCompletions(
+      this.baseUrl,
+      this.model,
+    );
   }
 
   private async requestResponses(inputText: string): Promise<Response> {
@@ -494,6 +569,34 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
     };
   }
 
+  private async generateStructuredFromChatCompletions(
+    inputText: string,
+  ): Promise<DecisionGenerationResult> {
+    const response = await this.requestChatCompletions(inputText);
+    if (!response.ok) {
+      const detail = await response.text();
+      throw toOpenAIRequestError(response.status, detail);
+    }
+
+    const payload = (await response.json()) as OpenAIChatPayload;
+    const outputText = extractChatOutputText(payload);
+    if (!outputText) {
+      throw new Error("openai response has no output text");
+    }
+
+    const { normalizedText, structured } = parseStructuredOutputText(outputText);
+    const validated = validateDecisionGenerationResult(structured);
+    return {
+      ...validated,
+      usage: {
+        inputTokens: payload.usage?.prompt_tokens,
+        outputTokens: payload.usage?.completion_tokens,
+        totalTokens: payload.usage?.total_tokens,
+      },
+      rawResponse: normalizedText,
+    };
+  }
+
   async generateDailyDecision(
     input: DecisionGenerationInput,
   ): Promise<DecisionGenerationResult> {
@@ -505,6 +608,10 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
     const inputText = JSON.stringify(trimmedInput);
 
     try {
+      if (this.preferChatCompletions) {
+        return await this.generateStructuredFromChatCompletions(inputText);
+      }
+
       const response = await this.requestResponses(inputText);
 
       let outputText: string | undefined;
@@ -548,18 +655,12 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
         throw new Error("openai response has no output text");
       }
 
-      let structured: unknown;
-      try {
-        structured = JSON.parse(outputText);
-      } catch {
-        throw new Error("openai output is not valid JSON");
-      }
-
+      const { normalizedText, structured } = parseStructuredOutputText(outputText);
       const validated = validateDecisionGenerationResult(structured);
       return {
         ...validated,
         usage,
-        rawResponse: outputText,
+        rawResponse: normalizedText,
       };
     } catch (error) {
       const message =

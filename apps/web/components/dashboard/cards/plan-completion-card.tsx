@@ -10,8 +10,8 @@ export interface PlanCompletionCardProps {
   fundName: string;
   plannedRatio: number;
   actualRatio: number;
-  estimateChangePct: number;
-  intradayAmount: number;
+  estimateChangePct?: number;
+  intradayAmount?: number;
 }
 
 export function PlanCompletionCard({
@@ -37,7 +37,7 @@ export function PlanCompletionCard({
           {fundName}
         </Text>
         <div
-          className={deltaClassByPct(estimateChangePct)}
+          className={deltaClassByPct(typeof estimateChangePct === "number" ? estimateChangePct : 0)}
           style={{ fontFamily: "monospace", fontSize: 12 }}
         >
           <span>{formatSignedAmountCompact(intradayAmount)}</span>

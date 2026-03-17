@@ -14,8 +14,8 @@ interface RatioAnalysisRow {
   fundName: string;
   plannedRatio: number;
   actualRatio: number;
-  estimateChangePct: number;
-  intradayAmount: number;
+  estimateChangePct?: number;
+  intradayAmount?: number;
   overByMoreThan15Pct: boolean;
 }
 
@@ -78,7 +78,10 @@ export function RatioAnalysisPanel({
                       <Text strong ellipsis={{ tooltip: row.fundName }} style={{ display: 'block' }}>
                         {row.fundName}
                       </Text>
-                      <div className={deltaClassByPct(row.estimateChangePct)} style={{ fontFamily: 'monospace', fontSize: 12 }}>
+                      <div
+                        className={deltaClassByPct(typeof row.estimateChangePct === "number" ? row.estimateChangePct : 0)}
+                        style={{ fontFamily: 'monospace', fontSize: 12 }}
+                      >
                         <span>{formatSignedAmountCompact(row.intradayAmount)}</span>
                         <span>({formatSignedPct(row.estimateChangePct)})</span>
                       </div>

@@ -10,7 +10,6 @@ import { InMemoryRepository } from "./infra/repo/in-memory-repository.js";
 import { SqliteWatchlistStore } from "./infra/watchlist/sqlite-watchlist-store.js";
 import { SqliteDecisionStore } from "./infra/decision/sqlite-decision-store.js";
 import { EastmoneyFundDataProvider } from "./modules/data/eastmoney-fund-provider.js";
-import { EastmoneyQuoteClient } from "./modules/data/eastmoney-client.js";
 import { OpenAIDecisionProvider } from "./modules/decision/openai-provider.js";
 import { registerFundRoutes } from "./routes/funds.js";
 import { registerHealthRoutes } from "./routes/health.js";
@@ -95,13 +94,11 @@ export async function buildApp(): Promise<AppContext> {
     config.targetFunds,
     config.eastmoney,
   );
-  const eastmoneyClient = new EastmoneyQuoteClient(config.eastmoney);
 
   const service = new ValuationService({
     provider,
     repository,
     cache,
-    eastmoneyClient,
   });
 
   const taskRunner = new ValuationTaskRunner({

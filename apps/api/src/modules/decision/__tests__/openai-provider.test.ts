@@ -170,6 +170,76 @@ describe("OpenAIDecisionProvider", () => {
     expect(result.usage?.outputTokens).toBe(60);
   });
 
+  test("prefers /v1/chat/completions for non-OpenAI model on custom base url", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        choices: [{ message: { content: `\`\`\`json\n${buildValidDecisionJson()}\n\`\`\`` } }],
+        usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new OpenAIDecisionProvider({
+      apiKey: "test-key",
+      model: "claude-sonnet-4-6",
+      timeoutMs: 5000,
+      maxOutputTokens: 1200,
+      enableWebSearch: false,
+      baseUrl: "https://compat.example.com",
+    });
+
+    const result = await provider.generateDailyDecision(createInput());
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://compat.example.com/v1/chat/completions",
+    );
+    expect(result.summary).toContain("防守");
+    expect(result.actions).toHaveLength(1);
+  });
+
+  test("falls back to /v1/chat/completions when responses returns convert_request_failed", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: {
+              message: "not implemented",
+              code: "convert_request_failed",
+            },
+          }),
+          { status: 500, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          choices: [{ message: { content: buildValidDecisionJson() } }],
+          usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new OpenAIDecisionProvider({
+      apiKey: "test-key",
+      model: "gpt-4.1-mini",
+      timeoutMs: 5000,
+      maxOutputTokens: 1200,
+      enableWebSearch: false,
+      baseUrl: "https://compat.example.com",
+    });
+
+    const result = await provider.generateDailyDecision(createInput());
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://compat.example.com/v1/responses");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "https://compat.example.com/v1/chat/completions",
+    );
+    expect(result.summary).toContain("防守");
+    expect(result.actions).toHaveLength(1);
+  });
+
   test("does not fall back for unauthorized responses failure", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("unauthorized", { status: 401 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -293,7 +363,7 @@ describe("OpenAIDecisionProvider", () => {
     expect(input.decisionDoc.content).toBe(longContent);
   });
 
-  test("keeps operation history and dual daily change fields in user payload", async () => {
+  test("keeps operation history and estimate fields in user payload", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       jsonResponse({
         output_text: buildValidDecisionJson(),
@@ -313,7 +383,6 @@ describe("OpenAIDecisionProvider", () => {
             holdingProfitPct: 0.052,
             estimateChangePct: 0.012,
             dailyProfitPct: 0.012,
-            officialDailyReturn: 0.009,
             officialNavDate: "2026-03-07",
           },
         ],
@@ -352,7 +421,6 @@ describe("OpenAIDecisionProvider", () => {
     expect(userPayload.operationHistory).toHaveLength(1);
     expect(userPayload.operationHistory[0]?.operationType).toBe("INCREASE");
     expect(userPayload.portfolio.funds[0]?.estimateChangePct).toBe(0.012);
-    expect(userPayload.portfolio.funds[0]?.officialDailyReturn).toBe(0.009);
     expect(userPayload.portfolio.funds[0]?.officialNavDate).toBe("2026-03-07");
   });
 });

@@ -139,8 +139,8 @@ function PortfolioCard({
   onCancelRename: () => void;
   isMobile: boolean;
 }) {
-  const isProfit = portfolio.dailyProfitPct > 0;
-  const isLoss = portfolio.dailyProfitPct < 0;
+  const isProfit = typeof portfolio.dailyProfitPct === "number" && portfolio.dailyProfitPct > 0;
+  const isLoss = typeof portfolio.dailyProfitPct === "number" && portfolio.dailyProfitPct < 0;
 
   const menuItems: MenuProps['items'] = [
     { key: 'open', label: '查看详情', icon: <FolderOpenOutlined />, onClick: onOpen },

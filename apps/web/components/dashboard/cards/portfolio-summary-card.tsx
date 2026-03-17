@@ -12,14 +12,16 @@ interface PortfolioSummaryCardProps {
 
 export function PortfolioSummaryCard({ portfolio, onClick }: PortfolioSummaryCardProps) {
   // Helpers for styling
-  const getTrendColor = (val: number) => {
+  const getTrendColor = (val: number | undefined) => {
+    if (typeof val !== "number") return "text-gray-500";
     if (val > 0) return "text-red-500";
     if (val < 0) return "text-green-500";
     return "text-gray-500";
   };
 
-  const getTrendBgBadge = (val: number) => {
+  const getTrendBgBadge = (val: number | undefined) => {
     const base = "text-xs px-1 py-0.5 rounded ml-1";
+    if (typeof val !== "number") return `${base} bg-gray-50 text-gray-500`;
     if (val > 0) return `${base} bg-red-50 text-red-500`;
     if (val < 0) return `${base} bg-green-50 text-green-500`;
     return `${base} bg-gray-50 text-gray-500`;
@@ -27,7 +29,10 @@ export function PortfolioSummaryCard({ portfolio, onClick }: PortfolioSummaryCar
 
   // Calculate daily profit amount (approximate) based on intradayEstimatePct
   // Profit = Current - (Current / (1 + rate))
-  const dailyProfitAmount = portfolio.totalAmount - (portfolio.totalAmount / (1 + portfolio.intradayEstimatePct));
+  const dailyProfitAmount =
+    typeof portfolio.intradayEstimatePct === "number"
+      ? portfolio.totalAmount - (portfolio.totalAmount / (1 + portfolio.intradayEstimatePct))
+      : undefined;
 
   return (
     <div 

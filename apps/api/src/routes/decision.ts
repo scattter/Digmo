@@ -208,7 +208,6 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
               holdingProfitAmount,
               estimateChangePct: estimate?.estimateChangePct,
               dailyProfitPct: estimate?.estimateChangePct,
-              officialDailyReturn: estimate?.officialDailyReturn,
               officialNavDate: estimate?.baseNavDate,
               ...(typeof item.plannedRatio === "number" ? { plannedRatio: item.plannedRatio } : {}),
               ...(portfolio.type === "RATIO" && totalAmount > 0

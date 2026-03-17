@@ -12,8 +12,8 @@ const { Text } = Typography;
 interface EstimateAnalysisRow {
   fundCode: string;
   fundName: string;
-  estimateChangePct: number;
-  intradayAmount: number;
+  estimateChangePct?: number;
+  intradayAmount?: number;
 }
 
 interface EstimateAnalysisPanelProps {
@@ -78,7 +78,10 @@ export function EstimateAnalysisPanel({
                       {!compact && <div style={{ fontSize: 12, color: "rgba(0,0,0,0.45)" }}>{row.fundCode}</div>}
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <span className={deltaClassByPct(row.estimateChangePct)} style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                      <span
+                        className={deltaClassByPct(typeof row.estimateChangePct === "number" ? row.estimateChangePct : 0)}
+                        style={{ fontFamily: "monospace", fontWeight: 600 }}
+                      >
                         {formatSignedCurrency(row.intradayAmount)}/{formatSignedPct(row.estimateChangePct)}
                       </span>
                     </div>

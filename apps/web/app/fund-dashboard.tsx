@@ -64,25 +64,36 @@ export default function FundDashboard() {
   const [isImportPortfolioDialogOpen, setIsImportPortfolioDialogOpen] = useState(false);
   const [isSharePortfolioDialogOpen, setIsSharePortfolioDialogOpen] = useState(false);
 
-  const computeIntradayProfitAmount = (totalAmount: number, intradayEstimatePct: number) =>
-    totalAmount - totalAmount / (1 + intradayEstimatePct);
+  const computeIntradayProfitAmount = (
+    totalAmount: number,
+    intradayEstimatePct: number | undefined
+  ) =>
+    typeof intradayEstimatePct === "number"
+      ? totalAmount - totalAmount / (1 + intradayEstimatePct)
+      : undefined;
 
   const accountSummaryBar = useMemo(() => {
-    return dashboard.portfolios.reduce(
-      (acc, portfolio) => {
-        const intradayProfitAmount = computeIntradayProfitAmount(
-          portfolio.totalAmount,
-          portfolio.intradayEstimatePct
-        );
-        acc.totalAmount += portfolio.totalAmount;
-        acc.intradayProfitAmount += intradayProfitAmount;
-        return acc;
-      },
-      { totalAmount: 0, intradayProfitAmount: 0 }
-    );
+    const totalAmount = dashboard.portfolios.reduce((sum, portfolio) => sum + portfolio.totalAmount, 0);
+    const hasCompleteIntradayEstimate =
+      dashboard.portfolios.length > 0 &&
+      dashboard.portfolios.every((portfolio) => typeof portfolio.intradayEstimatePct === "number");
+
+    if (!hasCompleteIntradayEstimate) {
+      return { totalAmount, intradayProfitAmount: undefined };
+    }
+
+    return {
+      totalAmount,
+      intradayProfitAmount: dashboard.portfolios.reduce((sum, portfolio) => {
+        return sum + (computeIntradayProfitAmount(portfolio.totalAmount, portfolio.intradayEstimatePct) ?? 0);
+      }, 0)
+    };
   }, [dashboard.portfolios]);
 
-  const activeSummaryBar = useMemo(() => {
+  const activeSummaryBar = useMemo<{
+    totalAmount: number;
+    intradayProfitAmount?: number;
+  }>(() => {
     if (activeTabId === "summary" || activeTabId === "funds") {
       return accountSummaryBar;
     }

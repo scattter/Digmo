@@ -70,14 +70,13 @@ async function createApp(store: SqliteWatchlistStore, dbPath: string, provider: 
         fundCode,
         fundName: `基金${fundCode}`,
         officialNav: 1,
-        officialDailyReturn: 0.009,
         estimateNav: 1,
         estimateChangePct: 0.012,
         baseNavDate: "2026-03-02",
         estimateTime: "2026-03-02T02:00:00.000Z",
         confidenceLevel: "HIGH" as const,
-        confidenceScore: 90,
-        method: "BETA_PROXY" as const,
+        confidenceScore: 100,
+        method: "FUND_GZ_DIRECT" as const,
         inputsStalenessSec: 1,
         topHoldings: [],
         disclaimer: "test"
@@ -426,7 +425,7 @@ describe("decision routes", () => {
     await app.close();
   });
 
-  test("passes operation history and dual daily change metrics to provider", async () => {
+  test("passes operation history and estimate metrics to provider", async () => {
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);
     const capture = buildCapturingProvider({
@@ -510,7 +509,6 @@ describe("decision routes", () => {
     expect(input?.portfolio.funds[0]).toMatchObject({
       fundCode: "161725",
       estimateChangePct: 0.012,
-      officialDailyReturn: 0.009,
       officialNavDate: "2026-03-02",
     });
 

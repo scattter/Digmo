@@ -16,7 +16,7 @@ const { Header, Content } = Layout;
 
 interface HeaderSummaryBar {
   totalAmount: number;
-  intradayProfitAmount: number;
+  intradayProfitAmount?: number;
 }
 
 interface TopNavLayoutProps {
@@ -49,9 +49,9 @@ export function TopNavLayout({
   } = theme.useToken();
 
   const intradayToneClass =
-    summaryBar.intradayProfitAmount > 0
+    typeof summaryBar.intradayProfitAmount === "number" && summaryBar.intradayProfitAmount > 0
       ? "text-red-500"
-      : summaryBar.intradayProfitAmount < 0
+      : typeof summaryBar.intradayProfitAmount === "number" && summaryBar.intradayProfitAmount < 0
         ? "text-green-500"
         : "text-gray-500";
 

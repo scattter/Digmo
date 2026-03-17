@@ -72,17 +72,12 @@ export function DashboardLayout({
       ? "funds"
     : navItems.some((item) => item.section === viewParam)
       ? (viewParam as LandingSection)
-      : pathname.startsWith("/funds/")
-        ? "funds"
-        : mapLegacyViewToSection(viewParam);
+      : mapLegacyViewToSection(viewParam);
 
   const activeNavItem = navItems.find((item) => item.section === currentSection) ?? navItems[0];
   const selectedKeys = [activeNavItem.key];
 
-  const breadcrumbTitle =
-    pathname.startsWith("/funds/")
-      ? "基金详情"
-      : activeNavItem.label;
+  const breadcrumbTitle = activeNavItem.label;
 
   const {
     token: { colorBgContainer, borderRadiusLG },

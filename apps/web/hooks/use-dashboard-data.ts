@@ -115,11 +115,14 @@ export function useDashboardData() {
 
   const estimateAnalysisRows = useMemo(() => {
     const rows = portfolioFunds.map((item, index) => {
-      const estimateChangePct = typeof item.estimateChangePct === "number" ? item.estimateChangePct : 0;
+      const estimateChangePct =
+        typeof item.estimateChangePct === "number" ? item.estimateChangePct : undefined;
       const intradayAmount =
         typeof item.intradayAmount === "number"
           ? item.intradayAmount
-          : Number((item.holdingAmount * estimateChangePct).toFixed(2));
+          : typeof estimateChangePct === "number"
+            ? Number((item.holdingAmount * estimateChangePct).toFixed(2))
+            : undefined;
 
       return {
         order: index,
@@ -135,10 +138,23 @@ export function useDashboardData() {
     }
 
     return rows.slice().sort((a, b) => {
+      const aMissing = typeof a.estimateChangePct !== "number";
+      const bMissing = typeof b.estimateChangePct !== "number";
+
+      if (aMissing && !bMissing) {
+        return 1;
+      }
+      if (!aMissing && bMissing) {
+        return -1;
+      }
+      if (aMissing && bMissing) {
+        return a.order - b.order;
+      }
+
       const diff =
         estimateSortOrder === "asc"
-          ? a.estimateChangePct - b.estimateChangePct
-          : b.estimateChangePct - a.estimateChangePct;
+          ? (a.estimateChangePct as number) - (b.estimateChangePct as number)
+          : (b.estimateChangePct as number) - (a.estimateChangePct as number);
       if (Math.abs(diff) > 0.0000001) {
         return diff;
       }

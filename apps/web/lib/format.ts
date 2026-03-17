@@ -13,17 +13,26 @@ export function formatCurrency(value: number): string {
   });
 }
 
-export function formatSignedAmount(value: number): string {
+export function formatSignedAmount(value: number | undefined): string {
+  if (typeof value !== "number") {
+    return "-";
+  }
   const sign = value > 0 ? "+" : "";
   return `${sign}${formatCurrency(value)}`;
 }
 
-export function formatSignedAmountCompact(value: number): string {
+export function formatSignedAmountCompact(value: number | undefined): string {
+  if (typeof value !== "number") {
+    return "-";
+  }
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";
   return `${sign}${formatCurrency(Math.abs(value))}`;
 }
 
-export function formatSignedCurrency(value: number): string {
+export function formatSignedCurrency(value: number | undefined): string {
+  if (typeof value !== "number") {
+    return "-";
+  }
   const sign = value > 0 ? "+" : "";
   return `${sign}¥${formatCurrency(Math.abs(value))}`;
 }

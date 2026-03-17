@@ -4,7 +4,6 @@ import {
   DailyDecision,
   DecisionDocFormat,
   FlatFundItem,
-  FundEstimateSnapshot,
   ImportPortfolioByShareCodeResult,
   LoginResponse,
   PortfolioDecisionDoc,
@@ -134,13 +133,6 @@ export async function fetchBatchEstimates(fundCodes: string[]): Promise<BatchEst
 
   await ensureOk(response, "Batch request failed");
   return response.json() as Promise<BatchEstimateResponse>;
-}
-
-export async function fetchSingleEstimate(fundCode: string): Promise<FundEstimateSnapshot> {
-  const normalizedFundCode = normalizeFundCodeForPath(fundCode);
-  const response = await apiRequest(`/v1/funds/${normalizedFundCode}/estimate`);
-  await ensureOk(response, "Fund request failed");
-  return response.json() as Promise<FundEstimateSnapshot>;
 }
 
 export async function fetchPortfolios(): Promise<PortfolioSummary[]> {

@@ -79,7 +79,10 @@ interface PortfolioFundsTableProps {
   onOpenShareDialog: () => void;
 }
 
-function formatSignedCurrencyValue(value: number): string {
+function formatSignedCurrencyValue(value: number | undefined): string {
+  if (typeof value !== "number") {
+    return "-";
+  }
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";
   return `${sign}¥${formatCurrency(Math.abs(value))}`;
 }
@@ -291,13 +294,23 @@ export function PortfolioFundsTable({
         const pct =
           typeof record.dailyProfitPct === "number"
             ? record.dailyProfitPct
-            : (record.estimateChangePct ?? 0);
+            : typeof record.estimateChangePct === "number"
+              ? record.estimateChangePct
+              : undefined;
         const amount =
           typeof record.dailyProfitAmount === "number"
             ? record.dailyProfitAmount
-            : Number((record.holdingAmount * pct).toFixed(2));
+            : typeof pct === "number"
+              ? Number((record.holdingAmount * pct).toFixed(2))
+              : undefined;
         const color =
-          amount > 0 ? "#cf1322" : amount < 0 ? "#389e0d" : "inherit";
+          typeof amount === "number"
+            ? amount > 0
+              ? "#cf1322"
+              : amount < 0
+                ? "#389e0d"
+                : "inherit"
+            : "inherit";
         return (
           <div
             style={{

@@ -22,7 +22,7 @@ import {
 import { ShareService } from "../modules/share/service.js";
 import { ValuationService } from "../modules/valuation/service.js";
 import { AppError } from "../utils/app-error.js";
-import { formatDate, isTradingDay, nowInShanghai } from "../utils/time.js";
+import { formatDate, nowInShanghai } from "../utils/time.js";
 import { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
 
 interface RegisterWatchlistRoutesDeps {
@@ -266,19 +266,6 @@ function calcProfitPctByCost(holdingAmount: number, holdingProfitAmount: number)
   return Number((holdingProfitAmount / cost).toFixed(6));
 }
 
-function isOfficialDailyUpdated(
-  tradingDayNow: boolean,
-  today: string,
-  estimate: FundEstimateSnapshot | undefined,
-  fundState: { lastAccumulatedNavDate?: string } | undefined
-): boolean {
-  if (!tradingDayNow || !estimate?.baseNavDate) {
-    return false;
-  }
-
-  return estimate.baseNavDate === today && estimate.baseNavDate === fundState?.lastAccumulatedNavDate;
-}
-
 async function chunkGetEstimates(
   service: ValuationService,
   fundCodes: string[]
@@ -295,61 +282,6 @@ async function chunkGetEstimates(
   }
 
   return map;
-}
-
-async function syncFundStateWithLatestReturns(
-  store: WatchlistStore,
-  userId: string,
-  service: ValuationService,
-  fundCodes: string[]
-): Promise<void> {
-  if (fundCodes.length === 0 || !isTradingDay(nowInShanghai())) {
-    return;
-  }
-
-  const uniqueFundCodes = Array.from(new Set(fundCodes));
-  const concurrency = Math.min(6, uniqueFundCodes.length);
-  let nextIndex = 0;
-
-  const worker = async () => {
-    while (nextIndex < uniqueFundCodes.length) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      const fundCode = uniqueFundCodes[currentIndex];
-      if (!fundCode) {
-        continue;
-      }
-
-      try {
-        const snapshot = await service.getOrComputeEstimate(fundCode);
-        const hasNewOfficialData = await store.accumulateOfficialReturn(
-          userId,
-          fundCode,
-          snapshot.baseNavDate,
-          snapshot.officialDailyReturn
-        );
-
-        if (hasNewOfficialData) {
-          await store.rollPortfolioFundHoldingByNavDate(userId, fundCode, snapshot.baseNavDate, snapshot.officialDailyReturn);
-        }
-      } catch {
-        // 忽略单只基金同步失败，避免整体接口失败。
-      }
-    }
-  };
-
-  await Promise.all(Array.from({ length: concurrency }, () => worker()));
-}
-
-function triggerFundStateSyncInBackground(
-  store: WatchlistStore,
-  userId: string,
-  service: ValuationService,
-  fundCodes: string[]
-): void {
-  void syncFundStateWithLatestReturns(store, userId, service, fundCodes).catch(() => {
-    // 后台同步失败不影响当前请求响应。
-  });
 }
 
 function sortByEstimate<T extends { estimateChangePct?: number; fundCode: string }>(items: T[], order: "asc" | "desc"): T[] {
@@ -457,8 +389,6 @@ async function buildPortfolioSummaries(
   const portfolioFunds = await store.listAllPortfolioFunds(userId);
   const fundCodes = Array.from(new Set(portfolioFunds.map((item) => item.fundCode)));
 
-  triggerFundStateSyncInBackground(store, userId, service, fundCodes);
-
   const [estimateMap, fundStates] = await Promise.all([
     chunkGetEstimates(service, fundCodes),
     store.listFundStatesByCodes(userId, fundCodes)
@@ -470,19 +400,15 @@ async function buildPortfolioSummaries(
   }
 
   const grouped = new Map<string, PortfolioFundItem[]>();
-  const now = nowInShanghai();
-  const tradingDayNow = isTradingDay(now);
-  const today = formatDate(now);
   for (const item of portfolioFunds) {
     const estimate = estimateMap.get(item.fundCode);
     const fundState = fundStateMap.get(item.fundCode);
     const totalChangePct = fundState?.totalChangePct ?? 0;
-    const dailyProfitOfficialUpdated = isOfficialDailyUpdated(tradingDayNow, today, estimate, fundState);
-    const dailyProfitPct =
-      dailyProfitOfficialUpdated
-        ? estimate?.officialDailyReturn ?? 0
-        : estimate?.estimateChangePct ?? 0;
-    const dailyProfitAmount = Number((item.holdingAmount * dailyProfitPct).toFixed(2));
+    const dailyProfitPct = estimate?.estimateChangePct;
+    const dailyProfitAmount =
+      typeof dailyProfitPct === "number"
+        ? Number((item.holdingAmount * dailyProfitPct).toFixed(2))
+        : undefined;
     const holdingProfitAmount = item.holdingProfitAmount;
     const holdingProfitPct = calcProfitPctByCost(item.holdingAmount, holdingProfitAmount);
     const trend = trendFromEstimate(estimate?.estimateChangePct);
@@ -506,7 +432,7 @@ async function buildPortfolioSummaries(
       holdingProfitPct,
       dailyProfitAmount,
       dailyProfitPct,
-      dailyProfitOfficialUpdated,
+      dailyProfitOfficialUpdated: false,
       trend,
       plannedRatio: item.portfolioType === "RATIO" ? item.plannedRatio : undefined
     };
@@ -523,22 +449,24 @@ async function buildPortfolioSummaries(
     const totalProfitAmount = Number(funds.reduce((sum, item) => sum + item.holdingProfitAmount, 0).toFixed(2));
     const totalCost = Number((totalAmount - totalProfitAmount).toFixed(2));
     const totalProfitPct = totalCost > 0 ? Number((totalProfitAmount / totalCost).toFixed(6)) : 0;
-    const weightedDailyProfitAmount = funds.reduce((sum, item) => {
-      if (typeof item.dailyProfitPct !== "number") {
-        return sum;
-      }
-      return sum + item.holdingAmount * item.dailyProfitPct;
-    }, 0);
-    const dailyProfitPct = totalAmount > 0 ? Number((weightedDailyProfitAmount / totalAmount).toFixed(6)) : 0;
-    const allFundsDailyUpdated = funds.length > 0 && funds.every((item) => item.dailyProfitOfficialUpdated);
+    const hasCompleteDailyProfit = funds.length > 0 && funds.every((item) => typeof item.dailyProfitPct === "number");
+    const weightedDailyProfitAmount = hasCompleteDailyProfit
+      ? funds.reduce((sum, item) => sum + item.holdingAmount * (item.dailyProfitPct as number), 0)
+      : 0;
+    const dailyProfitPct =
+      totalAmount > 0 && hasCompleteDailyProfit
+        ? Number((weightedDailyProfitAmount / totalAmount).toFixed(6))
+        : undefined;
 
-    const weightedIntradayAmount = funds.reduce((sum, item) => {
-      if (typeof item.estimateChangePct !== "number") {
-        return sum;
-      }
-      return sum + item.holdingAmount * item.estimateChangePct;
-    }, 0);
-    const intradayEstimatePct = totalAmount > 0 ? Number((weightedIntradayAmount / totalAmount).toFixed(6)) : 0;
+    const hasCompleteIntradayEstimate =
+      funds.length > 0 && funds.every((item) => typeof item.estimateChangePct === "number");
+    const weightedIntradayAmount = hasCompleteIntradayEstimate
+      ? funds.reduce((sum, item) => sum + item.holdingAmount * (item.estimateChangePct as number), 0)
+      : 0;
+    const intradayEstimatePct =
+      totalAmount > 0 && hasCompleteIntradayEstimate
+        ? Number((weightedIntradayAmount / totalAmount).toFixed(6))
+        : undefined;
 
     return {
       id: portfolio.id,
@@ -549,9 +477,9 @@ async function buildPortfolioSummaries(
       totalProfitAmount,
       totalProfitPct,
       totalProfitDisplay: `${formatSignedAmount(totalProfitAmount)} / ${formatSignedPct(totalProfitPct)}`,
-      dailyProfitPct,
-      allFundsDailyUpdated,
-      intradayEstimatePct
+      ...(typeof dailyProfitPct === "number" ? { dailyProfitPct } : {}),
+      allFundsDailyUpdated: false,
+      ...(typeof intradayEstimatePct === "number" ? { intradayEstimatePct } : {})
     } satisfies PortfolioSummary;
   });
 
@@ -718,26 +646,22 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       const items = await deps.store.listPortfolioFunds(userId, params.portfolioId);
       const fundCodes = items.map((item) => item.fundCode);
 
-      triggerFundStateSyncInBackground(deps.store, userId, deps.service, fundCodes);
-
       const [estimateMap, fundStates] = await Promise.all([
         chunkGetEstimates(deps.service, fundCodes),
         deps.store.listFundStatesByCodes(userId, fundCodes)
       ]);
 
       const totalAmount = items.reduce((sum, item) => sum + item.holdingAmount, 0);
-      const now = nowInShanghai();
-      const tradingDayNow = isTradingDay(now);
-      const today = formatDate(now);
 
       const funds = items.map((item) => {
         const estimate = estimateMap.get(item.fundCode);
         const fundState = fundStates.get(item.fundCode);
         const totalChangePct = fundState?.totalChangePct ?? 0;
-        const dailyProfitOfficialUpdated = isOfficialDailyUpdated(tradingDayNow, today, estimate, fundState);
-        const dailyProfitPct =
-          dailyProfitOfficialUpdated ? estimate?.officialDailyReturn ?? 0 : estimate?.estimateChangePct ?? 0;
-        const dailyProfitAmount = Number((item.holdingAmount * dailyProfitPct).toFixed(2));
+        const dailyProfitPct = estimate?.estimateChangePct;
+        const dailyProfitAmount =
+          typeof dailyProfitPct === "number"
+            ? Number((item.holdingAmount * dailyProfitPct).toFixed(2))
+            : undefined;
         const holdingProfitAmount = item.holdingProfitAmount;
         const holdingProfitPct = calcProfitPctByCost(item.holdingAmount, holdingProfitAmount);
         const actualRatio = totalAmount > 0 ? Number((item.holdingAmount / totalAmount).toFixed(6)) : 0;
@@ -760,7 +684,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
           holdingProfitPct,
           dailyProfitAmount,
           dailyProfitPct,
-          dailyProfitOfficialUpdated,
+          dailyProfitOfficialUpdated: false,
           trend: trendFromEstimate(estimate?.estimateChangePct),
           plannedRatio: portfolio.type === "RATIO" ? item.plannedRatio : undefined,
           actualRatio: portfolio.type === "RATIO" ? actualRatio : undefined
@@ -995,8 +919,6 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
 
       const portfolioFunds = await deps.store.listAllPortfolioFunds(userId);
       const fundCodes = Array.from(new Set(portfolioFunds.map((item) => item.fundCode)));
-
-      triggerFundStateSyncInBackground(deps.store, userId, deps.service, fundCodes);
 
       const [estimateMap, fundStates] = await Promise.all([
         chunkGetEstimates(deps.service, fundCodes),

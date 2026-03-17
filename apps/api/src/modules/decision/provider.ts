@@ -24,7 +24,6 @@ export interface DecisionGenerationInput {
       holdingProfitPct?: number;
       estimateChangePct?: number;
       dailyProfitPct?: number;
-      officialDailyReturn?: number;
       officialNavDate?: string;
       plannedRatio?: number;
       actualRatio?: number;

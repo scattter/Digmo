@@ -1,12 +1,12 @@
 export type ConfidenceLevel = "HIGH" | "MEDIUM" | "LOW";
 
-export type ValuationMethod = "INDEX_TRACKING" | "BETA_PROXY" | "FUND_GZ_DIRECT";
+export type ValuationMethod = "FUND_GZ_DIRECT";
 
 export interface FundEstimateSnapshot {
   fundCode: string;
   fundName: string;
   officialNav: number;
-  officialDailyReturn: number;
+  officialDailyReturn?: number;
   estimateNav: number;
   estimateChangePct: number;
   baseNavDate: string;
@@ -147,9 +147,9 @@ export interface PortfolioSummary {
   totalProfitAmount: number;
   totalProfitPct: number;
   totalProfitDisplay: string;
-  dailyProfitPct: number;
+  dailyProfitPct?: number;
   allFundsDailyUpdated: boolean;
-  intradayEstimatePct: number;
+  intradayEstimatePct?: number;
 }
 
 export interface PortfolioShareResult {

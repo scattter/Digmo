@@ -32,8 +32,8 @@ interface RatioAnalysisRow {
   fundName: string;
   plannedRatio: number;
   actualRatio: number;
-  estimateChangePct: number;
-  intradayAmount: number;
+  estimateChangePct?: number;
+  intradayAmount?: number;
 }
 
 interface PortfolioDetailViewProps {
@@ -207,19 +207,23 @@ export function PortfolioDetailView({
      return funds.map(fund => {
         if (typeof fund.plannedRatio !== 'number' || typeof fund.actualRatio !== 'number') return null;
         
-        const estimateChangePct = typeof fund.estimateChangePct === 'number' ? fund.estimateChangePct : 0;
+        const estimateChangePct =
+          typeof fund.estimateChangePct === 'number' ? fund.estimateChangePct : undefined;
         const intradayAmount = typeof fund.intradayAmount === 'number' 
            ? fund.intradayAmount 
-           : Number((fund.holdingAmount * estimateChangePct).toFixed(2));
+           : typeof estimateChangePct === 'number'
+             ? Number((fund.holdingAmount * estimateChangePct).toFixed(2))
+             : undefined;
            
-        return {
+        const row: RatioAnalysisRow = {
            fundCode: fund.fundCode,
            fundName: fund.fundName ?? `基金 ${fund.fundCode}`,
            plannedRatio: fund.plannedRatio,
            actualRatio: fund.actualRatio,
-           estimateChangePct,
-           intradayAmount
+           ...(typeof estimateChangePct === "number" ? { estimateChangePct } : {}),
+           ...(typeof intradayAmount === "number" ? { intradayAmount } : {})
         };
+        return row;
      }).filter((item): item is RatioAnalysisRow => item !== null);
   }, [funds, portfolio.type]);
 
