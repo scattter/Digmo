@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { DailyDecision, DailyDecisionAction, DecisionDocFormat, PortfolioDecisionDoc } from "@digmo/shared";
+import { DailyDecision, DecisionDocFormat, PortfolioDecisionDoc } from "@digmo/shared";
 
 interface DecisionDocRow {
   id: string;
@@ -21,7 +21,6 @@ interface DecisionRunRow {
   portfolioId: string;
   tradeDate: string;
   summary: string;
-  overallRiskLevel: "LOW" | "MEDIUM" | "HIGH";
   provider: string;
   model: string;
   status: "SUCCESS" | "FAILED";
@@ -33,29 +32,11 @@ interface DecisionRunRow {
   createdAt: string;
 }
 
-interface DecisionActionRow {
-  runId: string;
-  actionOrder: number;
-  actionType: "BUY" | "SELL" | "HOLD" | "REBALANCE";
-  fundCode: string;
-  fundName: string | null;
-  rationale: string;
-  targetPositionPct: number | null;
-  targetAmount: number | null;
-  triggerCondition: string;
-  validUntil: string;
-  confidence: number;
-  riskLevel: "LOW" | "MEDIUM" | "HIGH";
-  requiresSecondConfirm: number;
-  citationsJson: string;
-}
-
 export interface SaveDecisionRunInput {
   userId: string;
   portfolioId: string;
   tradeDate: string;
   summary: string;
-  overallRiskLevel: "LOW" | "MEDIUM" | "HIGH";
   provider: string;
   model: string;
   status: "SUCCESS" | "FAILED";
@@ -68,7 +49,6 @@ export interface SaveDecisionRunInput {
   };
   rawResponse?: string;
   promptSnapshotJson?: string;
-  actions: DailyDecisionAction[];
 }
 
 export interface DecisionStore {
@@ -100,33 +80,6 @@ function toDoc(row: DecisionDocRow): PortfolioDecisionDoc {
     ...(row.sourceFileName ? { sourceFileName: row.sourceFileName } : {}),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
-  };
-}
-
-function toAction(row: DecisionActionRow): DailyDecisionAction {
-  let citations: DailyDecisionAction["citations"] = [];
-  try {
-    const parsed = JSON.parse(row.citationsJson) as DailyDecisionAction["citations"];
-    if (Array.isArray(parsed)) {
-      citations = parsed;
-    }
-  } catch {
-    citations = [];
-  }
-
-  return {
-    actionType: row.actionType,
-    fundCode: row.fundCode,
-    ...(row.fundName ? { fundName: row.fundName } : {}),
-    rationale: row.rationale,
-    ...(typeof row.targetPositionPct === "number" ? { targetPositionPct: row.targetPositionPct } : {}),
-    ...(typeof row.targetAmount === "number" ? { targetAmount: row.targetAmount } : {}),
-    triggerCondition: row.triggerCondition,
-    validUntil: row.validUntil,
-    confidence: row.confidence,
-    riskLevel: row.riskLevel,
-    requiresSecondConfirm: row.requiresSecondConfirm === 1,
-    citations
   };
 }
 
@@ -342,7 +295,7 @@ export class SqliteDecisionStore implements DecisionStore {
           input.portfolioId,
           input.tradeDate,
           input.summary,
-          input.overallRiskLevel,
+          "MEDIUM",
           input.provider,
           input.model,
           input.status,
@@ -356,57 +309,12 @@ export class SqliteDecisionStore implements DecisionStore {
           now
         );
 
-      if (input.actions.length > 0) {
-        const insertActionStmt = this.db.prepare(
-          `
-            INSERT INTO portfolio_daily_decision_action (
-              run_id,
-              action_order,
-              action_type,
-              fund_code,
-              fund_name,
-              rationale,
-              target_position_pct,
-              target_amount,
-              trigger_condition,
-              valid_until,
-              confidence,
-              risk_level,
-              requires_second_confirm,
-              citations_json
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `
-        );
-
-        input.actions.forEach((action, index) => {
-          insertActionStmt.run(
-            runId,
-            index,
-            action.actionType,
-            action.fundCode,
-            action.fundName ?? null,
-            action.rationale,
-            action.targetPositionPct ?? null,
-            action.targetAmount ?? null,
-            action.triggerCondition,
-            action.validUntil,
-            action.confidence,
-            action.riskLevel,
-            action.requiresSecondConfirm ? 1 : 0,
-            JSON.stringify(action.citations)
-          );
-        });
-      }
-
       this.db.exec("COMMIT;");
       return {
         id: runId,
         portfolioId: input.portfolioId,
         tradeDate: input.tradeDate,
         summary: input.summary,
-        overallRiskLevel: input.overallRiskLevel,
-        actions: input.actions,
         provider: input.provider,
         model: input.model,
         status: input.status,
@@ -443,7 +351,6 @@ export class SqliteDecisionStore implements DecisionStore {
             portfolio_id AS portfolioId,
             trade_date AS tradeDate,
             summary,
-            overall_risk_level AS overallRiskLevel,
             provider,
             model,
             status,
@@ -464,38 +371,11 @@ export class SqliteDecisionStore implements DecisionStore {
       return undefined;
     }
 
-    const actionRows = this.db
-      .prepare(
-        `
-          SELECT
-            run_id AS runId,
-            action_order AS actionOrder,
-            action_type AS actionType,
-            fund_code AS fundCode,
-            fund_name AS fundName,
-            rationale,
-            target_position_pct AS targetPositionPct,
-            target_amount AS targetAmount,
-            trigger_condition AS triggerCondition,
-            valid_until AS validUntil,
-            confidence,
-            risk_level AS riskLevel,
-            requires_second_confirm AS requiresSecondConfirm,
-            citations_json AS citationsJson
-          FROM portfolio_daily_decision_action
-          WHERE run_id = ?
-          ORDER BY action_order ASC
-        `
-      )
-      .all(row.id) as unknown as DecisionActionRow[];
-
     return {
       id: row.id,
       portfolioId: row.portfolioId,
       tradeDate: row.tradeDate,
       summary: row.summary,
-      overallRiskLevel: row.overallRiskLevel,
-      actions: actionRows.map((item) => toAction(item)),
       provider: row.provider,
       model: row.model,
       status: row.status,
@@ -519,7 +399,6 @@ export class SqliteDecisionStore implements DecisionStore {
             portfolio_id AS portfolioId,
             trade_date AS tradeDate,
             summary,
-            overall_risk_level AS overallRiskLevel,
             provider,
             model,
             status,
@@ -541,48 +420,11 @@ export class SqliteDecisionStore implements DecisionStore {
       return [];
     }
 
-    const runIdSet = runRows.map((row) => row.id);
-    const placeholders = runIdSet.map(() => "?").join(",");
-    const actionRows = this.db
-      .prepare(
-        `
-          SELECT
-            run_id AS runId,
-            action_order AS actionOrder,
-            action_type AS actionType,
-            fund_code AS fundCode,
-            fund_name AS fundName,
-            rationale,
-            target_position_pct AS targetPositionPct,
-            target_amount AS targetAmount,
-            trigger_condition AS triggerCondition,
-            valid_until AS validUntil,
-            confidence,
-            risk_level AS riskLevel,
-            requires_second_confirm AS requiresSecondConfirm,
-            citations_json AS citationsJson
-          FROM portfolio_daily_decision_action
-          WHERE run_id IN (${placeholders})
-          ORDER BY run_id, action_order ASC
-        `
-      )
-      .all(...runIdSet) as unknown as DecisionActionRow[];
-
-    const actionMap = new Map<string, DailyDecisionAction[]>();
-    for (const row of actionRows) {
-      if (!actionMap.has(row.runId)) {
-        actionMap.set(row.runId, []);
-      }
-      actionMap.get(row.runId)?.push(toAction(row));
-    }
-
     return runRows.map((row) => ({
       id: row.id,
       portfolioId: row.portfolioId,
       tradeDate: row.tradeDate,
       summary: row.summary,
-      overallRiskLevel: row.overallRiskLevel,
-      actions: actionMap.get(row.id) ?? [],
       provider: row.provider,
       model: row.model,
       status: row.status,

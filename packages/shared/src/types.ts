@@ -233,28 +233,11 @@ export interface PortfolioDecisionDoc {
   updatedAt: string;
 }
 
-export interface DailyDecisionAction {
-  actionType: DecisionActionType;
-  fundCode: string;
-  fundName?: string;
-  rationale: string;
-  targetPositionPct?: number;
-  targetAmount?: number;
-  triggerCondition: string;
-  validUntil: string;
-  confidence: number;
-  riskLevel: DecisionRiskLevel;
-  requiresSecondConfirm: boolean;
-  citations: DecisionCitation[];
-}
-
 export interface DailyDecision {
   id: string;
   portfolioId: string;
   tradeDate: string;
   summary: string;
-  overallRiskLevel: DecisionRiskLevel;
-  actions: DailyDecisionAction[];
   provider: string;
   model: string;
   status: "SUCCESS" | "FAILED";
@@ -270,16 +253,6 @@ export interface DailyDecision {
 
 export type PositionOperationType = "INCREASE" | "DECREASE";
 
-export interface PositionOperationBindSuggestion {
-  decisionId: string;
-  actionOrder: number;
-  actionType: DecisionActionType;
-  fundCode: string;
-  fundName?: string;
-  riskLevel: DecisionRiskLevel;
-  rationale: string;
-}
-
 export interface PositionOperationRecord {
   id: string;
   portfolioId: string;
@@ -290,6 +263,5 @@ export interface PositionOperationRecord {
   afterHoldingAmount: number;
   beforeHoldingProfitAmount: number;
   afterHoldingProfitAmount: number;
-  bindSuggestion?: PositionOperationBindSuggestion;
   createdAt: string;
 }

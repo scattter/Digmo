@@ -1,3 +1,4 @@
+import OpenAI from "openai";
 import {
   DecisionAIProvider,
   DecisionGenerationInput,
@@ -10,28 +11,9 @@ interface OpenAIDecisionProviderOptions {
   model: string;
   timeoutMs: number;
   maxOutputTokens: number;
-  enableWebSearch: boolean;
   baseUrl?: string;
   systemPrompt?: string;
   docMaxChars?: number;
-}
-
-interface OpenAIUsage {
-  input_tokens?: number;
-  output_tokens?: number;
-  total_tokens?: number;
-}
-
-interface OpenAIResponsePayload {
-  output_text?: string;
-  output?: Array<{
-    type?: string;
-    content?: Array<{
-      type?: string;
-      text?: string;
-    }>;
-  }>;
-  usage?: OpenAIUsage;
 }
 
 interface OpenAIChatUsage {
@@ -54,31 +36,6 @@ interface OpenAIChatPayload {
   usage?: OpenAIChatUsage;
 }
 
-const RESPONSES_FALLBACK_STATUS_CODES = new Set([404, 405, 415, 422, 501]);
-const DEFAULT_DOC_MAX_CHARS = 12_000;
-const MAX_FETCH_ATTEMPTS = 2;
-const RETRIABLE_FETCH_ERROR_NAMES = new Set(["AbortError", "TimeoutError"]);
-const RETRIABLE_FETCH_ERROR_PATTERNS = [
-  "fetch failed",
-  "network",
-  "timeout",
-  "timed out",
-  "econnreset",
-  "econnrefused",
-  "enotfound",
-  "eai_again",
-  "socket hang up",
-];
-const PLAIN_TEXT_FALLBACK_SYSTEM_PROMPT = [
-  "你是我的专属投资顾问，根据组合的策略文档，当前持仓，当日涨跌，历史操作要求给出操作建议。",
-  "请输出简洁中文纯文本建议，必须包含以下小节, 且需要严格按照顺序返回：",
-  "具体操作：只给出具体基金的调仓/加仓/减仓，不需要其他内容。",
-  "今日趋势：一句话说明盘面或组合变化方向。",
-  "相关建议：结合历史操作与组合策略文档给出具体操作的理由。",
-  "风险提示：一句话说明主要风险点与注意事项。",
-  "不要输出 Markdown 代码块，要有清晰的换行结构。",
-  "不要推荐组合外基金。",
-].join("\n");
 const THIRD_PARTY_CHAT_FIRST_MODEL_PREFIXES = [
   "claude-",
   "gemini-",
@@ -94,153 +51,26 @@ const THIRD_PARTY_CHAT_FIRST_MODEL_PREFIXES = [
   "hunyuan-",
 ];
 
-const DECISION_OUTPUT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["summary", "overallRiskLevel", "actions"],
-  properties: {
-    summary: { type: "string" },
-    overallRiskLevel: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] },
-    actions: {
-      type: "array",
-      minItems: 1,
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: [
-          "actionType",
-          "fundCode",
-          "rationale",
-          "triggerCondition",
-          "validUntil",
-          "confidence",
-          "riskLevel",
-          "requiresSecondConfirm",
-          "citations",
-        ],
-        properties: {
-          actionType: {
-            type: "string",
-            enum: ["BUY", "SELL", "HOLD", "REBALANCE"],
-          },
-          fundCode: { type: "string" },
-          fundName: { type: "string" },
-          rationale: { type: "string" },
-          targetPositionPct: { type: "number" },
-          targetAmount: { type: "number" },
-          triggerCondition: { type: "string" },
-          validUntil: { type: "string" },
-          confidence: { type: "number" },
-          riskLevel: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] },
-          requiresSecondConfirm: { type: "boolean" },
-          citations: {
-            type: "array",
-            minItems: 1,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["title", "snippet", "sourceType"],
-              properties: {
-                title: { type: "string" },
-                url: { type: "string" },
-                snippet: { type: "string" },
-                sourceType: {
-                  type: "string",
-                  enum: [
-                    "portfolio_doc",
-                    "market_context",
-                    "world_context",
-                    "portfolio_data",
-                    "other",
-                  ],
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-};
+const DEFAULT_DOC_MAX_CHARS = 12_000;
+const MAX_COMPAT_CHAT_COMPLETION_TOKENS = 32_768;
+const MIN_COMPAT_CHAT_COMPLETION_TIMEOUT_MS = 45_000;
+const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 
 const DEFAULT_SYSTEM_PROMPT = [
-  "你是一个基金组合交易决策助手，必须输出强指令建议（买入、卖出、持有、再平衡）。",
-  "你必须严格依据用户组合数据、策略文档、以及联网检索到的最新市场/世界信息。",
-  "每条建议必须包含可追溯来源 citations，且 citations 不能为空。",
-  "如果风险高（如明显加仓/减仓），requiresSecondConfirm 必须为 true，riskLevel 必须为 HIGH。",
-  "必须仅针对组合内基金给建议，不得推荐组合外基金。",
-  "你只能输出满足 JSON Schema 的 JSON，不要输出任何额外文本。",
+  "你是我的专属投资顾问，根据组合的策略文档，当前持仓，当日涨跌，历史操作要求给出操作建议。",
+  "请输出简洁中文纯文本建议，不需要返回思考过程，且内容必须包含以下小节，严格按照顺序返回：",
+  "具体操作：只给出具体基金的调仓/加仓/减仓，不需要其他内容。",
+  "今日趋势：一句话说明盘面或组合变化方向。",
+  "相关建议：结合历史操作与组合策略文档给出具体操作的理由。",
+  "风险提示：一句话说明主要风险点与注意事项。",
+  "不要输出 Markdown 代码块，要有清晰的换行结构。",
+  "不要推荐组合外基金。",
+  // "你是一个基金组合交易决策助手。",
+  // "你必须严格依据用户组合数据、策略文档和当日上下文给出建议。",
+  // "请直接输出中文纯文本建议，不要输出 JSON，不要输出代码块，不要输出标题装饰。",
+  // "建议应覆盖当前组合的整体判断、需要注意的风险，以及接下来更适合采取的操作方向。",
+  // "不要推荐组合外基金。",
 ].join("\n");
-
-function extractOutputText(payload: OpenAIResponsePayload): string | undefined {
-  if (typeof payload.output_text === "string" && payload.output_text.trim()) {
-    return payload.output_text.trim();
-  }
-
-  const texts: string[] = [];
-  for (const item of payload.output ?? []) {
-    for (const block of item.content ?? []) {
-      if (typeof block.text === "string" && block.text.trim()) {
-        texts.push(block.text.trim());
-      }
-    }
-  }
-  return texts.length > 0 ? texts.join("\n") : undefined;
-}
-
-function extractChatOutputText(payload: OpenAIChatPayload): string | undefined {
-  const firstContent = payload.choices?.[0]?.message?.content;
-  if (typeof firstContent === "string" && firstContent.trim()) {
-    return firstContent.trim();
-  }
-
-  if (Array.isArray(firstContent)) {
-    const texts = firstContent
-      .map((item) => (typeof item.text === "string" ? item.text.trim() : ""))
-      .filter(Boolean);
-    if (texts.length > 0) {
-      return texts.join("\n");
-    }
-  }
-
-  return undefined;
-}
-
-function toOpenAIRequestError(status: number, detail: string): Error {
-  return new Error(`openai request failed: ${status} ${detail}`);
-}
-
-function shouldFallbackToChat(status: number, detail: string): boolean {
-  if (RESPONSES_FALLBACK_STATUS_CODES.has(status)) {
-    return true;
-  }
-
-  const normalized = detail.toLowerCase();
-  if (
-    status >= 500 &&
-    (normalized.includes("convert_request_failed") ||
-      normalized.includes("not implemented"))
-  ) {
-    return true;
-  }
-  if (normalized.includes("unsupported")) {
-    return true;
-  }
-  if (normalized.includes("not support")) {
-    return true;
-  }
-  if (normalized.includes("unknown endpoint")) {
-    return true;
-  }
-  if (
-    normalized.includes("/v1/responses") &&
-    normalized.includes("not found")
-  ) {
-    return true;
-  }
-
-  return false;
-}
 
 function normalizeDocMaxChars(docMaxChars?: number): number {
   if (
@@ -253,15 +83,89 @@ function normalizeDocMaxChars(docMaxChars?: number): number {
   return Math.floor(docMaxChars);
 }
 
-function buildApiEndpoint(
-  baseUrl: string,
-  endpoint: "responses" | "chat/completions",
-): string {
-  const normalized = baseUrl.replace(/\/$/, "");
+function normalizeCompatMaxTokens(maxOutputTokens: number): number {
+  if (!Number.isFinite(maxOutputTokens) || maxOutputTokens <= 0) {
+    return Math.min(1600, MAX_COMPAT_CHAT_COMPLETION_TOKENS);
+  }
+
+  return Math.min(Math.floor(maxOutputTokens), MAX_COMPAT_CHAT_COMPLETION_TOKENS);
+}
+
+function normalizeCompatTimeoutMs(timeoutMs: number): number {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return MIN_COMPAT_CHAT_COMPLETION_TIMEOUT_MS;
+  }
+
+  return Math.max(Math.floor(timeoutMs), MIN_COMPAT_CHAT_COMPLETION_TIMEOUT_MS);
+}
+
+function normalizeBaseUrl(baseUrl?: string): string {
+  const raw = typeof baseUrl === "string" && baseUrl.trim()
+    ? baseUrl.trim()
+    : DEFAULT_OPENAI_BASE_URL;
+  const firstUrl = raw.match(/https?:\/\/[^\s#]+/iu)?.[0] ?? raw;
+  const normalized = firstUrl.replace(/\/$/, "");
+  return normalized || DEFAULT_OPENAI_BASE_URL;
+}
+
+function buildApiEndpoint(baseUrl: string, endpoint: "chat/completions"): string {
+  const normalized = normalizeBaseUrl(baseUrl);
   if (normalized.endsWith("/v1")) {
     return `${normalized}/${endpoint}`;
   }
   return `${normalized}/v1/${endpoint}`;
+}
+
+function isOfficialOpenAIBaseUrl(baseUrl: string): boolean {
+  const normalized = normalizeBaseUrl(baseUrl);
+  return (
+    normalized === "https://api.openai.com" ||
+    normalized === "https://api.openai.com/v1"
+  );
+}
+
+function isLikelyOpenAINativeModel(model: string): boolean {
+  const normalized = model.trim().toLowerCase();
+  return (
+    normalized.startsWith("gpt-") ||
+    normalized.startsWith("chatgpt-") ||
+    normalized.startsWith("o1") ||
+    normalized.startsWith("o3") ||
+    normalized.startsWith("o4")
+  );
+}
+
+function isLikelyThirdPartyCompatModel(model: string): boolean {
+  const normalized = model.trim().toLowerCase();
+  return THIRD_PARTY_CHAT_FIRST_MODEL_PREFIXES.some((prefix) =>
+    normalized.startsWith(prefix),
+  );
+}
+
+function shouldPreferCompatChatCompletions(baseUrl: string, model: string): boolean {
+  return (
+    !isOfficialOpenAIBaseUrl(baseUrl) &&
+    !isLikelyOpenAINativeModel(model) &&
+    isLikelyThirdPartyCompatModel(model)
+  );
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Request timed out.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function trimDecisionDocContent(
@@ -288,127 +192,62 @@ function stripMarkdownCodeFence(content: string): string {
   return match?.[1]?.trim() ?? trimmed;
 }
 
-function isOfficialOpenAIBaseUrl(baseUrl: string): boolean {
-  const normalized = baseUrl.replace(/\/$/, "");
-  return (
-    normalized === "https://api.openai.com" ||
-    normalized === "https://api.openai.com/v1"
-  );
-}
-
-function isLikelyOpenAINativeModel(model: string): boolean {
-  const normalized = model.trim().toLowerCase();
-  return (
-    normalized.startsWith("gpt-") ||
-    normalized.startsWith("chatgpt-") ||
-    normalized.startsWith("o1") ||
-    normalized.startsWith("o3") ||
-    normalized.startsWith("o4")
-  );
-}
-
-function isLikelyThirdPartyCompatModel(model: string): boolean {
-  const normalized = model.trim().toLowerCase();
-  return THIRD_PARTY_CHAT_FIRST_MODEL_PREFIXES.some((prefix) =>
-    normalized.startsWith(prefix),
-  );
-}
-
-function shouldPreferChatCompletions(baseUrl: string, model: string): boolean {
-  return (
-    !isOfficialOpenAIBaseUrl(baseUrl) &&
-    !isLikelyOpenAINativeModel(model) &&
-    isLikelyThirdPartyCompatModel(model)
-  );
-}
-
-function parseStructuredOutputText(outputText: string): {
-  normalizedText: string;
-  structured: unknown;
-} {
-  const normalizedText = stripMarkdownCodeFence(outputText);
-  try {
-    return {
-      normalizedText,
-      structured: JSON.parse(normalizedText),
-    };
-  } catch {
-    throw new Error("openai output is not valid JSON");
+function stripReasoningContent(content: string): string {
+  const withoutTaggedReasoning = content.replace(
+    /<think>[\s\S]*?<\/think>/giu,
+    "",
+  ).trim();
+  if (withoutTaggedReasoning) {
+    return withoutTaggedReasoning;
   }
-}
 
-function inferOverallRiskLevel(summary: string): "LOW" | "MEDIUM" | "HIGH" {
-  const normalized = summary.toLowerCase();
-  if (normalized.includes("高风险") || normalized.includes("high risk")) {
-    return "HIGH";
-  }
-  if (normalized.includes("低风险") || normalized.includes("low risk")) {
-    return "LOW";
-  }
-  return "MEDIUM";
-}
-
-function shouldTryPlainTextFallback(message: string): boolean {
-  const normalized = message.toLowerCase();
-  if (normalized.includes("openai_api_key is not configured")) {
-    return false;
-  }
-  if (
-    normalized.includes("openai request failed: 401") ||
-    normalized.includes("openai request failed: 403")
-  ) {
-    return false;
-  }
-  return true;
-}
-
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, {
-      ...init,
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function isRetriableFetchError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-  if (RETRIABLE_FETCH_ERROR_NAMES.has(error.name)) {
-    return true;
-  }
-  const normalized = error.message.toLowerCase();
-  return RETRIABLE_FETCH_ERROR_PATTERNS.some((pattern) =>
-    normalized.includes(pattern),
-  );
-}
-
-async function fetchWithRetry(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt += 1) {
-    try {
-      return await fetchWithTimeout(url, init, timeoutMs);
-    } catch (error) {
-      lastError = error;
-      if (attempt >= MAX_FETCH_ATTEMPTS || !isRetriableFetchError(error)) {
-        throw error;
-      }
+  const closingTag = "</think>";
+  const closingIndex = content.lastIndexOf(closingTag);
+  if (closingIndex >= 0) {
+    const trailingContent = content
+      .slice(closingIndex + closingTag.length)
+      .trim();
+    if (trailingContent) {
+      return trailingContent;
     }
   }
-  throw lastError;
+
+  return content.trim();
+}
+
+function stripMarkdownDecoration(content: string): string {
+  return content
+    .split("\n")
+    .map((line) => line.replace(/^\s{0,3}#{1,6}\s*/u, ""))
+    .join("\n")
+    .replace(/\*\*(.*?)\*\*/gu, "$1")
+    .replace(/__(.*?)__/gu, "$1")
+    .replace(/`([^`]+)`/gu, "$1")
+    .trim();
+}
+
+function normalizeModelOutputText(content: string): string {
+  return stripMarkdownDecoration(
+    stripReasoningContent(stripMarkdownCodeFence(content)),
+  );
+}
+
+function extractChatOutputText(payload: OpenAIChatPayload): string | undefined {
+  const firstContent = payload.choices?.[0]?.message?.content;
+  if (typeof firstContent === "string" && firstContent.trim()) {
+    return firstContent.trim();
+  }
+
+  if (Array.isArray(firstContent)) {
+    const texts = firstContent
+      .map((item) => (typeof item.text === "string" ? item.text.trim() : ""))
+      .filter(Boolean);
+    if (texts.length > 0) {
+      return texts.join("\n");
+    }
+  }
+
+  return undefined;
 }
 
 export class OpenAIDecisionProvider implements DecisionAIProvider {
@@ -417,75 +256,43 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
   private readonly apiKey?: string;
   private readonly timeoutMs: number;
   private readonly maxOutputTokens: number;
-  private readonly enableWebSearch: boolean;
   private readonly baseUrl: string;
   private readonly systemPrompt: string;
   private readonly docMaxChars: number;
-  private readonly preferChatCompletions: boolean;
+  private readonly preferCompatChatCompletions: boolean;
+  private readonly client?: OpenAI;
+  private readonly compatMaxOutputTokens: number;
+  private readonly compatTimeoutMs: number;
 
   constructor(options: OpenAIDecisionProviderOptions) {
     this.apiKey = options.apiKey;
     this.model = options.model;
     this.timeoutMs = options.timeoutMs;
     this.maxOutputTokens = options.maxOutputTokens;
-    this.enableWebSearch = options.enableWebSearch;
-    this.baseUrl = (options.baseUrl ?? "https://api.openai.com").replace(
-      /\/$/,
-      "",
-    );
+    this.compatMaxOutputTokens = normalizeCompatMaxTokens(options.maxOutputTokens);
+    this.compatTimeoutMs = normalizeCompatTimeoutMs(options.timeoutMs);
+    this.baseUrl = normalizeBaseUrl(options.baseUrl);
     this.systemPrompt = options.systemPrompt?.trim()
       ? options.systemPrompt.trim()
       : DEFAULT_SYSTEM_PROMPT;
     this.docMaxChars = normalizeDocMaxChars(options.docMaxChars);
-    this.preferChatCompletions = shouldPreferChatCompletions(
+    this.preferCompatChatCompletions = shouldPreferCompatChatCompletions(
       this.baseUrl,
       this.model,
     );
+
+    if (this.apiKey && !this.preferCompatChatCompletions) {
+      this.client = new OpenAI({
+        apiKey: this.apiKey,
+        baseURL: this.baseUrl,
+        timeout: this.timeoutMs,
+        maxRetries: 0,
+      });
+    }
   }
 
-  private async requestResponses(inputText: string): Promise<Response> {
-    return fetchWithRetry(
-      buildApiEndpoint(this.baseUrl, "responses"),
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.model,
-          input: [
-            {
-              role: "system",
-              content: [{ type: "input_text", text: this.systemPrompt }],
-            },
-            {
-              role: "user",
-              content: [{ type: "input_text", text: inputText }],
-            },
-          ],
-          ...(this.enableWebSearch
-            ? {
-                tools: [{ type: "web_search_preview" }],
-              }
-            : {}),
-          text: {
-            format: {
-              type: "json_schema",
-              name: "daily_decision_output",
-              schema: DECISION_OUTPUT_SCHEMA,
-              strict: true,
-            },
-          },
-          max_output_tokens: this.maxOutputTokens,
-        }),
-      },
-      this.timeoutMs,
-    );
-  }
-
-  private async requestChatCompletions(inputText: string): Promise<Response> {
-    return fetchWithRetry(
+  private async requestCompatChatCompletions(inputText: string): Promise<OpenAIChatPayload> {
+    const response = await fetchWithTimeout(
       buildApiEndpoint(this.baseUrl, "chat/completions"),
       {
         method: "POST",
@@ -505,96 +312,18 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
               content: inputText,
             },
           ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "daily_decision_output",
-              schema: DECISION_OUTPUT_SCHEMA,
-              strict: true,
-            },
-          },
-          max_tokens: this.maxOutputTokens,
+          max_tokens: this.compatMaxOutputTokens,
         }),
       },
-      this.timeoutMs,
-    );
-  }
-
-  private async requestPlainTextFallback(
-    inputText: string,
-  ): Promise<{ text: string; usage: DecisionGenerationResult["usage"] }> {
-    const response = await fetchWithRetry(
-      buildApiEndpoint(this.baseUrl, "chat/completions"),
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            {
-              role: "system",
-              content: PLAIN_TEXT_FALLBACK_SYSTEM_PROMPT,
-            },
-            {
-              role: "user",
-              content: inputText,
-            },
-          ],
-          max_tokens: this.maxOutputTokens,
-        }),
-      },
-      this.timeoutMs,
+      this.compatTimeoutMs,
     );
 
     if (!response.ok) {
       const detail = await response.text();
-      throw toOpenAIRequestError(response.status, detail);
+      throw new Error(`openai request failed: ${response.status} ${detail}`);
     }
 
-    const payload = (await response.json()) as OpenAIChatPayload;
-    const text = extractChatOutputText(payload);
-    if (!text) {
-      throw new Error("openai plain text fallback has no output text");
-    }
-    return {
-      text,
-      usage: {
-        inputTokens: payload.usage?.prompt_tokens,
-        outputTokens: payload.usage?.completion_tokens,
-        totalTokens: payload.usage?.total_tokens,
-      },
-    };
-  }
-
-  private async generateStructuredFromChatCompletions(
-    inputText: string,
-  ): Promise<DecisionGenerationResult> {
-    const response = await this.requestChatCompletions(inputText);
-    if (!response.ok) {
-      const detail = await response.text();
-      throw toOpenAIRequestError(response.status, detail);
-    }
-
-    const payload = (await response.json()) as OpenAIChatPayload;
-    const outputText = extractChatOutputText(payload);
-    if (!outputText) {
-      throw new Error("openai response has no output text");
-    }
-
-    const { normalizedText, structured } = parseStructuredOutputText(outputText);
-    const validated = validateDecisionGenerationResult(structured);
-    return {
-      ...validated,
-      usage: {
-        inputTokens: payload.usage?.prompt_tokens,
-        outputTokens: payload.usage?.completion_tokens,
-        totalTokens: payload.usage?.total_tokens,
-      },
-      rawResponse: normalizedText,
-    };
+    return (await response.json()) as OpenAIChatPayload;
   }
 
   async generateDailyDecision(
@@ -607,81 +336,41 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
     const trimmedInput = trimDecisionDocContent(input, this.docMaxChars);
     const inputText = JSON.stringify(trimmedInput);
 
-    try {
-      if (this.preferChatCompletions) {
-        return await this.generateStructuredFromChatCompletions(inputText);
-      }
+    const payload = this.preferCompatChatCompletions
+      ? await this.requestCompatChatCompletions(inputText)
+      : ((await this.client?.chat.completions.create({
+          model: this.model,
+          messages: [
+            {
+              role: "system",
+              content: this.systemPrompt,
+            },
+            {
+              role: "user",
+              content: inputText,
+            },
+          ],
+        })) as OpenAIChatPayload);
 
-      const response = await this.requestResponses(inputText);
-
-      let outputText: string | undefined;
-      let usage: {
-        inputTokens?: number;
-        outputTokens?: number;
-        totalTokens?: number;
-      } = {};
-
-      if (response.ok) {
-        const payload = (await response.json()) as OpenAIResponsePayload;
-        outputText = extractOutputText(payload);
-        usage = {
-          inputTokens: payload.usage?.input_tokens,
-          outputTokens: payload.usage?.output_tokens,
-          totalTokens: payload.usage?.total_tokens,
-        };
-      } else {
-        const detail = await response.text();
-        if (!shouldFallbackToChat(response.status, detail)) {
-          throw toOpenAIRequestError(response.status, detail);
-        }
-
-        const fallbackResponse = await this.requestChatCompletions(inputText);
-        if (!fallbackResponse.ok) {
-          const fallbackDetail = await fallbackResponse.text();
-          throw toOpenAIRequestError(fallbackResponse.status, fallbackDetail);
-        }
-
-        const fallbackPayload =
-          (await fallbackResponse.json()) as OpenAIChatPayload;
-        outputText = extractChatOutputText(fallbackPayload);
-        usage = {
-          inputTokens: fallbackPayload.usage?.prompt_tokens,
-          outputTokens: fallbackPayload.usage?.completion_tokens,
-          totalTokens: fallbackPayload.usage?.total_tokens,
-        };
-      }
-
-      if (!outputText) {
-        throw new Error("openai response has no output text");
-      }
-
-      const { normalizedText, structured } = parseStructuredOutputText(outputText);
-      const validated = validateDecisionGenerationResult(structured);
-      return {
-        ...validated,
-        usage,
-        rawResponse: normalizedText,
-      };
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "decision generation failed";
-      if (!shouldTryPlainTextFallback(message)) {
-        throw error;
-      }
-
-      const fallback = await this.requestPlainTextFallback(inputText);
-      const summary = stripMarkdownCodeFence(fallback.text);
-      if (!summary) {
-        throw error;
-      }
-
-      return {
-        summary,
-        overallRiskLevel: inferOverallRiskLevel(summary),
-        actions: [],
-        usage: fallback.usage,
-        rawResponse: summary,
-      };
+    if (!payload) {
+      throw new Error("openai client is not initialized");
     }
+
+    const outputText = extractChatOutputText(payload);
+    if (!outputText) {
+      throw new Error("openai response has no output text");
+    }
+
+    const normalizedText = normalizeModelOutputText(outputText);
+    const validated = validateDecisionGenerationResult(normalizedText);
+    return {
+      ...validated,
+      usage: {
+        inputTokens: payload.usage?.prompt_tokens,
+        outputTokens: payload.usage?.completion_tokens,
+        totalTokens: payload.usage?.total_tokens,
+      },
+      rawResponse: normalizedText,
+    };
   }
 }

@@ -408,7 +408,7 @@ export default function FundDashboard() {
               editStateMap={dashboard.editStateMap}
               onEditFieldChange={handleEditFieldChange}
               onUpdateFund={handleUpdateFund}
-              onOperateFund={(item, input) => actions.operatePositionAction(item, input.operationType, input.amountRaw, input.bindActionOrder && input.decisionId ? { decisionId: input.decisionId, actionOrder: input.bindActionOrder } : undefined)}
+              onOperateFund={(item, input) => actions.operatePositionAction(item, input.operationType, input.amountRaw)}
               onDeleteFund={actions.deleteFundAction}
               onDragEnd={() => {}} // PortfolioFundsTable internal drag? Or fund reorder?
               // PortfolioFundsTable has internal drag for funds.

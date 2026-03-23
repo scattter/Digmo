@@ -1,8 +1,34 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { DecisionGenerationInput } from "../provider.js";
+
+const { openAIConstructorSpy, chatCompletionCreateSpy } = vi.hoisted(() => ({
+  openAIConstructorSpy: vi.fn(),
+  chatCompletionCreateSpy: vi.fn(),
+}));
+
+vi.mock("openai", () => {
+  class OpenAI {
+    chat = {
+      completions: {
+        create: chatCompletionCreateSpy,
+      },
+    };
+
+    constructor(options: unknown) {
+      openAIConstructorSpy(options);
+    }
+  }
+
+  return {
+    default: OpenAI,
+  };
+});
+
 import { OpenAIDecisionProvider } from "../openai-provider.js";
 
-function createInput(overrides?: Partial<DecisionGenerationInput>): DecisionGenerationInput {
+function createInput(
+  overrides?: Partial<DecisionGenerationInput>,
+): DecisionGenerationInput {
   const base: DecisionGenerationInput = {
     asOf: "2026-03-07T08:00:00.000Z",
     timezone: "Asia/Shanghai",
@@ -21,17 +47,17 @@ function createInput(overrides?: Partial<DecisionGenerationInput>): DecisionGene
           holdingProfitAmount: 500,
           holdingProfitPct: 0.052,
           estimateChangePct: 0.01,
-          dailyProfitPct: 0.01
-        }
-      ]
+          dailyProfitPct: 0.01,
+        },
+      ],
     },
     operationHistory: [],
     decisionDoc: {
       title: "策略文档",
       format: "TEXT",
       content: "纪律：不追涨，控制回撤。",
-      version: 1
-    }
+      version: 1,
+    },
   };
 
   return {
@@ -39,388 +65,362 @@ function createInput(overrides?: Partial<DecisionGenerationInput>): DecisionGene
     ...overrides,
     portfolio: {
       ...base.portfolio,
-      ...(overrides?.portfolio ?? {})
+      ...(overrides?.portfolio ?? {}),
     },
     decisionDoc: {
       ...base.decisionDoc,
-      ...(overrides?.decisionDoc ?? {})
-    }
+      ...(overrides?.decisionDoc ?? {}),
+    },
   };
 }
 
-function buildValidDecisionJson(): string {
-  return JSON.stringify({
-    summary: "波动较大，建议防守",
-    overallRiskLevel: "MEDIUM",
-    actions: [
-      {
-        actionType: "HOLD",
-        fundCode: "161725",
-        rationale: "短期波动扩大",
-        triggerCondition: "观察3个交易日",
-        validUntil: "2026-03-08T08:00:00.000Z",
-        confidence: 0.67,
-        riskLevel: "MEDIUM",
-        requiresSecondConfirm: false,
-        citations: [
-          {
-            title: "策略文档",
-            snippet: "波动期保持仓位",
-            sourceType: "portfolio_doc"
-          }
-        ]
-      }
-    ]
-  });
+function buildValidDecisionText(): string {
+  return [
+    "今日建议：以防守为主，暂不追涨。",
+    "组合观察：白酒仓位短线波动扩大，但暂未触发破位。",
+    "执行原则：继续按策略文档控制回撤，等待更清晰的加仓窗口。",
+  ].join("\n");
 }
 
-function jsonResponse(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: {
-      "content-type": "application/json"
-    }
+function buildProvider(
+  overrides?: Partial<ConstructorParameters<typeof OpenAIDecisionProvider>[0]>,
+): OpenAIDecisionProvider {
+  return new OpenAIDecisionProvider({
+    apiKey: "test-key",
+    model: "gpt-4o-mini",
+    timeoutMs: 5000,
+    maxOutputTokens: 1200,
+    baseUrl: "https://api.bltcy.ai/v1",
+    ...overrides,
   });
 }
 
 describe("OpenAIDecisionProvider", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        throw new Error("fetch should not be called");
+      }),
+    );
+    openAIConstructorSpy.mockReset();
+    chatCompletionCreateSpy.mockReset();
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  test("uses custom base url and sends request to /v1/responses", async () => {
+  test("uses OpenAI SDK chat completions with baseURL and only model/messages", async () => {
+    chatCompletionCreateSpy.mockResolvedValue({
+      choices: [{ message: { content: buildValidDecisionText() } }],
+      usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 },
+    });
+
+    const provider = buildProvider();
+
+    const result = await provider.generateDailyDecision(createInput());
+
+    expect(openAIConstructorSpy).toHaveBeenCalledWith({
+      apiKey: "test-key",
+      baseURL: "https://api.bltcy.ai/v1",
+      maxRetries: 0,
+      timeout: 5000,
+    });
+    expect(chatCompletionCreateSpy).toHaveBeenCalledTimes(1);
+    expect(chatCompletionCreateSpy).toHaveBeenCalledWith({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: expect.any(String),
+        },
+        {
+          role: "user",
+          content: expect.any(String),
+        },
+      ],
+    });
+
+    expect(result.summary).toContain("防守");
+    expect(result.usage?.inputTokens).toBe(120);
+    expect(result.usage?.outputTokens).toBe(60);
+    expect(result.usage?.totalTokens).toBe(180);
+    expect(result.rawResponse).toBe(buildValidDecisionText());
+  });
+
+  test("uses compat chat completions transport for third-party compatible models", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({
-        output_text: buildValidDecisionJson(),
-        usage: { input_tokens: 101, output_tokens: 55, total_tokens: 156 }
-      })
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: buildValidDecisionText() } }],
+          usage: { prompt_tokens: 140, completion_tokens: 70, total_tokens: 210 },
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const provider = new OpenAIDecisionProvider({
-      apiKey: "test-key",
-      model: "test-model",
-      timeoutMs: 5000,
-      maxOutputTokens: 1200,
-      enableWebSearch: false,
-      baseUrl: "https://llm-gateway.example.com"
+    const provider = buildProvider({
+      model: "glm-5",
+      baseUrl: "https://compat.example.com/openapi/compatible-mode/v1",
+      maxOutputTokens: 1800,
     });
 
     const result = await provider.generateDailyDecision(createInput());
 
+    expect(openAIConstructorSpy).not.toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://llm-gateway.example.com/v1/responses");
-    expect(result.summary).toContain("防守");
-    expect(result.usage?.totalTokens).toBe(156);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://compat.example.com/openapi/compatible-mode/v1/chat/completions",
+    );
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(init.body)) as {
+      model: string;
+      max_tokens: number;
+      messages: Array<{ role: string; content: string }>;
+    };
+
+    expect(body.model).toBe("glm-5");
+    expect(body.max_tokens).toBe(1800);
+    expect(body.messages[0]).toEqual({
+      role: "system",
+      content: expect.any(String),
+    });
+    expect(body.messages[1]).toEqual({
+      role: "user",
+      content: expect.any(String),
+    });
+    expect(result.usage?.totalTokens).toBe(210);
   });
 
-  test("uses /responses directly when base url already ends with /v1", async () => {
+  test("sanitizes malformed compat baseUrl before building chat completions endpoint", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({
-        output_text: buildValidDecisionJson(),
-      }),
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: buildValidDecisionText() } }],
+          usage: { prompt_tokens: 140, completion_tokens: 70, total_tokens: 210 },
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const provider = new OpenAIDecisionProvider({
-      apiKey: "test-key",
-      model: "test-model",
-      timeoutMs: 5000,
-      maxOutputTokens: 1200,
-      enableWebSearch: false,
-      baseUrl: "https://gateway.example.com/openapi/compatible-mode/v1",
+    const provider = buildProvider({
+      model: "MiniMax-M2.5",
+      baseUrl:
+        "https://api.xairouter.com/v1#https://ai.td.ee/v1#https://api.xairouter.com/v1",
     });
 
     await provider.generateDailyDecision(createInput());
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "https://gateway.example.com/openapi/compatible-mode/v1/responses",
+      "https://api.xairouter.com/v1/chat/completions",
     );
   });
 
-  test("falls back to /v1/chat/completions when responses endpoint is unsupported", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response("not found /v1/responses", { status: 404 }))
-      .mockResolvedValueOnce(
-        jsonResponse({
-          choices: [{ message: { content: buildValidDecisionJson() } }],
-          usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 }
-        })
-      );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const provider = new OpenAIDecisionProvider({
-      apiKey: "test-key",
-      model: "test-model",
-      timeoutMs: 5000,
-      maxOutputTokens: 1200,
-      enableWebSearch: false,
-      baseUrl: "https://compat.example.com"
-    });
-
-    const result = await provider.generateDailyDecision(createInput());
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://compat.example.com/v1/responses");
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://compat.example.com/v1/chat/completions");
-    expect(result.usage?.inputTokens).toBe(120);
-    expect(result.usage?.outputTokens).toBe(60);
-  });
-
-  test("prefers /v1/chat/completions for non-OpenAI model on custom base url", async () => {
+  test("clamps compat chat completions max_tokens to provider-safe upper bound", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({
-        choices: [{ message: { content: `\`\`\`json\n${buildValidDecisionJson()}\n\`\`\`` } }],
-        usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 },
-      }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const provider = new OpenAIDecisionProvider({
-      apiKey: "test-key",
-      model: "claude-sonnet-4-6",
-      timeoutMs: 5000,
-      maxOutputTokens: 1200,
-      enableWebSearch: false,
-      baseUrl: "https://compat.example.com",
-    });
-
-    const result = await provider.generateDailyDecision(createInput());
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "https://compat.example.com/v1/chat/completions",
-    );
-    expect(result.summary).toContain("防守");
-    expect(result.actions).toHaveLength(1);
-  });
-
-  test("falls back to /v1/chat/completions when responses returns convert_request_failed", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            error: {
-              message: "not implemented",
-              code: "convert_request_failed",
-            },
-          }),
-          { status: 500, headers: { "content-type": "application/json" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          choices: [{ message: { content: buildValidDecisionJson() } }],
-          usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 },
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: buildValidDecisionText() } }],
+          usage: { prompt_tokens: 140, completion_tokens: 70, total_tokens: 210 },
         }),
-      );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const provider = new OpenAIDecisionProvider({
-      apiKey: "test-key",
-      model: "gpt-4.1-mini",
-      timeoutMs: 5000,
-      maxOutputTokens: 1200,
-      enableWebSearch: false,
-      baseUrl: "https://compat.example.com",
-    });
-
-    const result = await provider.generateDailyDecision(createInput());
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://compat.example.com/v1/responses");
-    expect(fetchMock.mock.calls[1]?.[0]).toBe(
-      "https://compat.example.com/v1/chat/completions",
-    );
-    expect(result.summary).toContain("防守");
-    expect(result.actions).toHaveLength(1);
-  });
-
-  test("does not fall back for unauthorized responses failure", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response("unauthorized", { status: 401 }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const provider = new OpenAIDecisionProvider({
-      apiKey: "test-key",
-      model: "test-model",
-      timeoutMs: 5000,
-      maxOutputTokens: 1200,
-      enableWebSearch: false,
-      baseUrl: "https://compat.example.com"
-    });
-
-    await expect(provider.generateDailyDecision(createInput())).rejects.toThrowError(/401/);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://compat.example.com/v1/responses");
-  });
-
-  test("retries transient network failure on responses endpoint", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockRejectedValueOnce(new TypeError("fetch failed"))
-      .mockResolvedValueOnce(
-        jsonResponse({
-          output_text: buildValidDecisionJson(),
-          usage: { input_tokens: 88, output_tokens: 44, total_tokens: 132 },
-        }),
-      );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const provider = new OpenAIDecisionProvider({
-      apiKey: "test-key",
-      model: "test-model",
-      timeoutMs: 5000,
-      maxOutputTokens: 1200,
-      enableWebSearch: false,
-      baseUrl: "https://compat.example.com",
-    });
-
-    const result = await provider.generateDailyDecision(createInput());
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://compat.example.com/v1/responses");
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("https://compat.example.com/v1/responses");
-    expect(result.summary).toContain("防守");
-    expect(result.usage?.totalTokens).toBe(132);
-  });
-
-  test("falls back to plain text suggestion when structured output is non-json", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response("unsupported endpoint", { status: 501 }))
-      .mockResolvedValueOnce(
-        jsonResponse({
-          choices: [{ message: { content: "plain text without JSON" } }]
-        })
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          choices: [{ message: { content: "今日趋势：震荡偏弱。\n操作建议：以持有为主，减少频繁交易。\n风险提示：注意回撤控制。" } }],
-          usage: { prompt_tokens: 90, completion_tokens: 45, total_tokens: 135 }
-        })
-      );
-    vi.stubGlobal("fetch", fetchMock);
-
-    const provider = new OpenAIDecisionProvider({
-      apiKey: "test-key",
-      model: "test-model",
-      timeoutMs: 5000,
-      maxOutputTokens: 1200,
-      enableWebSearch: false,
-      baseUrl: "https://compat.example.com"
-    });
-
-    const result = await provider.generateDailyDecision(createInput());
-
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls[2]?.[0]).toBe("https://compat.example.com/v1/chat/completions");
-    expect(result.summary).toContain("今日趋势");
-    expect(result.actions).toHaveLength(0);
-    expect(result.overallRiskLevel).toBe("MEDIUM");
-    expect(result.usage?.totalTokens).toBe(135);
-  });
-
-  test("truncates decision doc content before sending to model", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({
-        output_text: buildValidDecisionJson()
-      })
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        },
+      ),
     );
     vi.stubGlobal("fetch", fetchMock);
+
+    const provider = buildProvider({
+      model: "MiniMax-M2.5",
+      baseUrl: "https://api.xairouter.com/v1",
+      maxOutputTokens: 128000,
+    });
+
+    await provider.generateDailyDecision(createInput());
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const body = JSON.parse(String(init.body)) as {
+      max_tokens: number;
+    };
+
+    expect(body.max_tokens).toBe(32768);
+  });
+
+  test("uses a longer timeout floor for compat chat completions", async () => {
+    vi.useFakeTimers();
+
+    const fetchMock = vi.fn((_: RequestInfo | URL, init?: RequestInit) => {
+      return new Promise((_, reject) => {
+        const signal = init?.signal;
+        signal?.addEventListener("abort", () => {
+          const error = new Error("aborted");
+          error.name = "AbortError";
+          reject(error);
+        });
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = buildProvider({
+      model: "MiniMax-M2.5",
+      baseUrl: "https://api.xairouter.com/v1",
+      timeoutMs: 20_000,
+    });
+
+    let settled = false;
+    let rejection: unknown;
+    const pending = provider.generateDailyDecision(createInput()).then(
+      () => {
+        settled = true;
+      },
+      (error) => {
+        settled = true;
+        rejection = error;
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(25_000);
+    await pending;
+    expect(settled).toBe(true);
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toBe("Request timed out.");
+    vi.useRealTimers();
+  });
+
+  test("keeps system prompt and serializes trimmed decision payload into user message", async () => {
+    chatCompletionCreateSpy.mockResolvedValue({
+      choices: [{ message: { content: buildValidDecisionText() } }],
+    });
 
     const longContent = "1234567890ABCDEFGHIJ";
     const input = createInput({
       decisionDoc: {
         format: "TEXT",
         content: longContent,
-        version: 1
-      }
+        version: 1,
+      },
     });
 
-    const provider = new OpenAIDecisionProvider({
-      apiKey: "test-key",
-      model: "test-model",
-      timeoutMs: 5000,
-      maxOutputTokens: 1200,
-      enableWebSearch: false,
-      docMaxChars: 12
+    const provider = buildProvider({
+      docMaxChars: 12,
+      systemPrompt: "custom system prompt",
     });
 
     await provider.generateDailyDecision(input);
 
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
-    const body = JSON.parse(String(init.body)) as {
-      input: Array<{ role: string; content: Array<{ type: string; text: string }> }>;
+    const call = chatCompletionCreateSpy.mock.calls[0]?.[0] as {
+      messages: Array<{ role: string; content: string }>;
     };
-    const userText = body.input.find((item) => item.role === "user")?.content[0]?.text;
-    const userPayload = JSON.parse(String(userText)) as DecisionGenerationInput;
+    expect(call.messages[0]).toEqual({
+      role: "system",
+      content: "custom system prompt",
+    });
 
+    const userPayload = JSON.parse(call.messages[1]!.content) as DecisionGenerationInput;
     expect(userPayload.decisionDoc.content).toBe(longContent.slice(0, 12));
     expect(input.decisionDoc.content).toBe(longContent);
   });
 
-  test("keeps operation history and estimate fields in user payload", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      jsonResponse({
-        output_text: buildValidDecisionJson(),
-      }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
+  test("accepts plain text sdk output", async () => {
+    chatCompletionCreateSpy.mockResolvedValue({
+      choices: [{ message: { content: "plain text without JSON" } }],
+    });
 
-    const input = createInput({
-      portfolio: {
-        ...createInput().portfolio,
-        funds: [
-          {
-            fundCode: "161725",
-            fundName: "招商中证白酒指数",
-            holdingAmount: 10000,
-            holdingProfitAmount: 500,
-            holdingProfitPct: 0.052,
-            estimateChangePct: 0.012,
-            dailyProfitPct: 0.012,
-            officialNavDate: "2026-03-07",
-          },
-        ],
-      },
-      operationHistory: [
+    const provider = buildProvider();
+
+    await expect(provider.generateDailyDecision(createInput())).resolves.toMatchObject({
+      summary: "plain text without JSON",
+      rawResponse: "plain text without JSON",
+    });
+  });
+
+  test("accepts text wrapped in markdown fences", async () => {
+    chatCompletionCreateSpy.mockResolvedValue({
+      choices: [
         {
-          createdAt: "2026-03-07T08:10:00.000Z",
-          fundCode: "161725",
-          operationType: "INCREASE",
-          amount: 300,
-          beforeHoldingAmount: 9700,
-          afterHoldingAmount: 10000,
-          beforeHoldingProfitAmount: 470,
-          afterHoldingProfitAmount: 500,
+          message: {
+            content: "```text\n建议减仓高波动仓位，保留现金等待回撤结束。\n```",
+          },
         },
       ],
     });
 
-    const provider = new OpenAIDecisionProvider({
-      apiKey: "test-key",
-      model: "test-model",
-      timeoutMs: 5000,
-      maxOutputTokens: 1200,
-      enableWebSearch: false,
+    const provider = buildProvider();
+
+    await expect(provider.generateDailyDecision(createInput())).resolves.toMatchObject({
+      summary: "建议减仓高波动仓位，保留现金等待回撤结束。",
+    });
+  });
+
+  test("strips markdown headings and emphasis from output text", async () => {
+    chatCompletionCreateSpy.mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: "## 今日建议\n\n### 整体判断\n组合当前处于**中度亏损**状态。",
+          },
+        },
+      ],
     });
 
-    await provider.generateDailyDecision(input);
+    const provider = buildProvider();
 
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
-    const body = JSON.parse(String(init.body)) as {
-      input: Array<{ role: string; content: Array<{ type: string; text: string }> }>;
-    };
-    const userText = body.input.find((item) => item.role === "user")?.content[0]?.text;
-    const userPayload = JSON.parse(String(userText)) as DecisionGenerationInput;
+    await expect(provider.generateDailyDecision(createInput())).resolves.toMatchObject({
+      summary: "今日建议\n\n整体判断\n组合当前处于中度亏损状态。",
+      rawResponse: "今日建议\n\n整体判断\n组合当前处于中度亏损状态。",
+    });
+  });
 
-    expect(userPayload.operationHistory).toHaveLength(1);
-    expect(userPayload.operationHistory[0]?.operationType).toBe("INCREASE");
-    expect(userPayload.portfolio.funds[0]?.estimateChangePct).toBe(0.012);
-    expect(userPayload.portfolio.funds[0]?.officialNavDate).toBe("2026-03-07");
+  test("keeps only final answer when think content leaks into message content", async () => {
+    chatCompletionCreateSpy.mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: "<think>先分析持仓和风险</think>\n## 建议\n\n优先降低非目标持仓，保留现金。",
+          },
+        },
+      ],
+    });
+
+    const provider = buildProvider();
+
+    await expect(provider.generateDailyDecision(createInput())).resolves.toMatchObject({
+      summary: "建议\n\n优先降低非目标持仓，保留现金。",
+      rawResponse: "建议\n\n优先降低非目标持仓，保留现金。",
+    });
+  });
+
+  test("throws when OPENAI_API_KEY is not configured", async () => {
+    const provider = buildProvider({
+      apiKey: undefined,
+    });
+
+    await expect(provider.generateDailyDecision(createInput())).rejects.toThrowError(
+      /OPENAI_API_KEY is not configured/,
+    );
+    expect(chatCompletionCreateSpy).not.toHaveBeenCalled();
   });
 });

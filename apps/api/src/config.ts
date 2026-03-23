@@ -25,7 +25,6 @@ export interface AppConfig {
     openaiModel: string;
     openaiTimeoutMs: number;
     openaiMaxTokens: number;
-    enableWebSearch: boolean;
     systemPromptFile?: string;
     docMaxChars: number;
   };
@@ -108,13 +107,10 @@ export function getConfig(): AppConfig {
     decisionAi: {
       provider: decisionProvider,
       openaiApiKey: process.env.OPENAI_API_KEY,
-      openaiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com",
+      openaiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
       openaiModel: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
       openaiTimeoutMs: Number(process.env.OPENAI_TIMEOUT_MS ?? 12000),
       openaiMaxTokens: Number(process.env.OPENAI_MAX_TOKENS ?? 1600),
-      enableWebSearch:
-        (process.env.OPENAI_ENABLE_WEB_SEARCH ?? "true").toLowerCase() !==
-        "false",
       systemPromptFile: process.env.DECISION_AI_SYSTEM_PROMPT_FILE,
       docMaxChars: toPositiveInt(process.env.DECISION_AI_DOC_MAX_CHARS, 12_000),
     },

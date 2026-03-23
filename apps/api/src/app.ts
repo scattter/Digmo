@@ -123,7 +123,6 @@ export async function buildApp(): Promise<AppContext> {
     model: config.decisionAi.openaiModel,
     timeoutMs: config.decisionAi.openaiTimeoutMs,
     maxOutputTokens: config.decisionAi.openaiMaxTokens,
-    enableWebSearch: config.decisionAi.enableWebSearch,
     systemPrompt,
     docMaxChars: config.decisionAi.docMaxChars,
   });

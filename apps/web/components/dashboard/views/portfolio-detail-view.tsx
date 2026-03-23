@@ -42,7 +42,7 @@ interface PortfolioDetailViewProps {
   editStateMap: Map<string, FundEditState>;
   onEditFieldChange: (fundCode: string, key: keyof FundEditState, value: string) => void;
   onUpdateFund: (item: PortfolioFundItem) => Promise<void>;
-  onOperateFund: (item: PortfolioFundItem, input: { operationType: PositionOperationType; amountRaw: string; bindActionOrder?: number; decisionId?: string }) => Promise<void>;
+  onOperateFund: (item: PortfolioFundItem, input: { operationType: PositionOperationType; amountRaw: string }) => Promise<void>;
   onDeleteFund: (item: PortfolioFundItem) => void;
   onDragEnd: (event: DragEndEvent) => void;
   onOpenAddFundDialog: () => void;
@@ -83,17 +83,6 @@ export function PortfolioDetailView({
   const isMobile = useIsMobile();
   const isDecisionBusy = isBusy || isDecisionDocSubmitting || isGeneratingSuggestion;
   const hasActiveDecisionDoc = typeof decisionDocVersion === "number";
-
-  const todayInShanghai = useMemo(() => {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai" }).format(new Date());
-  }, []);
-
-  const latestDecisionForBinding = useMemo(() => {
-    if (!latestDecision) {
-      return null;
-    }
-    return latestDecision.tradeDate === todayInShanghai ? latestDecision : null;
-  }, [latestDecision, todayInShanghai]);
 
   const loadDecisionArtifacts = useCallback(async () => {
     setIsDecisionLoading(true);
@@ -312,18 +301,7 @@ export function PortfolioDetailView({
          isLoading={isLoading}
          onEditFieldChange={onEditFieldChange}
          onUpdateFund={onUpdateFund}
-         onOperateFund={async (item, input) => {
-            if (typeof input.bindActionOrder === "number" && !latestDecisionForBinding) {
-               const text = "当前无可绑定的今日建议";
-               message.error(text);
-               throw new Error(text);
-            }
-            await onOperateFund(item, {
-               ...input,
-               decisionId: latestDecisionForBinding?.id
-            });
-         }}
-         latestDecisionForBinding={latestDecisionForBinding}
+         onOperateFund={onOperateFund}
          onDeleteFund={onDeleteFund}
          onDragEnd={onDragEnd}
          onRefresh={onRefresh}

@@ -1,12 +1,11 @@
 "use client";
 
 import {
-  DailyDecision,
   PortfolioFundItem,
   PositionOperationType,
 } from "@digmo/shared";
-import { useEffect, useMemo, useState } from "react";
-import { Modal, Button, Input, Select, Segmented, Form, Typography, Space } from "antd";
+import { useEffect, useState } from "react";
+import { Modal, Input, Segmented, Form, Typography, Space } from "antd";
 
 import { FundEditState } from "@/lib/format";
 
@@ -21,10 +20,8 @@ interface UpdateFundDialogProps {
   onUpdate: () => Promise<void>;
   onOperate: (
     operationType: PositionOperationType,
-    amountRaw: string,
-    bindActionOrder?: number
+    amountRaw: string
   ) => Promise<void>;
-  latestDecisionForBinding: DailyDecision | null;
   isBusy?: boolean;
 }
 
@@ -36,12 +33,10 @@ export function UpdateFundDialog({
   onEditFieldChange,
   onUpdate,
   onOperate,
-  latestDecisionForBinding,
   isBusy,
 }: UpdateFundDialogProps) {
   const [mode, setMode] = useState<"DIRECT" | "INCREASE" | "DECREASE">("DIRECT");
   const [operationAmount, setOperationAmount] = useState("");
-  const [bindActionOrder, setBindActionOrder] = useState<string>("none");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset state when dialog opens/closes or target changes
@@ -49,15 +44,9 @@ export function UpdateFundDialog({
     if (open) {
       setMode("DIRECT");
       setOperationAmount("");
-      setBindActionOrder("none");
       setIsSubmitting(false);
     }
   }, [open, target]);
-
-  const suggestionActions = useMemo(
-    () => latestDecisionForBinding?.actions ?? [],
-    [latestDecisionForBinding]
-  );
 
   if (!target) return null;
 
@@ -67,9 +56,7 @@ export function UpdateFundDialog({
       if (mode === "DIRECT") {
         await onUpdate();
       } else {
-        const parsedOrder =
-          bindActionOrder === "none" ? undefined : Number(bindActionOrder);
-        await onOperate(mode as PositionOperationType, operationAmount, parsedOrder);
+        await onOperate(mode as PositionOperationType, operationAmount);
       }
       onOpenChange(false);
     } catch (error) {
@@ -152,23 +139,6 @@ export function UpdateFundDialog({
                 disabled={isBusy}
                 placeholder="请输入金额"
               />
-            </Form.Item>
-
-            <Form.Item label="绑定今日建议（可选）" help={suggestionActions.length === 0 ? "当前无可绑定的今日建议" : undefined}>
-              <Select
-                value={bindActionOrder}
-                onChange={setBindActionOrder}
-                disabled={isBusy || suggestionActions.length === 0}
-                placeholder="选择绑定的建议"
-              >
-                <Select.Option value="none">不绑定</Select.Option>
-                {suggestionActions.map((action, index) => (
-                  <Select.Option key={index} value={String(index)}>
-                    {action.actionType === "BUY" ? "买入" : "卖出"} ·{" "}
-                    {action.fundCode} · {action.rationale}
-                  </Select.Option>
-                ))}
-              </Select>
             </Form.Item>
           </Form>
         )}

@@ -1,6 +1,4 @@
 import {
-  DecisionActionType,
-  DecisionRiskLevel,
   ERROR_CODES,
   FlatFundItem,
   FundEstimateSnapshot,
@@ -199,41 +197,6 @@ function parsePositiveAmount(raw: unknown): number {
   return Number(value.toFixed(2));
 }
 
-function parseOptionalActionOrder(raw: unknown): number | undefined {
-  if (raw === undefined || raw === null || raw === "") {
-    return undefined;
-  }
-  const value = typeof raw === "string" ? Number(raw.trim()) : Number(raw);
-  if (!Number.isFinite(value) || value < 0 || Math.floor(value) !== value) {
-    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "actionOrder must be a non-negative integer", 400);
-  }
-  return value;
-}
-
-function parseBindSuggestion(raw: unknown): { decisionId: string; actionOrder: number } | undefined {
-  if (raw === undefined || raw === null) {
-    return undefined;
-  }
-  if (typeof raw !== "object") {
-    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion must be an object", 400);
-  }
-
-  const payload = raw as { decisionId?: unknown; actionOrder?: unknown };
-  const decisionId = typeof payload.decisionId === "string" ? payload.decisionId.trim() : "";
-  if (!decisionId) {
-    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion.decisionId is required", 400);
-  }
-  const actionOrder = parseOptionalActionOrder(payload.actionOrder);
-  if (actionOrder === undefined) {
-    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion.actionOrder is required", 400);
-  }
-
-  return {
-    decisionId,
-    actionOrder
-  };
-}
-
 function trendFromEstimate(estimateChangePct: number | undefined): TrendType {
   if (typeof estimateChangePct !== "number") {
     return "FLAT";
@@ -325,55 +288,6 @@ function requireUserId(request: FastifyRequest): string {
     throw new AppError(ERROR_CODES.AUTH_REQUIRED, "authorization token is required", 401);
   }
   return userId;
-}
-
-async function resolveBindSuggestion(input: {
-  decisionStore?: DecisionStore;
-  userId: string;
-  portfolioId: string;
-  bindSuggestion?: { decisionId: string; actionOrder: number };
-}): Promise<
-  | {
-      decisionId: string;
-      actionOrder: number;
-      actionType: DecisionActionType;
-      fundCode: string;
-      fundName?: string;
-      riskLevel: DecisionRiskLevel;
-      rationale: string;
-    }
-  | undefined
-> {
-  if (!input.bindSuggestion) {
-    return undefined;
-  }
-  if (!input.decisionStore) {
-    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion is unavailable", 400);
-  }
-
-  const today = formatDate(nowInShanghai());
-  const latestToday = await input.decisionStore.getLatestDecisionByTradeDate(input.userId, input.portfolioId, today);
-  if (!latestToday) {
-    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "today latest decision is required for bindSuggestion", 400);
-  }
-  if (latestToday.id !== input.bindSuggestion.decisionId) {
-    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion.decisionId must be latest decision of today", 400);
-  }
-
-  const action = latestToday.actions[input.bindSuggestion.actionOrder];
-  if (!action) {
-    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion.actionOrder is invalid", 400);
-  }
-
-  return {
-    decisionId: latestToday.id,
-    actionOrder: input.bindSuggestion.actionOrder,
-    actionType: action.actionType,
-    fundCode: action.fundCode,
-    ...(action.fundName ? { fundName: action.fundName } : {}),
-    riskLevel: action.riskLevel,
-    rationale: action.rationale
-  };
 }
 
 async function buildPortfolioSummaries(
@@ -846,21 +760,15 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       };
       const operationType = parsePositionOperationType(body?.operationType);
       const amount = parsePositiveAmount(body?.amount);
-      const bindSuggestionInput = parseBindSuggestion(body?.bindSuggestion);
-
-      const bindSuggestion = await resolveBindSuggestion({
-        decisionStore: deps.decisionStore,
-        userId,
-        portfolioId: params.portfolioId,
-        bindSuggestion: bindSuggestionInput
-      });
+      if (body?.bindSuggestion !== undefined) {
+        throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "bindSuggestion is no longer supported", 400);
+      }
 
       const input: PositionOperationInput = {
         portfolioId: params.portfolioId,
         fundCode: params.fundCode,
         operationType,
-        amount,
-        ...(bindSuggestion ? { bindSuggestion } : {})
+        amount
       };
       try {
         const operation = await deps.store.applyPositionOperation(userId, input);

@@ -313,10 +313,6 @@ export async function createPositionOperation(params: {
   fundCode: string;
   operationType: PositionOperationType;
   amount: number;
-  bindSuggestion?: {
-    decisionId: string;
-    actionOrder: number;
-  };
 }): Promise<PositionOperationRecord> {
   const normalizedFundCode = normalizeFundCodeForPath(params.fundCode);
   const response = await apiRequest(`/v1/portfolios/${params.portfolioId}/funds/${normalizedFundCode}/position-operations`, {
@@ -327,8 +323,7 @@ export async function createPositionOperation(params: {
     },
     body: JSON.stringify({
       operationType: params.operationType,
-      amount: params.amount,
-      bindSuggestion: params.bindSuggestion
+      amount: params.amount
     })
   });
 

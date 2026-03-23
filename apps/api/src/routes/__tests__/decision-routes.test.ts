@@ -155,21 +155,6 @@ describe("decision routes", () => {
       ctx.dbPath,
       buildProvider({
         summary: "今日建议偏防守",
-        overallRiskLevel: "MEDIUM",
-        actions: [
-          {
-            actionType: "HOLD",
-            fundCode: "161725",
-            fundName: "招商中证白酒指数",
-            rationale: "波动较大，维持仓位",
-            triggerCondition: "无",
-            validUntil: "2026-03-03T08:00:00.000Z",
-            confidence: 0.63,
-            riskLevel: "MEDIUM",
-            requiresSecondConfirm: false,
-            citations: [{ title: "策略文档", snippet: "白酒长期看好", sourceType: "portfolio_doc" }]
-          }
-        ],
         usage: {
           inputTokens: 100,
           outputTokens: 200,
@@ -225,29 +210,6 @@ describe("decision routes", () => {
       ctx.dbPath,
       buildProvider({
         summary: "波动偏高，建议轻微再平衡",
-        overallRiskLevel: "HIGH",
-        actions: [
-          {
-            actionType: "REBALANCE",
-            fundCode: "161725",
-            fundName: "招商中证白酒指数",
-            rationale: "短线波动超阈值",
-            targetPositionPct: 0.2,
-            triggerCondition: "若盘中回撤超过2%",
-            validUntil: "2026-03-03T08:00:00.000Z",
-            confidence: 0.72,
-            riskLevel: "HIGH",
-            requiresSecondConfirm: true,
-            citations: [
-              {
-                title: "市场快讯",
-                url: "https://example.com/news",
-                snippet: "消费板块回调",
-                sourceType: "market_context"
-              }
-            ]
-          }
-        ],
         usage: {
           inputTokens: 120,
           outputTokens: 180,
@@ -302,17 +264,15 @@ describe("decision routes", () => {
     const latestPayload = latestResp.json() as {
       decision: {
         summary: string;
-        overallRiskLevel: string;
-        actions: Array<{
-          requiresSecondConfirm: boolean;
-          citations: Array<{ title: string }>;
-        }>;
+        provider: string;
+        model: string;
+        status: string;
       };
     };
     expect(latestPayload.decision.summary).toContain("建议");
-    expect(latestPayload.decision.overallRiskLevel).toBe("HIGH");
-    expect(latestPayload.decision.actions[0].requiresSecondConfirm).toBe(true);
-    expect(latestPayload.decision.actions[0].citations.length).toBeGreaterThan(0);
+    expect(latestPayload.decision.provider).toBe("stub-provider");
+    expect(latestPayload.decision.model).toBe("stub-model");
+    expect(latestPayload.decision.status).toBe("SUCCESS");
 
     const historyResp = await app.inject({
       method: "GET",
@@ -335,8 +295,6 @@ describe("decision routes", () => {
       ctx.dbPath,
       buildProvider({
         summary: "",
-        overallRiskLevel: "LOW",
-        actions: [],
         rawResponse: "{}"
       })
     );
@@ -362,29 +320,19 @@ describe("decision routes", () => {
     await app.close();
   });
 
-  test("fails generation when provider output has no citations", async () => {
+  test("wraps provider failure into 502", async () => {
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);
     const app = await createApp(
       store,
       ctx.dbPath,
-      buildProvider({
-        summary: "无来源建议",
-        overallRiskLevel: "HIGH",
-        actions: [
-          {
-            actionType: "SELL",
-            fundCode: "161725",
-            rationale: "test",
-            triggerCondition: "test",
-            validUntil: "2026-03-03T08:00:00.000Z",
-            confidence: 0.8,
-            riskLevel: "HIGH",
-            requiresSecondConfirm: true,
-            citations: []
-          }
-        ]
-      })
+      {
+        name: "stub-provider",
+        model: "stub-model",
+        async generateDailyDecision() {
+          throw new Error("provider failed");
+        }
+      }
     );
 
     const createPortfolioResp = await app.inject({
@@ -430,26 +378,6 @@ describe("decision routes", () => {
     const store = new SqliteWatchlistStore(ctx.dbPath);
     const capture = buildCapturingProvider({
       summary: "建议继续观察",
-      overallRiskLevel: "MEDIUM",
-      actions: [
-        {
-          actionType: "HOLD",
-          fundCode: "161725",
-          rationale: "维持仓位",
-          triggerCondition: "无",
-          validUntil: "2026-03-03T08:00:00.000Z",
-          confidence: 0.7,
-          riskLevel: "MEDIUM",
-          requiresSecondConfirm: false,
-          citations: [
-            {
-              title: "test",
-              snippet: "test",
-              sourceType: "portfolio_data",
-            },
-          ],
-        },
-      ],
     });
     const app = await createApp(store, ctx.dbPath, capture.provider);
 

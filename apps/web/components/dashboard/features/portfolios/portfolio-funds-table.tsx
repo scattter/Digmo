@@ -16,7 +16,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  DailyDecision,
   PortfolioFundItem,
   PortfolioType,
   PositionOperationType,
@@ -68,10 +67,8 @@ interface PortfolioFundsTableProps {
     input: {
       operationType: PositionOperationType;
       amountRaw: string;
-      bindActionOrder?: number;
     },
   ) => Promise<void>;
-  latestDecisionForBinding: DailyDecision | null;
   onDeleteFund: (item: PortfolioFundItem) => void;
   onDragEnd: (event: DragEndEvent) => void;
   onRefresh: () => Promise<void>;
@@ -154,7 +151,6 @@ export function PortfolioFundsTable({
   onEditFieldChange,
   onUpdateFund,
   onOperateFund,
-  latestDecisionForBinding,
   onDeleteFund,
   onDragEnd,
   onRefresh,
@@ -537,16 +533,14 @@ export function PortfolioFundsTable({
         onUpdate={async () => {
           if (updateTarget) await onUpdateFund(updateTarget);
         }}
-        onOperate={async (type, amount, order) => {
+        onOperate={async (type, amount) => {
           if (updateTarget) {
             await onOperateFund(updateTarget, {
               operationType: type,
               amountRaw: amount,
-              bindActionOrder: order,
             });
           }
         }}
-        latestDecisionForBinding={latestDecisionForBinding}
         isBusy={isBusy}
       />
     </>

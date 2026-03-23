@@ -2,7 +2,7 @@ import { ASIA_SHANGHAI_TIMEZONE, ERROR_CODES, PortfolioType } from "@digmo/share
 import { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
 import { DecisionStore } from "../infra/decision/sqlite-decision-store.js";
 import { WatchlistStore } from "../infra/watchlist/sqlite-watchlist-store.js";
-import { DecisionAIProvider, DecisionGenerationResult } from "../modules/decision/provider.js";
+import { DecisionAIProvider } from "../modules/decision/provider.js";
 import { ValuationService } from "../modules/valuation/service.js";
 import { AppError } from "../utils/app-error.js";
 import { formatDate, nowInShanghai } from "../utils/time.js";
@@ -75,26 +75,6 @@ function calcProfitPctByCost(holdingAmount: number, holdingProfitAmount: number)
     return 0;
   }
   return Number((holdingProfitAmount / cost).toFixed(6));
-}
-
-function enforceActionFundScope(result: DecisionGenerationResult, fundCodeSet: Set<string>): DecisionGenerationResult {
-  for (const action of result.actions) {
-    if (!fundCodeSet.has(action.fundCode)) {
-      throw new Error(`fund ${action.fundCode} is outside current portfolio`);
-    }
-    if (!Array.isArray(action.citations) || action.citations.length === 0) {
-      throw new Error(`action ${action.fundCode} has no citations`);
-    }
-    for (const citation of action.citations) {
-      if (!citation.title?.trim() || !citation.snippet?.trim()) {
-        throw new Error(`action ${action.fundCode} has invalid citation`);
-      }
-    }
-    if (action.riskLevel === "HIGH" && !action.requiresSecondConfirm) {
-      action.requiresSecondConfirm = true;
-    }
-  }
-  return result;
 }
 
 function toPromptSnapshot(input: {
@@ -225,8 +205,7 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
           beforeHoldingAmount: item.beforeHoldingAmount,
           afterHoldingAmount: item.afterHoldingAmount,
           beforeHoldingProfitAmount: item.beforeHoldingProfitAmount,
-          afterHoldingProfitAmount: item.afterHoldingProfitAmount,
-          ...(item.bindSuggestion ? { bindSuggestion: item.bindSuggestion } : {})
+          afterHoldingProfitAmount: item.afterHoldingProfitAmount
         })),
         decisionDoc: {
           title: activeDoc.title,
@@ -239,20 +218,18 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
       const startedAt = Date.now();
       try {
         const generated = await deps.provider.generateDailyDecision(input);
-        const scoped = enforceActionFundScope(generated, new Set(fundCodes));
         const latencyMs = Date.now() - startedAt;
         const decision = await deps.decisionStore.saveDecisionRun({
           userId,
           portfolioId: params.portfolioId,
           tradeDate: formatDate(nowInShanghai()),
-          summary: scoped.summary,
-          overallRiskLevel: scoped.overallRiskLevel,
+          summary: generated.summary,
           provider: deps.provider.name,
           model: deps.provider.model,
           status: "SUCCESS",
           latencyMs,
-          usage: scoped.usage,
-          rawResponse: scoped.rawResponse,
+          usage: generated.usage,
+          rawResponse: generated.rawResponse,
           promptSnapshotJson: toPromptSnapshot({
             asOf,
             portfolio: {
@@ -266,8 +243,7 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
               }))
             },
             docVersion: activeDoc.version
-          }),
-          actions: scoped.actions
+          })
         });
 
         return { decision };
@@ -279,13 +255,11 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
           portfolioId: params.portfolioId,
           tradeDate: formatDate(nowInShanghai()),
           summary: "本次建议生成失败，请重试",
-          overallRiskLevel: "HIGH",
           provider: deps.provider.name,
           model: deps.provider.model,
           status: "FAILED",
           errorMessage: message,
           latencyMs,
-          actions: [],
           promptSnapshotJson: toPromptSnapshot({
             asOf,
             portfolio: {

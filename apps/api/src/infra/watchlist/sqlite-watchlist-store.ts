@@ -76,22 +76,11 @@ export interface UpdatePortfolioFundInput {
   plannedRatio?: number;
 }
 
-export interface PositionOperationBindSuggestionInput {
-  decisionId: string;
-  actionOrder: number;
-  actionType: "BUY" | "SELL" | "HOLD" | "REBALANCE";
-  fundCode: string;
-  fundName?: string;
-  riskLevel: "LOW" | "MEDIUM" | "HIGH";
-  rationale: string;
-}
-
 export interface PositionOperationInput {
   portfolioId: string;
   fundCode: string;
   operationType: PositionOperationType;
   amount: number;
-  bindSuggestion?: PositionOperationBindSuggestionInput;
 }
 
 export interface PositionOperationItem {
@@ -104,7 +93,6 @@ export interface PositionOperationItem {
   afterHoldingAmount: number;
   beforeHoldingProfitAmount: number;
   afterHoldingProfitAmount: number;
-  bindSuggestion?: PositionOperationBindSuggestionInput;
   createdAt: string;
 }
 
@@ -1180,19 +1168,6 @@ export class SqliteWatchlistStore implements WatchlistStore {
       afterHoldingAmount: Number(row.afterHoldingAmount.toFixed(2)),
       beforeHoldingProfitAmount: Number(row.beforeHoldingProfitAmount.toFixed(2)),
       afterHoldingProfitAmount: Number(row.afterHoldingProfitAmount.toFixed(2)),
-      ...(row.bindDecisionId && typeof row.bindActionOrder === "number" && row.bindActionType && row.bindActionFundCode
-        ? {
-            bindSuggestion: {
-              decisionId: row.bindDecisionId,
-              actionOrder: row.bindActionOrder,
-              actionType: row.bindActionType,
-              fundCode: row.bindActionFundCode,
-              ...(row.bindActionFundName ? { fundName: row.bindActionFundName } : {}),
-              riskLevel: row.bindActionRiskLevel ?? "MEDIUM",
-              rationale: row.bindActionRationale ?? ""
-            }
-          }
-        : {}),
       createdAt: row.createdAt
     };
   }
@@ -2087,13 +2062,13 @@ export class SqliteWatchlistStore implements WatchlistStore {
           afterHoldingAmount,
           beforeHoldingProfitAmount,
           afterHoldingProfitAmount,
-          input.bindSuggestion?.decisionId ?? null,
-          input.bindSuggestion?.actionOrder ?? null,
-          input.bindSuggestion?.actionType ?? null,
-          input.bindSuggestion?.fundCode ?? null,
-          input.bindSuggestion?.fundName ?? null,
-          input.bindSuggestion?.riskLevel ?? null,
-          input.bindSuggestion?.rationale ?? null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
           now
         );
 
@@ -2108,7 +2083,6 @@ export class SqliteWatchlistStore implements WatchlistStore {
         afterHoldingAmount,
         beforeHoldingProfitAmount,
         afterHoldingProfitAmount,
-        ...(input.bindSuggestion ? { bindSuggestion: input.bindSuggestion } : {}),
         createdAt: now
       };
     } catch (error) {

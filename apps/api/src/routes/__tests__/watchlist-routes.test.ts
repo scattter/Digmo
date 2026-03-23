@@ -75,33 +75,17 @@ async function seedDailyDecision(input: {
   portfolioId: string;
   tradeDate: string;
   summary?: string;
-  actionFundCode?: string;
 }) {
-  const actionFundCode = input.actionFundCode ?? "161725";
   return input.decisionStore.saveDecisionRun({
     userId: input.userId,
     portfolioId: input.portfolioId,
     tradeDate: input.tradeDate,
     summary: input.summary ?? "测试建议",
-    overallRiskLevel: "MEDIUM",
     provider: "stub-provider",
     model: "stub-model",
     status: "SUCCESS",
     latencyMs: 10,
-    actions: [
-      {
-        actionType: "BUY",
-        fundCode: actionFundCode,
-        fundName: `基金${actionFundCode}`,
-        rationale: "分批执行",
-        triggerCondition: "盘中波动",
-        validUntil: new Date().toISOString(),
-        confidence: 0.76,
-        riskLevel: "MEDIUM",
-        requiresSecondConfirm: false,
-        citations: [{ title: "策略文档", snippet: "测试", sourceType: "portfolio_doc" }]
-      }
-    ]
+    actions: []
   });
 }
 
@@ -1350,7 +1334,7 @@ describe("watchlist routes", () => {
     await app.close();
   });
 
-  test("supports optional binding to latest today decision and validates binding", async () => {
+  test("rejects bindSuggestion because decision binding is disabled", async () => {
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);
     const decisionStore = new SqliteDecisionStore(ctx.dbPath);
@@ -1379,8 +1363,7 @@ describe("watchlist routes", () => {
       decisionStore,
       userId: admin!.id,
       portfolioId,
-      tradeDate: today,
-      actionFundCode: "110011"
+      tradeDate: today
     });
 
     const bindResp = await app.inject({
@@ -1395,55 +1378,8 @@ describe("watchlist routes", () => {
         }
       }
     });
-    expect(bindResp.statusCode).toBe(201);
-
-    const historyResp = await app.inject({
-      method: "GET",
-      url: `/v1/portfolios/${portfolioId}/position-operations`
-    });
-    const historyPayload = historyResp.json() as {
-      items: Array<{ bindSuggestion?: { decisionId: string; actionOrder: number; fundCode: string } }>;
-    };
-    expect(historyPayload.items[0]?.bindSuggestion?.decisionId).toBe(todayDecision.id);
-    expect(historyPayload.items[0]?.bindSuggestion?.actionOrder).toBe(0);
-    expect(historyPayload.items[0]?.bindSuggestion?.fundCode).toBe("110011");
-
-    const invalidActionResp = await app.inject({
-      method: "POST",
-      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
-      payload: {
-        operationType: "INCREASE",
-        amount: 100,
-        bindSuggestion: {
-          decisionId: todayDecision.id,
-          actionOrder: 999
-        }
-      }
-    });
-    expect(invalidActionResp.statusCode).toBe(400);
-
-    const yesterday = new Date(nowInShanghai().getTime() - 24 * 60 * 60 * 1000);
-    const yesterdayDecision = await seedDailyDecision({
-      decisionStore,
-      userId: admin!.id,
-      portfolioId,
-      tradeDate: formatDate(yesterday),
-      summary: "昨日建议"
-    });
-
-    const invalidDateResp = await app.inject({
-      method: "POST",
-      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
-      payload: {
-        operationType: "INCREASE",
-        amount: 100,
-        bindSuggestion: {
-          decisionId: yesterdayDecision.id,
-          actionOrder: 0
-        }
-      }
-    });
-    expect(invalidDateResp.statusCode).toBe(400);
+    expect(bindResp.statusCode).toBe(400);
+    expect((bindResp.json() as { message: string }).message).toContain("bindSuggestion");
 
     await app.close();
   });

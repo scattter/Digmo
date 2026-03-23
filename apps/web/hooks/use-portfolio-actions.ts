@@ -240,8 +240,7 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
   async function operatePositionAction(
     item: PortfolioFundItem,
     operationType: PositionOperationType,
-    amountRaw: string,
-    bindSuggestion?: { decisionId: string; actionOrder: number }
+    amountRaw: string
   ) {
     const amount = parseNonNegativeNumber(amountRaw);
     if (amount === undefined || amount <= 0) {
@@ -259,8 +258,7 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
         portfolioId: item.portfolioId,
         fundCode: item.fundCode,
         operationType,
-        amount,
-        bindSuggestion
+        amount
       });
       await refreshData();
       const actionText = operationType === "INCREASE" ? "加仓" : "减仓";
