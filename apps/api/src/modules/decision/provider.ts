@@ -56,11 +56,19 @@ export interface DecisionGenerationResult {
   rawResponse?: string;
 }
 
+export interface DecisionAIProviderConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
 export interface DecisionAIProvider {
   readonly name: string;
   readonly model: string;
   generateDailyDecision(input: DecisionGenerationInput): Promise<DecisionGenerationResult>;
 }
+
+export type DecisionAIProviderFactory = (config: DecisionAIProviderConfig) => DecisionAIProvider;
 
 function asString(value: unknown): string | undefined {
   if (typeof value !== "string") {

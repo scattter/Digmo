@@ -58,6 +58,7 @@ export function PortfolioAddFundDialog({
       confirmLoading={isBusy}
       okText="确认添加"
       cancelText="取消"
+      forceRender
       destroyOnHidden
       centered
     >

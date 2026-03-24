@@ -4,7 +4,8 @@ import {
   AuthUser,
   PortfolioSummary,
   PortfolioType,
-  PortfolioFundItem
+  PortfolioFundItem,
+  UserDecisionAiConfigSummary
 } from "@digmo/shared";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -18,6 +19,7 @@ import { AccountSummaryView } from "@/components/dashboard/views/account-summary
 import { PortfolioDetailView } from "@/components/dashboard/views/portfolio-detail-view";
 
 import { CreatePortfolioDialog } from "@/components/dashboard/dialogs/create-portfolio-dialog";
+import { DecisionAiConfigDialog } from "@/components/dashboard/dialogs/decision-ai-config-dialog";
 import { FlatAddFundDialog } from "@/components/dashboard/dialogs/flat-add-fund-dialog";
 import { ImportPortfolioDialog } from "@/components/dashboard/dialogs/import-portfolio-dialog";
 import { SharePortfolioDialog } from "@/components/dashboard/dialogs/share-portfolio-dialog";
@@ -28,10 +30,12 @@ import { useDashboardData } from "@/hooks/use-dashboard-data";
 import { FundEditState } from "@/lib/format";
 import { usePortfolioActions } from "@/hooks/use-portfolio-actions";
 import {
+  fetchDecisionAiConfig,
   fetchMe,
   fetchPortfolioTabLayout,
   getAuthRequiredEventName,
   reorderPortfolios,
+  updateDecisionAiConfig,
   updatePortfolioTabLayout
 } from "@/lib/api";
 import { clearAccessToken, getAccessToken } from "@/lib/auth-session";
@@ -63,6 +67,9 @@ export default function FundDashboard() {
   const [isFlatAddFundDialogOpen, setIsFlatAddFundDialogOpen] = useState(false);
   const [isImportPortfolioDialogOpen, setIsImportPortfolioDialogOpen] = useState(false);
   const [isSharePortfolioDialogOpen, setIsSharePortfolioDialogOpen] = useState(false);
+  const [isDecisionAiConfigDialogOpen, setIsDecisionAiConfigDialogOpen] = useState(false);
+  const [isDecisionAiConfigSaving, setIsDecisionAiConfigSaving] = useState(false);
+  const [decisionAiConfig, setDecisionAiConfig] = useState<UserDecisionAiConfigSummary | null>(null);
 
   const computeIntradayProfitAmount = (
     totalAmount: number,
@@ -185,16 +192,21 @@ export default function FundDashboard() {
     }
 
     let active = true;
-    void fetchPortfolioTabLayout()
-      .then((layout) => {
+    void Promise.allSettled([fetchPortfolioTabLayout(), fetchDecisionAiConfig()])
+      .then(([layoutResult, decisionAiConfigResult]) => {
         if (!active) {
           return;
         }
-        const nextIndex = Math.max(0, Math.floor(layout.fundsTabIndex));
-        setFundsTabIndex(nextIndex);
+        if (layoutResult.status === "fulfilled") {
+          const nextIndex = Math.max(0, Math.floor(layoutResult.value.fundsTabIndex));
+          setFundsTabIndex(nextIndex);
+        }
+        if (decisionAiConfigResult.status === "fulfilled") {
+          setDecisionAiConfig(decisionAiConfigResult.value);
+        }
       })
       .catch(() => {
-        // Keep default tab order when preference fetch fails.
+        // Keep existing defaults when preference requests fail.
       });
 
     return () => {
@@ -341,6 +353,25 @@ export default function FundDashboard() {
     router.replace("/login");
   }
 
+  async function handleSaveDecisionAiConfig(values: {
+    baseUrl: string;
+    model: string;
+    apiKey?: string;
+  }) {
+    setIsDecisionAiConfigSaving(true);
+    try {
+      const nextConfig = await updateDecisionAiConfig(values);
+      setDecisionAiConfig(nextConfig);
+      setIsDecisionAiConfigDialogOpen(false);
+      message.success("AI 模型配置已保存");
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "保存 AI 模型配置失败";
+      message.error(text);
+    } finally {
+      setIsDecisionAiConfigSaving(false);
+    }
+  }
+
   // Delete Portfolio Wrapper
   function handleDeletePortfolio(portfolio: PortfolioSummary) {
     modal.confirm({
@@ -421,12 +452,14 @@ export default function FundDashboard() {
               // I should check if `useFundReorder` exists.
               onOpenAddFundDialog={() => setIsFlatAddFundDialogOpen(true)} // Wait, FlatAddFundDialog adds to *selected* portfolio?
               onOpenShareDialog={() => setIsSharePortfolioDialogOpen(true)}
+              onOpenDecisionAiConfig={() => setIsDecisionAiConfigDialogOpen(true)}
               // `FlatAddFundDialog` has a portfolio select dropdown.
               // We want to pre-select the current portfolio.
               // We can pass `initialPortfolioId={activeTabId}` to it.
               onRefresh={dashboard.refreshData}
               isBusy={dashboard.isBusy}
               isLoading={dashboard.isLoadingPortfolioFunds}
+              decisionAiConfigured={Boolean(decisionAiConfig?.hasApiKey)}
            />
         );
      } else {
@@ -448,6 +481,7 @@ export default function FundDashboard() {
       />
       <TopNavLayout
         username={currentUser.username}
+        onOpenDecisionAiConfig={() => setIsDecisionAiConfigDialogOpen(true)}
         onLogout={handleLogout}
         onCreatePortfolio={() => setIsCreatePortfolioDialogOpen(true)}
         onImportPortfolio={() => setIsImportPortfolioDialogOpen(true)}
@@ -487,6 +521,14 @@ export default function FundDashboard() {
           portfolioName={activePortfolio?.name}
           isBusy={dashboard.isBusy}
           onSubmit={(values) => actions.sharePortfolioAction(values)}
+        />
+
+        <DecisionAiConfigDialog
+          open={isDecisionAiConfigDialogOpen}
+          onOpenChange={setIsDecisionAiConfigDialogOpen}
+          onSubmit={handleSaveDecisionAiConfig}
+          config={decisionAiConfig}
+          isBusy={isDecisionAiConfigSaving}
         />
 
         <FlatAddFundDialog

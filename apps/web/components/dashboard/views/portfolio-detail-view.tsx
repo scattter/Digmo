@@ -13,7 +13,8 @@ import {
   fetchDecisionDoc,
   fetchLatestDailyDecision,
   generateDailyDecision,
-  upsertDecisionDoc
+  upsertDecisionDoc,
+  ApiResponseError
 } from "@/lib/api";
 import { PlanCompletionCard } from "../cards/plan-completion-card";
 import { PortfolioFundsTable } from "../features/portfolios/portfolio-funds-table";
@@ -47,9 +48,11 @@ interface PortfolioDetailViewProps {
   onDragEnd: (event: DragEndEvent) => void;
   onOpenAddFundDialog: () => void;
   onOpenShareDialog: () => void;
+  onOpenDecisionAiConfig: () => void;
   onRefresh: () => Promise<void>;
   isBusy: boolean;
   isLoading: boolean;
+  decisionAiConfigured: boolean;
 }
 
 export function PortfolioDetailView({
@@ -63,9 +66,11 @@ export function PortfolioDetailView({
   onDragEnd,
   onOpenAddFundDialog,
   onOpenShareDialog,
+  onOpenDecisionAiConfig,
   onRefresh,
   isBusy,
   isLoading,
+  decisionAiConfigured,
 }: PortfolioDetailViewProps) {
   const { message } = App.useApp();
   const [decisionDocSourceFileName, setDecisionDocSourceFileName] = useState<string | undefined>(undefined);
@@ -153,6 +158,12 @@ export function PortfolioDetailView({
   }
 
   async function onGenerateDecision() {
+    if (!decisionAiConfigured) {
+      message.warning("请先完成 AI 模型配置后再更新建议");
+      onOpenDecisionAiConfig();
+      return;
+    }
+
     if (!decisionDocContent.trim()) {
       message.error("请先保存策略文档");
       return;
@@ -165,6 +176,11 @@ export function PortfolioDetailView({
       setDecisionHistory((prev) => [decision, ...prev.filter((item) => item.id !== decision.id)]);
       message.success("今日建议已生成");
     } catch (error) {
+      if (error instanceof ApiResponseError && error.code === "DECISION_AI_CONFIG_REQUIRED") {
+        message.warning("当前还未配置个人 AI 模型，请先完成配置");
+        onOpenDecisionAiConfig();
+        return;
+      }
       const text = error instanceof Error ? error.message : "生成今日建议失败";
       message.error(text);
     } finally {
@@ -243,6 +259,21 @@ export function PortfolioDetailView({
                      <Text type="secondary" style={{ whiteSpace: "pre-line", display: "block" }}>
                         {latestDecision ? latestDecision.summary : "暂无今日建议，可在此更新建议并管理策略文档"}
                      </Text>
+                     {!decisionAiConfigured ? (
+                        <div style={{ marginTop: 12 }}>
+                           <Text type="secondary" style={{ fontSize: 12, display: "block" }}>
+                              当前还没有配置个人 AI 模型，暂时无法更新建议。请先完成配置。
+                           </Text>
+                           <Button
+                              type="link"
+                              size="small"
+                              style={{ paddingInline: 0, marginTop: 4 }}
+                              onClick={onOpenDecisionAiConfig}
+                           >
+                              去配置 AI 模型
+                           </Button>
+                        </div>
+                     ) : null}
                      {!hasActiveDecisionDoc ? (
                         <Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 12 }}>
                            当前组合还没有策略文档，请先点击“管理文档”保存后再更新建议。
@@ -255,7 +286,7 @@ export function PortfolioDetailView({
                <Button
                   size="small"
                   onClick={() => void onGenerateDecision()}
-                  disabled={isDecisionBusy || !hasActiveDecisionDoc}
+                  disabled={isDecisionBusy || !hasActiveDecisionDoc || !decisionAiConfigured}
                >
                   更新建议
                </Button>

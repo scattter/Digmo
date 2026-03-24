@@ -47,6 +47,7 @@ export function CreatePortfolioDialog({
       confirmLoading={isBusy}
       okText="确认创建"
       cancelText="取消"
+      forceRender
       centered
     >
       <div style={{ marginBottom: 16, color: 'rgba(0, 0, 0, 0.45)' }}>

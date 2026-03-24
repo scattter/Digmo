@@ -11,3 +11,4 @@ apps/api/.env
 .DS_Store
 .vercel
 .env*.local
+*.tsbuildinfo

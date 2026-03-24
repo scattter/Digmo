@@ -189,7 +189,7 @@ describe("OpenAIDecisionProvider", () => {
     };
 
     expect(body.model).toBe("glm-5");
-    expect(body.max_tokens).toBe(1800);
+    expect(body.max_tokens).toBe(1024);
     expect(body.messages[0]).toEqual({
       role: "system",
       content: expect.any(String),
@@ -232,7 +232,7 @@ describe("OpenAIDecisionProvider", () => {
     );
   });
 
-  test("clamps compat chat completions max_tokens to provider-safe upper bound", async () => {
+  test("clamps compat chat completions max_tokens to provider-safe latency budget", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -262,7 +262,183 @@ describe("OpenAIDecisionProvider", () => {
       max_tokens: number;
     };
 
-    expect(body.max_tokens).toBe(32768);
+    expect(body.max_tokens).toBe(1024);
+  });
+
+  test("retries compat chat completions when upstream returns 5xx once", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("upstream unavailable", {
+          status: 502,
+          headers: {
+            "content-type": "text/plain",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: buildValidDecisionText() } }],
+            usage: { prompt_tokens: 140, completion_tokens: 70, total_tokens: 210 },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = buildProvider({
+      model: "MiniMax-M2.5",
+      baseUrl: "https://api.xairouter.com/v1",
+    });
+
+    await expect(provider.generateDailyDecision(createInput())).resolves.toMatchObject({
+      summary: buildValidDecisionText(),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("retries compat chat completions when upstream returns no output text once", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [
+              {
+                message: {
+                  content: "",
+                  reasoning_content: "思考过程",
+                },
+                finish_reason: "stop",
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: buildValidDecisionText() } }],
+            usage: { prompt_tokens: 140, completion_tokens: 70, total_tokens: 210 },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = buildProvider({
+      model: "MiniMax-M2.5",
+      baseUrl: "https://api.xairouter.com/v1",
+    });
+
+    await expect(provider.generateDailyDecision(createInput())).resolves.toMatchObject({
+      summary: buildValidDecisionText(),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("retries compat chat completions when upstream returns malformed json once", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("{\"choices\":[", {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: buildValidDecisionText() } }],
+            usage: { prompt_tokens: 140, completion_tokens: 70, total_tokens: 210 },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = buildProvider({
+      model: "MiniMax-M2.5",
+      baseUrl: "https://api.xairouter.com/v1",
+    });
+
+    await expect(provider.generateDailyDecision(createInput())).resolves.toMatchObject({
+      summary: buildValidDecisionText(),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("retries compat chat completions when first attempt times out", async () => {
+    vi.useFakeTimers();
+
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce((_: RequestInfo | URL, init?: RequestInit) => {
+        return new Promise((_, reject) => {
+          const signal = init?.signal;
+          signal?.addEventListener("abort", () => {
+            const error = new Error("aborted");
+            error.name = "AbortError";
+            reject(error);
+          });
+        });
+      })
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: buildValidDecisionText() } }],
+            usage: { prompt_tokens: 140, completion_tokens: 70, total_tokens: 210 },
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+            },
+          },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = buildProvider({
+      model: "MiniMax-M2.5",
+      baseUrl: "https://api.xairouter.com/v1",
+      timeoutMs: 20_000,
+    });
+
+    const pending = provider.generateDailyDecision(createInput());
+
+    await vi.advanceTimersByTimeAsync(75_000);
+    await Promise.resolve();
+
+    await expect(pending).resolves.toMatchObject({
+      summary: buildValidDecisionText(),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   test("uses a longer timeout floor for compat chat completions", async () => {
@@ -302,7 +478,19 @@ describe("OpenAIDecisionProvider", () => {
     await Promise.resolve();
     expect(settled).toBe(false);
 
-    await vi.advanceTimersByTimeAsync(25_000);
+    await vi.advanceTimersByTimeAsync(54_000);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(74_000);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1_000);
     await pending;
     expect(settled).toBe(true);
     expect(rejection).toBeInstanceOf(Error);

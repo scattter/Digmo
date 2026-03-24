@@ -52,9 +52,10 @@ const THIRD_PARTY_CHAT_FIRST_MODEL_PREFIXES = [
 ];
 
 const DEFAULT_DOC_MAX_CHARS = 12_000;
-const MAX_COMPAT_CHAT_COMPLETION_TOKENS = 32_768;
-const MIN_COMPAT_CHAT_COMPLETION_TIMEOUT_MS = 45_000;
+const MAX_COMPAT_CHAT_COMPLETION_TOKENS = 1_024;
+const MIN_COMPAT_CHAT_COMPLETION_TIMEOUT_MS = 75_000;
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
+const MAX_GENERATION_ATTEMPTS = 2;
 
 const DEFAULT_SYSTEM_PROMPT = [
   "你是我的专属投资顾问，根据组合的策略文档，当前持仓，当日涨跌，历史操作要求给出操作建议。",
@@ -250,6 +251,45 @@ function extractChatOutputText(payload: OpenAIChatPayload): string | undefined {
   return undefined;
 }
 
+function isRetriableHttpStatus(status: number): boolean {
+  return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
+}
+
+function parseFailedRequestStatus(message: string): number | undefined {
+  const matched = message.match(/^openai request failed: (\d{3})\b/u);
+  if (!matched) {
+    return undefined;
+  }
+
+  const status = Number(matched[1]);
+  return Number.isFinite(status) ? status : undefined;
+}
+
+function isRetriableGenerationError(error: unknown): boolean {
+  if (error instanceof SyntaxError) {
+    return true;
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (error.message === "Request timed out.") {
+    return true;
+  }
+
+  if (error.message === "openai response has no output text") {
+    return true;
+  }
+
+  const status = parseFailedRequestStatus(error.message);
+  if (typeof status === "number") {
+    return isRetriableHttpStatus(status);
+  }
+
+  return false;
+}
+
 export class OpenAIDecisionProvider implements DecisionAIProvider {
   readonly name = "openai";
   readonly model: string;
@@ -326,6 +366,26 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
     return (await response.json()) as OpenAIChatPayload;
   }
 
+  private async requestChatPayload(inputText: string): Promise<OpenAIChatPayload> {
+    if (this.preferCompatChatCompletions) {
+      return this.requestCompatChatCompletions(inputText);
+    }
+
+    return (await this.client?.chat.completions.create({
+      model: this.model,
+      messages: [
+        {
+          role: "system",
+          content: this.systemPrompt,
+        },
+        {
+          role: "user",
+          content: inputText,
+        },
+      ],
+    })) as OpenAIChatPayload;
+  }
+
   async generateDailyDecision(
     input: DecisionGenerationInput,
   ): Promise<DecisionGenerationResult> {
@@ -335,42 +395,40 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
 
     const trimmedInput = trimDecisionDocContent(input, this.docMaxChars);
     const inputText = JSON.stringify(trimmedInput);
+    let lastError: unknown;
 
-    const payload = this.preferCompatChatCompletions
-      ? await this.requestCompatChatCompletions(inputText)
-      : ((await this.client?.chat.completions.create({
-          model: this.model,
-          messages: [
-            {
-              role: "system",
-              content: this.systemPrompt,
-            },
-            {
-              role: "user",
-              content: inputText,
-            },
-          ],
-        })) as OpenAIChatPayload);
+    for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
+      try {
+        const payload = await this.requestChatPayload(inputText);
 
-    if (!payload) {
-      throw new Error("openai client is not initialized");
+        if (!payload) {
+          throw new Error("openai client is not initialized");
+        }
+
+        const outputText = extractChatOutputText(payload);
+        if (!outputText) {
+          throw new Error("openai response has no output text");
+        }
+
+        const normalizedText = normalizeModelOutputText(outputText);
+        const validated = validateDecisionGenerationResult(normalizedText);
+        return {
+          ...validated,
+          usage: {
+            inputTokens: payload.usage?.prompt_tokens,
+            outputTokens: payload.usage?.completion_tokens,
+            totalTokens: payload.usage?.total_tokens,
+          },
+          rawResponse: normalizedText,
+        };
+      } catch (error) {
+        lastError = error;
+        if (attempt >= MAX_GENERATION_ATTEMPTS || !isRetriableGenerationError(error)) {
+          throw error;
+        }
+      }
     }
 
-    const outputText = extractChatOutputText(payload);
-    if (!outputText) {
-      throw new Error("openai response has no output text");
-    }
-
-    const normalizedText = normalizeModelOutputText(outputText);
-    const validated = validateDecisionGenerationResult(normalizedText);
-    return {
-      ...validated,
-      usage: {
-        inputTokens: payload.usage?.prompt_tokens,
-        outputTokens: payload.usage?.completion_tokens,
-        totalTokens: payload.usage?.total_tokens,
-      },
-      rawResponse: normalizedText,
-    };
+    throw lastError instanceof Error ? lastError : new Error("decision generation failed");
   }
 }

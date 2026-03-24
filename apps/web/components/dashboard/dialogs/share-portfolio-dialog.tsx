@@ -85,6 +85,7 @@ export function SharePortfolioDialog(props: SharePortfolioDialogProps) {
       cancelText="关闭"
       onOk={() => void handleGenerate()}
       confirmLoading={isBusy}
+      forceRender
       centered
     >
       <Form

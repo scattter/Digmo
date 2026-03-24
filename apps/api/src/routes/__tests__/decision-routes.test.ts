@@ -22,6 +22,12 @@ interface TestCtx {
   dbPath: string;
 }
 
+interface DecisionAiConfigInput {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
 const tempRoots: string[] = [];
 const TEST_JWT_SECRET = "digmo-test-jwt-secret";
 
@@ -30,6 +36,23 @@ function createTempCtx(): TestCtx {
   const dbPath = join(root, "watchlist.sqlite");
   tempRoots.push(root);
   return { root, dbPath };
+}
+
+async function saveDecisionAiConfig(
+  store: SqliteWatchlistStore,
+  input?: Partial<DecisionAiConfigInput> & { username?: string }
+): Promise<void> {
+  const username = input?.username ?? "admin";
+  const user = await store.getUserByUsername(username);
+  if (!user) {
+    throw new Error(`user not found: ${username}`);
+  }
+
+  await store.upsertDecisionAiConfig(user.id, {
+    baseUrl: input?.baseUrl ?? "https://api.openai.com/v1",
+    model: input?.model ?? "stub-model",
+    apiKey: input?.apiKey ?? "sk-test-123456",
+  });
 }
 
 function buildProvider(result: DecisionGenerationResult): DecisionAIProvider {
@@ -61,7 +84,14 @@ function buildCapturingProvider(result: DecisionGenerationResult) {
   };
 }
 
-async function createApp(store: SqliteWatchlistStore, dbPath: string, provider: DecisionAIProvider) {
+async function createApp(
+  store: SqliteWatchlistStore,
+  dbPath: string,
+  provider: DecisionAIProvider,
+  options?: {
+    providerFactory?: (input: DecisionAiConfigInput) => DecisionAIProvider;
+  }
+) {
   const app = Fastify({ logger: false });
 
   const service = {
@@ -109,8 +139,9 @@ async function createApp(store: SqliteWatchlistStore, dbPath: string, provider: 
     decisionStore: new SqliteDecisionStore(dbPath),
     service: service as never,
     requireAuth,
-    provider
-  });
+    provider,
+    ...(options?.providerFactory ? { providerFactory: options.providerFactory } : {})
+  } as never);
 
   const admin = await store.getUserByUsername("admin");
   if (!admin) {
@@ -249,6 +280,7 @@ describe("decision routes", () => {
         content: "高位不追涨，遇回撤再分批加仓"
       }
     });
+    await saveDecisionAiConfig(store);
 
     const generateResp = await app.inject({
       method: "POST",
@@ -308,6 +340,7 @@ describe("decision routes", () => {
       }
     });
     const portfolioId = (createPortfolioResp.json() as { portfolio: { id: string } }).portfolio.id;
+    await saveDecisionAiConfig(store);
 
     const generateResp = await app.inject({
       method: "POST",
@@ -316,6 +349,56 @@ describe("decision routes", () => {
 
     expect(generateResp.statusCode).toBe(400);
     expect((generateResp.json() as { message: string }).message).toContain("decision doc");
+
+    await app.close();
+  });
+
+  test("requires decision ai config before generating", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createApp(
+      store,
+      ctx.dbPath,
+      buildProvider({
+        summary: "不应被使用",
+        rawResponse: "{}"
+      })
+    );
+
+    const createPortfolioResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: {
+        name: "未配置模型组合",
+        type: "FREE"
+      }
+    });
+    const portfolioId = (createPortfolioResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: {
+        fundCode: "161725",
+        holdingAmount: 10000
+      }
+    });
+
+    await app.inject({
+      method: "PUT",
+      url: `/v1/portfolios/${portfolioId}/decision-doc`,
+      payload: {
+        format: "TEXT",
+        content: "test"
+      }
+    });
+
+    const generateResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/daily-decision:generate`
+    });
+    expect(generateResp.statusCode).toBe(400);
+    expect((generateResp.json() as { code: string }).code).toBe("DECISION_AI_CONFIG_REQUIRED");
 
     await app.close();
   });
@@ -362,6 +445,7 @@ describe("decision routes", () => {
         content: "test"
       }
     });
+    await saveDecisionAiConfig(store);
 
     const generateResp = await app.inject({
       method: "POST",
@@ -408,6 +492,7 @@ describe("decision routes", () => {
         content: "test-doc",
       },
     });
+    await saveDecisionAiConfig(store);
 
     const operationResp = await app.inject({
       method: "POST",
@@ -439,6 +524,100 @@ describe("decision routes", () => {
       estimateChangePct: 0.012,
       officialNavDate: "2026-03-02",
     });
+
+    await app.close();
+  });
+
+  test("uses saved decision ai config to create provider and persists configured model", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const factoryInputs: DecisionAiConfigInput[] = [];
+    const app = await createApp(
+      store,
+      ctx.dbPath,
+      buildProvider({
+        summary: "进程级 provider 不应被使用",
+        rawResponse: "{}"
+      }),
+      {
+        providerFactory(input) {
+          factoryInputs.push(input);
+          return {
+            name: "stub-provider",
+            model: input.model,
+            async generateDailyDecision() {
+              return {
+                summary: `使用 ${input.model} 生成建议`,
+                usage: {
+                  inputTokens: 1,
+                  outputTokens: 1,
+                  totalTokens: 2
+                },
+                rawResponse: "{}"
+              };
+            }
+          };
+        }
+      }
+    );
+
+    await saveDecisionAiConfig(store, {
+      baseUrl: "https://openrouter.ai/api/v1",
+      model: "claude-3.7-sonnet",
+      apiKey: "sk-user-123456"
+    });
+
+    const createPortfolioResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: {
+        name: "个性化模型组合",
+        type: "FREE"
+      }
+    });
+    const portfolioId = (createPortfolioResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: {
+        fundCode: "161725",
+        holdingAmount: 10000
+      }
+    });
+
+    await app.inject({
+      method: "PUT",
+      url: `/v1/portfolios/${portfolioId}/decision-doc`,
+      payload: {
+        format: "TEXT",
+        content: "test"
+      }
+    });
+
+    const generateResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/daily-decision:generate`
+    });
+    expect(generateResp.statusCode).toBe(200);
+
+    const latestResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/daily-decision/latest`
+    });
+    expect(latestResp.statusCode).toBe(200);
+    expect((latestResp.json() as { decision: { model: string; summary: string } }).decision).toMatchObject({
+      model: "claude-3.7-sonnet",
+      summary: "使用 claude-3.7-sonnet 生成建议"
+    });
+
+    expect(factoryInputs).toEqual([
+      {
+        baseUrl: "https://openrouter.ai/api/v1",
+        model: "claude-3.7-sonnet",
+        apiKey: "sk-user-123456"
+      }
+    ]);
 
     await app.close();
   });

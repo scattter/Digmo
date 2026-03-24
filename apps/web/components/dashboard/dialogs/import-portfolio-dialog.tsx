@@ -41,6 +41,7 @@ export function ImportPortfolioDialog(props: ImportPortfolioDialogProps) {
       confirmLoading={isBusy}
       okText="导入"
       cancelText="取消"
+      forceRender
       centered
     >
       <Form form={form} layout="vertical" initialValues={{ shareCode: "", password: "" }}>

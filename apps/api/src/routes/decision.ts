@@ -2,7 +2,7 @@ import { ASIA_SHANGHAI_TIMEZONE, ERROR_CODES, PortfolioType } from "@digmo/share
 import { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
 import { DecisionStore } from "../infra/decision/sqlite-decision-store.js";
 import { WatchlistStore } from "../infra/watchlist/sqlite-watchlist-store.js";
-import { DecisionAIProvider } from "../modules/decision/provider.js";
+import { DecisionAIProvider, DecisionAIProviderFactory } from "../modules/decision/provider.js";
 import { ValuationService } from "../modules/valuation/service.js";
 import { AppError } from "../utils/app-error.js";
 import { formatDate, nowInShanghai } from "../utils/time.js";
@@ -11,7 +11,8 @@ interface RegisterDecisionRoutesDeps {
   store: WatchlistStore;
   decisionStore: DecisionStore;
   service: ValuationService;
-  provider: DecisionAIProvider;
+  provider?: DecisionAIProvider;
+  providerFactory?: DecisionAIProviderFactory;
   requireAuth: preHandlerHookHandler;
   timezone?: string;
 }
@@ -90,6 +91,19 @@ function toPromptSnapshot(input: {
   return JSON.stringify(input);
 }
 
+function createDecisionProvider(
+  deps: RegisterDecisionRoutesDeps,
+  input: { baseUrl: string; apiKey: string; model: string }
+): DecisionAIProvider {
+  if (deps.providerFactory) {
+    return deps.providerFactory(input);
+  }
+  if (deps.provider) {
+    return deps.provider;
+  }
+  throw new Error("decision provider is not configured");
+}
+
 export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecisionRoutesDeps): void {
   const timezone = deps.timezone ?? ASIA_SHANGHAI_TIMEZONE;
 
@@ -141,6 +155,19 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
       const params = request.params as { portfolioId: string };
       ensurePortfolioId(params.portfolioId);
       const portfolio = await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+      const decisionAiConfig = await deps.store.getDecisionAiConfig(userId);
+      if (!decisionAiConfig) {
+        throw new AppError(
+          ERROR_CODES.DECISION_AI_CONFIG_REQUIRED,
+          "decision ai config is required before generating daily decision",
+          400
+        );
+      }
+      const decisionProvider = createDecisionProvider(deps, {
+        baseUrl: decisionAiConfig.baseUrl,
+        apiKey: decisionAiConfig.apiKey,
+        model: decisionAiConfig.model
+      });
 
       const activeDoc = await deps.decisionStore.getActiveDecisionDoc(userId, params.portfolioId);
       if (!activeDoc) {
@@ -217,15 +244,15 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
 
       const startedAt = Date.now();
       try {
-        const generated = await deps.provider.generateDailyDecision(input);
+        const generated = await decisionProvider.generateDailyDecision(input);
         const latencyMs = Date.now() - startedAt;
         const decision = await deps.decisionStore.saveDecisionRun({
           userId,
           portfolioId: params.portfolioId,
           tradeDate: formatDate(nowInShanghai()),
           summary: generated.summary,
-          provider: deps.provider.name,
-          model: deps.provider.model,
+          provider: decisionProvider.name,
+          model: decisionProvider.model,
           status: "SUCCESS",
           latencyMs,
           usage: generated.usage,
@@ -255,8 +282,8 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
           portfolioId: params.portfolioId,
           tradeDate: formatDate(nowInShanghai()),
           summary: "本次建议生成失败，请重试",
-          provider: deps.provider.name,
-          model: deps.provider.model,
+          provider: decisionProvider.name,
+          model: decisionProvider.model,
           status: "FAILED",
           errorMessage: message,
           latencyMs,

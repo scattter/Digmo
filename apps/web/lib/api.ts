@@ -1,8 +1,10 @@
 import {
+  ApiErrorResponse,
   AuthUser,
   BatchEstimateResponse,
   DailyDecision,
   DecisionDocFormat,
+  ErrorCode,
   FlatFundItem,
   ImportPortfolioByShareCodeResult,
   LoginResponse,
@@ -13,7 +15,8 @@ import {
   PositionOperationRecord,
   PositionOperationType,
   PortfolioSummary,
-  PortfolioType
+  PortfolioType,
+  UserDecisionAiConfigSummary
 } from "@digmo/shared";
 import { getAccessToken } from "./auth-session";
 
@@ -27,6 +30,22 @@ export class AuthError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "AuthError";
+  }
+}
+
+export class ApiResponseError extends Error {
+  readonly status: number;
+
+  readonly code?: ErrorCode;
+
+  readonly details?: unknown;
+
+  constructor(message: string, options: { status: number; code?: ErrorCode; details?: unknown }) {
+    super(message);
+    this.name = "ApiResponseError";
+    this.status = options.status;
+    this.code = options.code;
+    this.details = options.details;
   }
 }
 
@@ -45,12 +64,10 @@ interface ApiRequestOptions extends RequestInit {
   auth?: boolean;
 }
 
-async function safeErrorMessage(response: Response): Promise<string | undefined> {
+async function safeErrorPayload(response: Response): Promise<ApiErrorResponse | undefined> {
   try {
-    const payload = (await response.json()) as { message?: string };
-    if (typeof payload?.message === "string" && payload.message.trim()) {
-      return payload.message.trim();
-    }
+    const payload = (await response.json()) as ApiErrorResponse;
+    return payload;
   } catch {
     // ignore parse failure and fallback to status
   }
@@ -88,8 +105,17 @@ async function ensureOk(response: Response, message: string): Promise<void> {
     return;
   }
 
-  const detail = await safeErrorMessage(response);
-  throw new Error(detail ? `${message}: ${detail}` : `${message} (status ${response.status})`);
+  const detail = await safeErrorPayload(response);
+  const detailMessage =
+    typeof detail?.message === "string" && detail.message.trim() ? detail.message.trim() : undefined;
+  throw new ApiResponseError(
+    detailMessage ? `${message}: ${detailMessage}` : `${message} (status ${response.status})`,
+    {
+      status: response.status,
+      code: detail?.code,
+      details: detail?.details
+    }
+  );
 }
 
 function normalizeFundCodeForPath(rawFundCode: string): string {
@@ -218,6 +244,39 @@ export async function updatePortfolioTabLayout(fundsTabIndex: number): Promise<v
   });
 
   await ensureOk(response, "Update portfolio tab layout failed");
+}
+
+export async function fetchDecisionAiConfig(): Promise<UserDecisionAiConfigSummary | null> {
+  const response = await apiRequest("/v1/settings/decision-ai", {
+    auth: true
+  });
+
+  await ensureOk(response, "Fetch decision ai config failed");
+  const data = (await response.json()) as { config?: UserDecisionAiConfigSummary | null };
+  return data.config ?? null;
+}
+
+export async function updateDecisionAiConfig(params: {
+  baseUrl: string;
+  model: string;
+  apiKey?: string;
+}): Promise<UserDecisionAiConfigSummary> {
+  const response = await apiRequest("/v1/settings/decision-ai", {
+    method: "PATCH",
+    auth: true,
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      baseUrl: params.baseUrl,
+      model: params.model,
+      apiKey: params.apiKey
+    })
+  });
+
+  await ensureOk(response, "Update decision ai config failed");
+  const data = (await response.json()) as { config: UserDecisionAiConfigSummary };
+  return data.config;
 }
 
 export async function fetchPortfolioFunds(

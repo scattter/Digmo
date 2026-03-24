@@ -158,6 +158,14 @@ export interface PortfolioShareResult {
   hasPassword: boolean;
 }
 
+export interface UserDecisionAiConfigSummary {
+  baseUrl: string;
+  model: string;
+  hasApiKey: boolean;
+  maskedApiKey?: string;
+  updatedAt: string;
+}
+
 export interface ImportPortfolioByShareCodeResult {
   portfolio: PortfolioSummary;
   importedFundCount: number;

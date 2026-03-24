@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { PortfolioType, PositionOperationType, UserRole, UserStatus } from "@digmo/shared";
+import { PortfolioType, PositionOperationType, UserDecisionAiConfigSummary, UserRole, UserStatus } from "@digmo/shared";
 import { hashPassword } from "../../modules/auth/password.js";
 
 export interface PortfolioItem {
@@ -38,6 +38,12 @@ export interface PortfolioFundItem {
 
 export interface PortfolioTabLayoutPreference {
   fundsTabIndex: number;
+}
+
+export interface UserDecisionAiConfigItem extends UserDecisionAiConfigSummary {
+  userId: string;
+  apiKey: string;
+  createdAt: string;
 }
 
 export interface AppUserItem {
@@ -165,6 +171,11 @@ export interface WatchlistStore {
   reorderPortfolios(userId: string, orderedPortfolioIds: string[]): Promise<void>;
   getPortfolioTabLayoutPreference(userId: string): Promise<PortfolioTabLayoutPreference>;
   setPortfolioTabLayoutPreference(userId: string, preference: PortfolioTabLayoutPreference): Promise<void>;
+  getDecisionAiConfig(userId: string): Promise<UserDecisionAiConfigItem | undefined>;
+  upsertDecisionAiConfig(
+    userId: string,
+    input: { baseUrl: string; model: string; apiKey: string }
+  ): Promise<UserDecisionAiConfigItem>;
 
   listPortfolioFunds(userId: string, portfolioId: string): Promise<PortfolioFundItem[]>;
   listAllPortfolioFunds(userId: string): Promise<PortfolioFundItem[]>;
@@ -255,6 +266,15 @@ interface PortfolioShareRow {
 interface PortfolioTabLayoutPreferenceRow {
   userId: string;
   fundsTabIndex: number | null;
+}
+
+interface UserDecisionAiConfigRow {
+  userId: string;
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface PortfolioFundRow {
@@ -577,6 +597,16 @@ export class SqliteWatchlistStore implements WatchlistStore {
       CREATE TABLE IF NOT EXISTS user_portfolio_layout_preference (
         user_id TEXT PRIMARY KEY,
         funds_tab_index INTEGER NOT NULL DEFAULT 0 CHECK(funds_tab_index >= 0),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS user_decision_ai_config (
+        user_id TEXT PRIMARY KEY,
+        base_url TEXT NOT NULL,
+        api_key TEXT NOT NULL,
+        model TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE CASCADE
@@ -1794,6 +1824,63 @@ export class SqliteWatchlistStore implements WatchlistStore {
         `
       )
       .run(userId, fundsTabIndex);
+  }
+
+  async getDecisionAiConfig(userId: string): Promise<UserDecisionAiConfigItem | undefined> {
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            user_id AS userId,
+            base_url AS baseUrl,
+            api_key AS apiKey,
+            model,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+          FROM user_decision_ai_config
+          WHERE user_id = ?
+        `
+      )
+      .get(userId) as UserDecisionAiConfigRow | undefined;
+
+    if (!row) {
+      return undefined;
+    }
+
+    return {
+      userId: row.userId,
+      baseUrl: row.baseUrl,
+      apiKey: row.apiKey,
+      model: row.model,
+      hasApiKey: row.apiKey.trim().length > 0,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  async upsertDecisionAiConfig(
+    userId: string,
+    input: { baseUrl: string; model: string; apiKey: string }
+  ): Promise<UserDecisionAiConfigItem> {
+    this.db
+      .prepare(
+        `
+          INSERT INTO user_decision_ai_config (user_id, base_url, api_key, model, created_at, updated_at)
+          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(user_id) DO UPDATE SET
+            base_url = excluded.base_url,
+            api_key = excluded.api_key,
+            model = excluded.model,
+            updated_at = CURRENT_TIMESTAMP
+        `
+      )
+      .run(userId, input.baseUrl, input.apiKey, input.model);
+
+    const config = await this.getDecisionAiConfig(userId);
+    if (!config) {
+      throw new Error("failed to persist decision ai config");
+    }
+    return config;
   }
 
   async listPortfolioFunds(userId: string, portfolioId: string): Promise<PortfolioFundItem[]> {

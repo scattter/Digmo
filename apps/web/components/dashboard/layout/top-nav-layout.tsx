@@ -7,6 +7,7 @@ import {
   WalletOutlined,
   PlusOutlined,
   ImportOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import { DraggableTabList, TabItem } from "../navigation/draggable-tab-list";
 import { DragEndEvent } from "@dnd-kit/core";
@@ -22,6 +23,7 @@ interface HeaderSummaryBar {
 interface TopNavLayoutProps {
   children: React.ReactNode;
   username?: string;
+  onOpenDecisionAiConfig?: () => void;
   onLogout?: () => void;
   onCreatePortfolio: () => void;
   onImportPortfolio: () => void;
@@ -35,6 +37,7 @@ interface TopNavLayoutProps {
 export function TopNavLayout({
   children,
   username,
+  onOpenDecisionAiConfig,
   onLogout,
   onCreatePortfolio,
   onImportPortfolio,
@@ -57,6 +60,12 @@ export function TopNavLayout({
 
   const userMenu = {
     items: [
+      {
+        key: "decision-ai-config",
+        icon: <SettingOutlined />,
+        label: "AI 模型配置",
+        onClick: onOpenDecisionAiConfig,
+      },
       {
         key: "logout",
         icon: <LogoutOutlined />,

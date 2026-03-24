@@ -1,14 +1,30 @@
 "use client";
 
-import { DailyDecisionAction } from "@digmo/shared";
+import {
+  DecisionActionType,
+  DecisionCitation,
+  DecisionRiskLevel,
+} from "@digmo/shared";
 import { Card, Tag, Typography, Space } from "antd";
 import { LinkOutlined } from "@ant-design/icons";
 import { formatBeijingTime, formatPct } from "@/lib/format";
 
 const { Text, Paragraph } = Typography;
 
+interface DecisionCardAction {
+  actionType: DecisionActionType;
+  fundCode: string;
+  fundName?: string;
+  riskLevel: DecisionRiskLevel;
+  confidence: number;
+  rationale: string;
+  triggerCondition: string;
+  validUntil: string;
+  citations: DecisionCitation[];
+}
+
 interface DecisionCardProps {
-  action: DailyDecisionAction;
+  action: DecisionCardAction;
 }
 
 export function DecisionCard({ action }: DecisionCardProps) {
@@ -43,7 +59,7 @@ export function DecisionCard({ action }: DecisionCardProps) {
           >
             来源依据
           </Text>
-          {action.citations.map((citation, cIndex) => (
+          {action.citations.map((citation: DecisionCitation, cIndex: number) => (
             <div
               key={cIndex}
               style={{
