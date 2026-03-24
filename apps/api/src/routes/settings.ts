@@ -1,4 +1,4 @@
-import { ERROR_CODES, UserDecisionAiConfigSummary } from "@digmo/shared";
+import { DecisionAiMode, ERROR_CODES, UserDecisionAiConfigSummary } from "@digmo/shared";
 import { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
 import { WatchlistStore } from "../infra/watchlist/sqlite-watchlist-store.js";
 import { AppError } from "../utils/app-error.js";
@@ -39,6 +39,15 @@ function parseOptionalApiKey(raw: unknown): string | undefined {
   return value || undefined;
 }
 
+function parseDecisionAiMode(raw: unknown): DecisionAiMode {
+  const value = typeof raw === "string" ? raw.trim() : "";
+  if (value === "responses" || value === "chat_completions") {
+    return value;
+  }
+
+  throw new AppError(ERROR_CODES.INVALID_DECISION_AI_CONFIG, "mode must be responses or chat_completions", 400);
+}
+
 function maskApiKey(apiKey: string): string {
   if (apiKey.length <= 8) {
     return "*".repeat(apiKey.length);
@@ -49,12 +58,14 @@ function maskApiKey(apiKey: string): string {
 function toDecisionAiConfigSummary(input: {
   baseUrl: string;
   model: string;
+  mode: DecisionAiMode;
   apiKey: string;
   updatedAt: string;
 }): UserDecisionAiConfigSummary {
   return {
     baseUrl: input.baseUrl,
     model: input.model,
+    mode: input.mode,
     hasApiKey: true,
     maskedApiKey: maskApiKey(input.apiKey),
     updatedAt: input.updatedAt,
@@ -78,10 +89,12 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: RegisterSetti
       const body = request.body as {
         baseUrl?: unknown;
         model?: unknown;
+        mode?: unknown;
         apiKey?: unknown;
       };
       const baseUrl = parseRequiredString(body?.baseUrl, "baseUrl", 500);
       const model = parseRequiredString(body?.model, "model", 200);
+      const mode = parseDecisionAiMode(body?.mode);
       const apiKey = parseOptionalApiKey(body?.apiKey);
       const existingConfig = await deps.store.getDecisionAiConfig(userId);
 
@@ -96,6 +109,7 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: RegisterSetti
       const savedConfig = await deps.store.upsertDecisionAiConfig(userId, {
         baseUrl,
         model,
+        mode,
         apiKey: apiKey ?? existingConfig!.apiKey,
       });
 

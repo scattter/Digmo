@@ -1,0 +1,10 @@
+[GET] http://127.0.0.1:3002/_next/static/css/app/layout.css?v=1774323607009 => [404] Not Found
+[GET] http://127.0.0.1:3002/_next/static/chunks/main-app.js?v=1774323607009 => [404] Not Found
+[GET] http://127.0.0.1:3002/_next/static/chunks/app-pages-internals.js => [404] Not Found
+[GET] http://127.0.0.1:3002/_next/static/chunks/app/layout.js => [404] Not Found
+[GET] http://127.0.0.1:3002/_next/static/chunks/app/page.js => [404] Not Found
+[GET] http://127.0.0.1:3002/_next/static/css/app/layout.css?v=1774323607009 => [404] Not Found
+[GET] http://127.0.0.1:3002/_next/static/chunks/main-app.js?v=1774323607009 => [404] Not Found
+[GET] http://127.0.0.1:3002/_next/static/chunks/app-pages-internals.js => [404] Not Found
+[GET] http://127.0.0.1:3002/_next/static/chunks/app/page.js => [404] Not Found
+[GET] http://127.0.0.1:3002/_next/static/chunks/app/layout.js => [404] Not Found

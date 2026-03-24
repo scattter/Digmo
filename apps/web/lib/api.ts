@@ -3,6 +3,7 @@ import {
   AuthUser,
   BatchEstimateResponse,
   DailyDecision,
+  DecisionAiMode,
   DecisionDocFormat,
   ErrorCode,
   FlatFundItem,
@@ -259,6 +260,7 @@ export async function fetchDecisionAiConfig(): Promise<UserDecisionAiConfigSumma
 export async function updateDecisionAiConfig(params: {
   baseUrl: string;
   model: string;
+  mode: DecisionAiMode;
   apiKey?: string;
 }): Promise<UserDecisionAiConfigSummary> {
   const response = await apiRequest("/v1/settings/decision-ai", {
@@ -270,6 +272,7 @@ export async function updateDecisionAiConfig(params: {
     body: JSON.stringify({
       baseUrl: params.baseUrl,
       model: params.model,
+      mode: params.mode,
       apiKey: params.apiKey
     })
   });

@@ -1,0 +1,118 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e13]:
+    - banner [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - img "wallet" [ref=e17]:
+            - img [ref=e18]
+          - generic [ref=e20]: Digmo
+        - generic [ref=e22]:
+          - generic [ref=e23]: admin
+          - img "user" [ref=e25] [cursor=pointer]:
+            - img [ref=e26]
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - button "账户汇总" [ref=e31] [cursor=pointer]:
+            - generic [ref=e32]: 账户汇总
+          - button "稳健分散组合" [ref=e33] [cursor=pointer]:
+            - button "稳健分散组合" [ref=e34]:
+              - generic [ref=e35]: 稳健分散组合
+          - button "复杂分散组合" [ref=e36] [cursor=pointer]:
+            - button "复杂分散组合" [ref=e37]:
+              - generic [ref=e38]: 复杂分散组合
+          - button "卫星进攻组合" [ref=e39] [cursor=pointer]:
+            - button "卫星进攻组合" [ref=e40]:
+              - generic [ref=e41]: 卫星进攻组合
+          - button "全部基金" [ref=e42] [cursor=pointer]:
+            - button "全部基金" [ref=e43]:
+              - generic [ref=e44]: 全部基金
+          - status [ref=e45]
+        - generic [ref=e46]:
+          - button "导入组合" [ref=e47] [cursor=pointer]:
+            - img "import" [ref=e48]:
+              - img [ref=e49]
+          - button "创建组合" [ref=e51] [cursor=pointer]:
+            - img "plus" [ref=e52]:
+              - img [ref=e53]
+      - generic [ref=e57]:
+        - generic [ref=e58]:
+          - paragraph [ref=e59]: 资产总额
+          - paragraph [ref=e60]: 84,256.25
+        - generic [ref=e61]:
+          - paragraph [ref=e62]: 当日收益
+          - paragraph [ref=e63]: "+442.13"
+    - main [ref=e64]:
+      - generic [ref=e66]:
+        - generic [ref=e67] [cursor=pointer]:
+          - generic [ref=e69]:
+            - img "folder-open" [ref=e71]:
+              - img [ref=e72]
+            - generic [ref=e74]: 稳健分散组合
+          - generic [ref=e75]:
+            - generic [ref=e76]:
+              - generic [ref=e77]:
+                - generic [ref=e78]: 账户资产
+                - generic [ref=e79]: 30,332.53
+              - generic [ref=e80]:
+                - generic [ref=e81]: 持有收益
+                - generic [ref=e82]:
+                  - generic [ref=e83]: "-167.47"
+                  - generic [ref=e84]: "-0.55%"
+            - generic [ref=e87]:
+              - generic [ref=e88]: 当日收益
+              - generic [ref=e89]:
+                - generic [ref=e90]: "+79.41"
+                - generic [ref=e91]: +0.26%
+        - generic [ref=e92] [cursor=pointer]:
+          - generic [ref=e94]:
+            - img "folder-open" [ref=e96]:
+              - img [ref=e97]
+            - generic [ref=e99]: 复杂分散组合
+          - generic [ref=e100]:
+            - generic [ref=e101]:
+              - generic [ref=e102]:
+                - generic [ref=e103]: 账户资产
+                - generic [ref=e104]: 36,142.71
+              - generic [ref=e105]:
+                - generic [ref=e106]: 持有收益
+                - generic [ref=e107]:
+                  - generic [ref=e108]: +1,855.31
+                  - generic [ref=e109]: +5.41%
+            - generic [ref=e112]:
+              - generic [ref=e113]: 当日收益
+              - generic [ref=e114]:
+                - generic [ref=e115]: "+212.99"
+                - generic [ref=e116]: +0.59%
+        - generic [ref=e117] [cursor=pointer]:
+          - generic [ref=e119]:
+            - img "folder-open" [ref=e121]:
+              - img [ref=e122]
+            - generic [ref=e124]: 卫星进攻组合
+          - generic [ref=e125]:
+            - generic [ref=e126]:
+              - generic [ref=e127]:
+                - generic [ref=e128]: 账户资产
+                - generic [ref=e129]: 17,781.01
+              - generic [ref=e130]:
+                - generic [ref=e131]: 持有收益
+                - generic [ref=e132]:
+                  - generic [ref=e133]: "-395.02"
+                  - generic [ref=e134]: "-2.17%"
+            - generic [ref=e137]:
+              - generic [ref=e138]: 当日收益
+              - generic [ref=e139]:
+                - generic [ref=e140]: "+149.72"
+                - generic [ref=e141]: +0.85%
+  - button "Open Next.js Dev Tools" [ref=e147] [cursor=pointer]:
+    - img [ref=e148]
+  - alert [ref=e12]
+  - generic:
+    - generic: "* *"
+  - generic:
+    - generic: "*"
+  - generic:
+    - generic: "*"
+  - generic:
+    - generic: "* * *"
+  - generic:
+    - generic: "* * *"

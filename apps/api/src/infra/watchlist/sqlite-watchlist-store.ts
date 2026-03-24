@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { PortfolioType, PositionOperationType, UserDecisionAiConfigSummary, UserRole, UserStatus } from "@digmo/shared";
+import {
+  DecisionAiMode,
+  PortfolioType,
+  PositionOperationType,
+  UserDecisionAiConfigSummary,
+  UserRole,
+  UserStatus,
+} from "@digmo/shared";
 import { hashPassword } from "../../modules/auth/password.js";
 
 export interface PortfolioItem {
@@ -174,7 +181,7 @@ export interface WatchlistStore {
   getDecisionAiConfig(userId: string): Promise<UserDecisionAiConfigItem | undefined>;
   upsertDecisionAiConfig(
     userId: string,
-    input: { baseUrl: string; model: string; apiKey: string }
+    input: { baseUrl: string; model: string; mode: DecisionAiMode; apiKey: string }
   ): Promise<UserDecisionAiConfigItem>;
 
   listPortfolioFunds(userId: string, portfolioId: string): Promise<PortfolioFundItem[]>;
@@ -273,6 +280,7 @@ interface UserDecisionAiConfigRow {
   baseUrl: string;
   apiKey: string;
   model: string;
+  mode: DecisionAiMode;
   createdAt: string;
   updatedAt: string;
 }
@@ -607,6 +615,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
         base_url TEXT NOT NULL,
         api_key TEXT NOT NULL,
         model TEXT NOT NULL,
+        mode TEXT NOT NULL DEFAULT 'chat_completions' CHECK(mode IN ('responses', 'chat_completions')),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES app_user(id) ON DELETE CASCADE
@@ -675,6 +684,20 @@ export class SqliteWatchlistStore implements WatchlistStore {
         SET holding_profit_amount = COALESCE(holding_profit_amount, 0);
       `);
     }
+
+    if (!this.hasColumn("user_decision_ai_config", "mode")) {
+      this.db.exec(
+        "ALTER TABLE user_decision_ai_config ADD COLUMN mode TEXT NOT NULL DEFAULT 'chat_completions';",
+      );
+    }
+
+    this.db.exec(`
+      UPDATE user_decision_ai_config
+      SET mode = CASE
+        WHEN mode IN ('responses', 'chat_completions') THEN mode
+        ELSE 'chat_completions'
+      END;
+    `);
   }
 
   private ensurePortfolioShareSchema(): void {
@@ -1835,6 +1858,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
             base_url AS baseUrl,
             api_key AS apiKey,
             model,
+            mode,
             created_at AS createdAt,
             updated_at AS updatedAt
           FROM user_decision_ai_config
@@ -1852,6 +1876,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
       baseUrl: row.baseUrl,
       apiKey: row.apiKey,
       model: row.model,
+      mode: row.mode,
       hasApiKey: row.apiKey.trim().length > 0,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -1860,21 +1885,22 @@ export class SqliteWatchlistStore implements WatchlistStore {
 
   async upsertDecisionAiConfig(
     userId: string,
-    input: { baseUrl: string; model: string; apiKey: string }
+    input: { baseUrl: string; model: string; mode: DecisionAiMode; apiKey: string }
   ): Promise<UserDecisionAiConfigItem> {
     this.db
       .prepare(
         `
-          INSERT INTO user_decision_ai_config (user_id, base_url, api_key, model, created_at, updated_at)
-          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO user_decision_ai_config (user_id, base_url, api_key, model, mode, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           ON CONFLICT(user_id) DO UPDATE SET
             base_url = excluded.base_url,
             api_key = excluded.api_key,
             model = excluded.model,
+            mode = excluded.mode,
             updated_at = CURRENT_TIMESTAMP
         `
       )
-      .run(userId, input.baseUrl, input.apiKey, input.model);
+      .run(userId, input.baseUrl, input.apiKey, input.model, input.mode);
 
     const config = await this.getDecisionAiConfig(userId);
     if (!config) {

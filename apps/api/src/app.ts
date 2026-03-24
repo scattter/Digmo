@@ -123,11 +123,13 @@ export async function buildApp(): Promise<AppContext> {
     apiKey,
     baseUrl,
     model,
+    mode,
   }) =>
     new OpenAIDecisionProvider({
       apiKey,
       baseUrl,
       model,
+      mode,
       timeoutMs: config.decisionAi.openaiTimeoutMs,
       maxOutputTokens: config.decisionAi.openaiMaxTokens,
       systemPrompt,

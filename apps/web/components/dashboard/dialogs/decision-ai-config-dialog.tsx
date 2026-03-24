@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
-import { Form, Input, Modal, Typography } from "antd";
-import { UserDecisionAiConfigSummary } from "@digmo/shared";
+import { Form, Input, Modal, Select, Typography } from "antd";
+import { DecisionAiMode, UserDecisionAiConfigSummary } from "@digmo/shared";
 
 const { Paragraph, Text } = Typography;
 
 interface DecisionAiConfigFormValues {
   baseUrl: string;
   model: string;
+  mode: DecisionAiMode;
   apiKey?: string;
 }
 
@@ -36,6 +37,7 @@ export function DecisionAiConfigDialog({
     form.setFieldsValue({
       baseUrl: config?.baseUrl ?? "https://api.openai.com/v1",
       model: config?.model ?? "",
+      mode: config?.mode ?? "chat_completions",
       apiKey: "",
     });
   }, [config, form, open]);
@@ -46,6 +48,7 @@ export function DecisionAiConfigDialog({
       await onSubmit({
         baseUrl: values.baseUrl.trim(),
         model: values.model.trim(),
+        mode: values.mode,
         apiKey: values.apiKey?.trim() || undefined,
       });
       form.resetFields(["apiKey"]);
@@ -103,6 +106,20 @@ export function DecisionAiConfigDialog({
             placeholder="例如：gpt-4.1-mini / claude-3.7-sonnet"
             disabled={isBusy}
             autoComplete="off"
+          />
+        </Form.Item>
+
+        <Form.Item
+          name="mode"
+          label="Provider 类型"
+          rules={[{ required: true, message: "请选择 Provider 类型" }]}
+        >
+          <Select
+            disabled={isBusy}
+            options={[
+              { value: "chat_completions", label: "Chat Completions" },
+              { value: "responses", label: "Responses" },
+            ]}
           />
         </Form.Item>
 

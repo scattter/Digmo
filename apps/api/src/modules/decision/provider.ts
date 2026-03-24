@@ -1,4 +1,5 @@
 import {
+  DecisionAiMode,
   DecisionDocFormat,
   PortfolioType,
 } from "@digmo/shared";
@@ -60,6 +61,7 @@ export interface DecisionAIProviderConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  mode: DecisionAiMode;
 }
 
 export interface DecisionAIProvider {

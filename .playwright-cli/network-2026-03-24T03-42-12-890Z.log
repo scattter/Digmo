@@ -1,0 +1,9 @@
+[GET] http://127.0.0.1:3002/api/v1/portfolios => [200] OK
+[GET] http://127.0.0.1:3002/api/v1/funds/flat?expand=dedup&sortOrder=default => [200] OK
+[GET] http://127.0.0.1:3002/api/v1/auth/me => [200] OK
+[GET] http://127.0.0.1:3002/_next/static/webpack/058e4ef5425a2d2c.webpack.hot-update.json => [200] OK
+[GET] http://127.0.0.1:3002/api/v1/portfolios/tab-layout => [200] OK
+[GET] http://127.0.0.1:3002/api/v1/settings/decision-ai => [200] OK
+[POST] http://127.0.0.1:3002/__nextjs_original-stack-frames => [200] OK
+[GET] http://127.0.0.1:3002/api/v1/portfolios => [200] OK
+[GET] http://127.0.0.1:3002/api/v1/portfolios/8fe8ba55-23e6-4310-b4b2-6c71129b45ca/funds => [200] OK

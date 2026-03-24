@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { DecisionGenerationInput } from "../provider.js";
 
-const { openAIConstructorSpy, chatCompletionCreateSpy } = vi.hoisted(() => ({
+const { openAIConstructorSpy, chatCompletionCreateSpy, responsesCreateSpy } = vi.hoisted(() => ({
   openAIConstructorSpy: vi.fn(),
   chatCompletionCreateSpy: vi.fn(),
+  responsesCreateSpy: vi.fn(),
 }));
 
 vi.mock("openai", () => {
@@ -12,6 +13,10 @@ vi.mock("openai", () => {
       completions: {
         create: chatCompletionCreateSpy,
       },
+    };
+
+    responses = {
+      create: responsesCreateSpy,
     };
 
     constructor(options: unknown) {
@@ -88,9 +93,10 @@ function buildProvider(
   return new OpenAIDecisionProvider({
     apiKey: "test-key",
     model: "gpt-4o-mini",
+    mode: "chat_completions",
     timeoutMs: 5000,
     maxOutputTokens: 1200,
-    baseUrl: "https://api.bltcy.ai/v1",
+    baseUrl: "https://api.openai.com/v1",
     ...overrides,
   });
 }
@@ -105,6 +111,7 @@ describe("OpenAIDecisionProvider", () => {
     );
     openAIConstructorSpy.mockReset();
     chatCompletionCreateSpy.mockReset();
+    responsesCreateSpy.mockReset();
   });
 
   afterEach(() => {
@@ -112,7 +119,41 @@ describe("OpenAIDecisionProvider", () => {
     vi.restoreAllMocks();
   });
 
-  test("uses OpenAI SDK chat completions with baseURL and only model/messages", async () => {
+  test("uses responses API when mode is responses", async () => {
+    responsesCreateSpy.mockResolvedValue({
+      output_text: buildValidDecisionText(),
+      usage: { input_tokens: 120, output_tokens: 60, total_tokens: 180 },
+    });
+
+    const provider = buildProvider({
+      mode: "responses",
+    });
+
+    const result = await provider.generateDailyDecision(createInput());
+
+    expect(openAIConstructorSpy).toHaveBeenCalledWith({
+      apiKey: "test-key",
+      baseURL: "https://api.openai.com/v1",
+      maxRetries: 0,
+      timeout: 5000,
+    });
+    expect(responsesCreateSpy).toHaveBeenCalledTimes(1);
+    expect(responsesCreateSpy).toHaveBeenCalledWith({
+      model: "gpt-4o-mini",
+      instructions: expect.any(String),
+      input: expect.any(String),
+      max_output_tokens: 1200,
+    });
+    expect(chatCompletionCreateSpy).not.toHaveBeenCalled();
+
+    expect(result.summary).toContain("防守");
+    expect(result.usage?.inputTokens).toBe(120);
+    expect(result.usage?.outputTokens).toBe(60);
+    expect(result.usage?.totalTokens).toBe(180);
+    expect(result.rawResponse).toBe(buildValidDecisionText());
+  });
+
+  test("uses OpenAI SDK chat completions for official OpenAI baseURL", async () => {
     chatCompletionCreateSpy.mockResolvedValue({
       choices: [{ message: { content: buildValidDecisionText() } }],
       usage: { prompt_tokens: 120, completion_tokens: 60, total_tokens: 180 },
@@ -124,7 +165,7 @@ describe("OpenAIDecisionProvider", () => {
 
     expect(openAIConstructorSpy).toHaveBeenCalledWith({
       apiKey: "test-key",
-      baseURL: "https://api.bltcy.ai/v1",
+      baseURL: "https://api.openai.com/v1",
       maxRetries: 0,
       timeout: 5000,
     });
@@ -150,7 +191,7 @@ describe("OpenAIDecisionProvider", () => {
     expect(result.rawResponse).toBe(buildValidDecisionText());
   });
 
-  test("uses compat chat completions transport for third-party compatible models", async () => {
+  test("uses compat chat completions transport for third-party baseUrl when mode is chat_completions", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -168,7 +209,8 @@ describe("OpenAIDecisionProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = buildProvider({
-      model: "glm-5",
+      model: "gpt-4o-mini",
+      mode: "chat_completions",
       baseUrl: "https://compat.example.com/openapi/compatible-mode/v1",
       maxOutputTokens: 1800,
     });
@@ -188,7 +230,7 @@ describe("OpenAIDecisionProvider", () => {
       messages: Array<{ role: string; content: string }>;
     };
 
-    expect(body.model).toBe("glm-5");
+    expect(body.model).toBe("gpt-4o-mini");
     expect(body.max_tokens).toBe(1024);
     expect(body.messages[0]).toEqual({
       role: "system",
@@ -199,6 +241,21 @@ describe("OpenAIDecisionProvider", () => {
       content: expect.any(String),
     });
     expect(result.usage?.totalTokens).toBe(210);
+  });
+
+  test("does not fallback to chat completions when responses mode request fails", async () => {
+    responsesCreateSpy.mockRejectedValue(new Error("openai request failed: 404 not supported"));
+
+    const provider = buildProvider({
+      mode: "responses",
+      baseUrl: "https://compat.example.com/v1",
+    });
+
+    await expect(provider.generateDailyDecision(createInput())).rejects.toThrow(
+      "openai request failed: 404 not supported",
+    );
+    expect(responsesCreateSpy).toHaveBeenCalledTimes(1);
+    expect(chatCompletionCreateSpy).not.toHaveBeenCalled();
   });
 
   test("sanitizes malformed compat baseUrl before building chat completions endpoint", async () => {
@@ -219,6 +276,7 @@ describe("OpenAIDecisionProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = buildProvider({
+      mode: "chat_completions",
       model: "MiniMax-M2.5",
       baseUrl:
         "https://api.xairouter.com/v1#https://ai.td.ee/v1#https://api.xairouter.com/v1",
@@ -250,6 +308,7 @@ describe("OpenAIDecisionProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = buildProvider({
+      mode: "chat_completions",
       model: "MiniMax-M2.5",
       baseUrl: "https://api.xairouter.com/v1",
       maxOutputTokens: 128000,
@@ -293,6 +352,7 @@ describe("OpenAIDecisionProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = buildProvider({
+      mode: "chat_completions",
       model: "MiniMax-M2.5",
       baseUrl: "https://api.xairouter.com/v1",
     });
@@ -344,6 +404,7 @@ describe("OpenAIDecisionProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = buildProvider({
+      mode: "chat_completions",
       model: "MiniMax-M2.5",
       baseUrl: "https://api.xairouter.com/v1",
     });
@@ -382,6 +443,7 @@ describe("OpenAIDecisionProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = buildProvider({
+      mode: "chat_completions",
       model: "MiniMax-M2.5",
       baseUrl: "https://api.xairouter.com/v1",
     });
@@ -424,6 +486,7 @@ describe("OpenAIDecisionProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = buildProvider({
+      mode: "chat_completions",
       model: "MiniMax-M2.5",
       baseUrl: "https://api.xairouter.com/v1",
       timeoutMs: 20_000,
@@ -457,6 +520,7 @@ describe("OpenAIDecisionProvider", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const provider = buildProvider({
+      mode: "chat_completions",
       model: "MiniMax-M2.5",
       baseUrl: "https://api.xairouter.com/v1",
       timeoutMs: 20_000,

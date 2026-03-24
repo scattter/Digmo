@@ -2,6 +2,7 @@
 
 import {
   AuthUser,
+  DecisionAiMode,
   PortfolioSummary,
   PortfolioType,
   PortfolioFundItem,
@@ -356,6 +357,7 @@ export default function FundDashboard() {
   async function handleSaveDecisionAiConfig(values: {
     baseUrl: string;
     model: string;
+    mode: DecisionAiMode;
     apiKey?: string;
   }) {
     setIsDecisionAiConfigSaving(true);

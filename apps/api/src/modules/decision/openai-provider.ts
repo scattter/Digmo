@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { DecisionAiMode } from "@digmo/shared";
 import {
   DecisionAIProvider,
   DecisionGenerationInput,
@@ -9,6 +10,7 @@ import {
 interface OpenAIDecisionProviderOptions {
   apiKey?: string;
   model: string;
+  mode: DecisionAiMode;
   timeoutMs: number;
   maxOutputTokens: number;
   baseUrl?: string;
@@ -36,20 +38,16 @@ interface OpenAIChatPayload {
   usage?: OpenAIChatUsage;
 }
 
-const THIRD_PARTY_CHAT_FIRST_MODEL_PREFIXES = [
-  "claude-",
-  "gemini-",
-  "minimax-",
-  "deepseek-",
-  "qwen-",
-  "glm-",
-  "kimi-",
-  "moonshot-",
-  "llama-",
-  "doubao-",
-  "yi-",
-  "hunyuan-",
-];
+interface OpenAIResponsesUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+}
+
+interface OpenAIResponsesPayload {
+  output_text?: string;
+  usage?: OpenAIResponsesUsage;
+}
 
 const DEFAULT_DOC_MAX_CHARS = 12_000;
 const MAX_COMPAT_CHAT_COMPLETION_TOKENS = 1_024;
@@ -122,32 +120,6 @@ function isOfficialOpenAIBaseUrl(baseUrl: string): boolean {
   return (
     normalized === "https://api.openai.com" ||
     normalized === "https://api.openai.com/v1"
-  );
-}
-
-function isLikelyOpenAINativeModel(model: string): boolean {
-  const normalized = model.trim().toLowerCase();
-  return (
-    normalized.startsWith("gpt-") ||
-    normalized.startsWith("chatgpt-") ||
-    normalized.startsWith("o1") ||
-    normalized.startsWith("o3") ||
-    normalized.startsWith("o4")
-  );
-}
-
-function isLikelyThirdPartyCompatModel(model: string): boolean {
-  const normalized = model.trim().toLowerCase();
-  return THIRD_PARTY_CHAT_FIRST_MODEL_PREFIXES.some((prefix) =>
-    normalized.startsWith(prefix),
-  );
-}
-
-function shouldPreferCompatChatCompletions(baseUrl: string, model: string): boolean {
-  return (
-    !isOfficialOpenAIBaseUrl(baseUrl) &&
-    !isLikelyOpenAINativeModel(model) &&
-    isLikelyThirdPartyCompatModel(model)
   );
 }
 
@@ -293,13 +265,14 @@ function isRetriableGenerationError(error: unknown): boolean {
 export class OpenAIDecisionProvider implements DecisionAIProvider {
   readonly name = "openai";
   readonly model: string;
+  private readonly mode: DecisionAiMode;
   private readonly apiKey?: string;
   private readonly timeoutMs: number;
   private readonly maxOutputTokens: number;
   private readonly baseUrl: string;
   private readonly systemPrompt: string;
   private readonly docMaxChars: number;
-  private readonly preferCompatChatCompletions: boolean;
+  private readonly useCompatChatCompletionsTransport: boolean;
   private readonly client?: OpenAI;
   private readonly compatMaxOutputTokens: number;
   private readonly compatTimeoutMs: number;
@@ -307,6 +280,7 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
   constructor(options: OpenAIDecisionProviderOptions) {
     this.apiKey = options.apiKey;
     this.model = options.model;
+    this.mode = options.mode;
     this.timeoutMs = options.timeoutMs;
     this.maxOutputTokens = options.maxOutputTokens;
     this.compatMaxOutputTokens = normalizeCompatMaxTokens(options.maxOutputTokens);
@@ -316,12 +290,12 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
       ? options.systemPrompt.trim()
       : DEFAULT_SYSTEM_PROMPT;
     this.docMaxChars = normalizeDocMaxChars(options.docMaxChars);
-    this.preferCompatChatCompletions = shouldPreferCompatChatCompletions(
-      this.baseUrl,
-      this.model,
+    this.useCompatChatCompletionsTransport = (
+      this.mode === "chat_completions" &&
+      !isOfficialOpenAIBaseUrl(this.baseUrl)
     );
 
-    if (this.apiKey && !this.preferCompatChatCompletions) {
+    if (this.apiKey && (this.mode === "responses" || !this.useCompatChatCompletionsTransport)) {
       this.client = new OpenAI({
         apiKey: this.apiKey,
         baseURL: this.baseUrl,
@@ -366,8 +340,17 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
     return (await response.json()) as OpenAIChatPayload;
   }
 
+  private async requestResponsesPayload(inputText: string): Promise<OpenAIResponsesPayload> {
+    return (await this.client?.responses.create({
+      model: this.model,
+      instructions: this.systemPrompt,
+      input: inputText,
+      max_output_tokens: this.maxOutputTokens,
+    })) as OpenAIResponsesPayload;
+  }
+
   private async requestChatPayload(inputText: string): Promise<OpenAIChatPayload> {
-    if (this.preferCompatChatCompletions) {
+    if (this.useCompatChatCompletionsTransport) {
       return this.requestCompatChatCompletions(inputText);
     }
 
@@ -399,6 +382,31 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
 
     for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
       try {
+        if (this.mode === "responses") {
+          const payload = await this.requestResponsesPayload(inputText);
+
+          if (!payload) {
+            throw new Error("openai client is not initialized");
+          }
+
+          const outputText = payload.output_text?.trim();
+          if (!outputText) {
+            throw new Error("openai response has no output text");
+          }
+
+          const normalizedText = normalizeModelOutputText(outputText);
+          const validated = validateDecisionGenerationResult(normalizedText);
+          return {
+            ...validated,
+            usage: {
+              inputTokens: payload.usage?.input_tokens,
+              outputTokens: payload.usage?.output_tokens,
+              totalTokens: payload.usage?.total_tokens,
+            },
+            rawResponse: normalizedText,
+          };
+        }
+
         const payload = await this.requestChatPayload(inputText);
 
         if (!payload) {

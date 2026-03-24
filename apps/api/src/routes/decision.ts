@@ -93,7 +93,7 @@ function toPromptSnapshot(input: {
 
 function createDecisionProvider(
   deps: RegisterDecisionRoutesDeps,
-  input: { baseUrl: string; apiKey: string; model: string }
+  input: { baseUrl: string; apiKey: string; model: string; mode: "responses" | "chat_completions" }
 ): DecisionAIProvider {
   if (deps.providerFactory) {
     return deps.providerFactory(input);
@@ -166,7 +166,8 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
       const decisionProvider = createDecisionProvider(deps, {
         baseUrl: decisionAiConfig.baseUrl,
         apiKey: decisionAiConfig.apiKey,
-        model: decisionAiConfig.model
+        model: decisionAiConfig.model,
+        mode: decisionAiConfig.mode,
       });
 
       const activeDoc = await deps.decisionStore.getActiveDecisionDoc(userId, params.portfolioId);

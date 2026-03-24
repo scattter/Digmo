@@ -26,6 +26,7 @@ interface DecisionAiConfigInput {
   baseUrl: string;
   apiKey: string;
   model: string;
+  mode: "responses" | "chat_completions";
 }
 
 const tempRoots: string[] = [];
@@ -51,6 +52,7 @@ async function saveDecisionAiConfig(
   await store.upsertDecisionAiConfig(user.id, {
     baseUrl: input?.baseUrl ?? "https://api.openai.com/v1",
     model: input?.model ?? "stub-model",
+    mode: input?.mode ?? "chat_completions",
     apiKey: input?.apiKey ?? "sk-test-123456",
   });
 }
@@ -615,6 +617,7 @@ describe("decision routes", () => {
       {
         baseUrl: "https://openrouter.ai/api/v1",
         model: "claude-3.7-sonnet",
+        mode: "chat_completions",
         apiKey: "sk-user-123456"
       }
     ]);

@@ -1,0 +1,4 @@
+- generic [active] [ref=e1]:
+  - main [ref=e3]:
+    - generic [ref=e11]: 正在校验登录状态...
+  - alert [ref=e12]

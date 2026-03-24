@@ -158,9 +158,12 @@ export interface PortfolioShareResult {
   hasPassword: boolean;
 }
 
+export type DecisionAiMode = "responses" | "chat_completions";
+
 export interface UserDecisionAiConfigSummary {
   baseUrl: string;
   model: string;
+  mode: DecisionAiMode;
   hasApiKey: boolean;
   maskedApiKey?: string;
   updatedAt: string;
