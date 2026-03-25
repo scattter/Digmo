@@ -1,4 +1,5 @@
 const SHANGHAI_TZ = "Asia/Shanghai";
+const SHANGHAI_OFFSET_HOURS = 8;
 
 function getShanghaiParts(input: Date): {
   year: number;
@@ -44,6 +45,17 @@ function getShanghaiParts(input: Date): {
   };
 }
 
+function createShanghaiDate(
+  year: number,
+  month: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0
+): Date {
+  return new Date(Date.UTC(year, month - 1, day, hour - SHANGHAI_OFFSET_HOURS, minute, second, 0));
+}
+
 export function nowInShanghai(): Date {
   return new Date();
 }
@@ -64,6 +76,23 @@ export function getShanghaiWeekday(input: Date): number {
 export function isTradingDay(input: Date): boolean {
   const weekday = getShanghaiWeekday(input);
   return weekday !== 0 && weekday !== 6;
+}
+
+export function getNextWorkingDaySettlementTime(input: Date): Date {
+  const parts = getShanghaiParts(input);
+  let dayOffset = 1;
+
+  while (true) {
+    const candidate = createShanghaiDate(parts.year, parts.month, parts.day + dayOffset, 9, 0, 0);
+    if (isTradingDay(candidate)) {
+      return candidate;
+    }
+    dayOffset += 1;
+  }
+}
+
+export function isSettlementDue(effectiveAt: string, now: Date): boolean {
+  return new Date(effectiveAt).getTime() <= now.getTime();
 }
 
 export function isTradingTime(input: Date): boolean {

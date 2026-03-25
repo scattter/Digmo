@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { FundEstimateSnapshot } from "@digmo/shared";
 import Fastify, { FastifyInstance } from "fastify";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { SqliteDecisionStore } from "../../infra/decision/sqlite-decision-store.js";
 import { SqliteWatchlistStore } from "../../infra/watchlist/sqlite-watchlist-store.js";
 import { ValuationService } from "../../modules/valuation/service.js";
@@ -179,6 +179,7 @@ async function createRouteApp(
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   while (tempRoots.length > 0) {
     const root = tempRoots.pop();
     if (root) {
@@ -1227,7 +1228,10 @@ describe("watchlist routes", () => {
     await app.close();
   });
 
-  test("creates increase operation and records history", async () => {
+  test("creates pending increase operation and settles after next working day at 09:00", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-03-23T07:20:00.000Z"));
+
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);
     const app = await createRouteApp(store, {
@@ -1256,6 +1260,14 @@ describe("watchlist routes", () => {
       }
     });
     expect(operateResp.statusCode).toBe(201);
+    const operatePayload = operateResp.json() as {
+      operation: {
+        status: string;
+        effectiveAt: string;
+      };
+    };
+    expect(operatePayload.operation.status).toBe("PENDING");
+    expect(operatePayload.operation.effectiveAt).toBe("2026-03-24T01:00:00.000Z");
 
     const fundsResp = await app.inject({
       method: "GET",
@@ -1263,7 +1275,7 @@ describe("watchlist routes", () => {
     });
     expect(fundsResp.statusCode).toBe(200);
     const fundsPayload = fundsResp.json() as { funds: Array<{ holdingAmount: number; holdingProfitAmount: number }> };
-    expect(fundsPayload.funds[0].holdingAmount).toBe(1200);
+    expect(fundsPayload.funds[0].holdingAmount).toBe(1000);
     expect(fundsPayload.funds[0].holdingProfitAmount).toBe(100);
 
     const historyResp = await app.inject({
@@ -1272,18 +1284,64 @@ describe("watchlist routes", () => {
     });
     expect(historyResp.statusCode).toBe(200);
     const historyPayload = historyResp.json() as {
-      items: Array<{ operationType: string; amount: number; beforeHoldingAmount: number; afterHoldingAmount: number }>;
+      items: Array<{
+        operationType: string;
+        amount: number;
+        beforeHoldingAmount: number;
+        afterHoldingAmount: number;
+        status: string;
+        effectiveAt: string;
+        appliedAt?: string;
+      }>;
     };
     expect(historyPayload.items.length).toBe(1);
     expect(historyPayload.items[0].operationType).toBe("INCREASE");
     expect(historyPayload.items[0].amount).toBe(200);
     expect(historyPayload.items[0].beforeHoldingAmount).toBe(1000);
     expect(historyPayload.items[0].afterHoldingAmount).toBe(1200);
+    expect(historyPayload.items[0].status).toBe("PENDING");
+    expect(historyPayload.items[0].effectiveAt).toBe("2026-03-24T01:00:00.000Z");
+    expect(historyPayload.items[0].appliedAt).toBeUndefined();
+
+    vi.setSystemTime(new Date("2026-03-24T00:59:59.000Z"));
+    const beforeSettlementResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    const beforeSettlementPayload = beforeSettlementResp.json() as {
+      funds: Array<{ holdingAmount: number; holdingProfitAmount: number }>;
+    };
+    expect(beforeSettlementPayload.funds[0].holdingAmount).toBe(1000);
+    expect(beforeSettlementPayload.funds[0].holdingProfitAmount).toBe(100);
+
+    vi.setSystemTime(new Date("2026-03-24T01:00:01.000Z"));
+    const afterSettlementResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    const afterSettlementPayload = afterSettlementResp.json() as {
+      funds: Array<{ holdingAmount: number; holdingProfitAmount: number }>;
+    };
+    expect(afterSettlementPayload.funds[0].holdingAmount).toBe(1200);
+    expect(afterSettlementPayload.funds[0].holdingProfitAmount).toBe(100);
+
+    const settledHistoryResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/position-operations`
+    });
+    const settledHistoryPayload = settledHistoryResp.json() as {
+      items: Array<{ status: string; appliedAt?: string }>;
+    };
+    expect(settledHistoryPayload.items[0].status).toBe("APPLIED");
+    expect(typeof settledHistoryPayload.items[0].appliedAt).toBe("string");
 
     await app.close();
   });
 
-  test("creates decrease operation with proportional profit shrink and rejects overflow", async () => {
+  test("creates pending decrease operation, settles on monday after friday, and shrinks profit proportionally", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-03-20T07:20:00.000Z"));
+
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);
     const app = await createRouteApp(store, {
@@ -1312,24 +1370,90 @@ describe("watchlist routes", () => {
       }
     });
     expect(operateResp.statusCode).toBe(201);
+    const operatePayload = operateResp.json() as {
+      operation: {
+        status: string;
+        effectiveAt: string;
+      };
+    };
+    expect(operatePayload.operation.status).toBe("PENDING");
+    expect(operatePayload.operation.effectiveAt).toBe("2026-03-23T01:00:00.000Z");
 
     const fundsResp = await app.inject({
       method: "GET",
       url: `/v1/portfolios/${portfolioId}/funds`
     });
     const fundsPayload = fundsResp.json() as { funds: Array<{ holdingAmount: number; holdingProfitAmount: number }> };
-    expect(fundsPayload.funds[0].holdingAmount).toBe(800);
-    expect(fundsPayload.funds[0].holdingProfitAmount).toBe(80);
+    expect(fundsPayload.funds[0].holdingAmount).toBe(1000);
+    expect(fundsPayload.funds[0].holdingProfitAmount).toBe(100);
 
-    const overflowResp = await app.inject({
+    vi.setSystemTime(new Date("2026-03-23T00:59:59.000Z"));
+    const beforeSettlementResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    const beforeSettlementPayload = beforeSettlementResp.json() as {
+      funds: Array<{ holdingAmount: number; holdingProfitAmount: number }>;
+    };
+    expect(beforeSettlementPayload.funds[0].holdingAmount).toBe(1000);
+    expect(beforeSettlementPayload.funds[0].holdingProfitAmount).toBe(100);
+
+    vi.setSystemTime(new Date("2026-03-23T01:00:01.000Z"));
+    const afterSettlementResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    const afterSettlementPayload = afterSettlementResp.json() as {
+      funds: Array<{ holdingAmount: number; holdingProfitAmount: number }>;
+    };
+    expect(afterSettlementPayload.funds[0].holdingAmount).toBe(800);
+    expect(afterSettlementPayload.funds[0].holdingProfitAmount).toBe(80);
+
+    await app.close();
+  });
+
+  test("rejects a pending decrease that would exceed the projected holding after earlier pending decreases", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-03-23T07:20:00.000Z"));
+
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.01
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "投影校验组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000, holdingProfitAmount: 100 }
+    });
+
+    const firstDecreaseResp = await app.inject({
       method: "POST",
       url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
       payload: {
         operationType: "DECREASE",
-        amount: 900
+        amount: 600
       }
     });
-    expect(overflowResp.statusCode).toBe(400);
+    expect(firstDecreaseResp.statusCode).toBe(201);
+
+    const secondDecreaseResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: {
+        operationType: "DECREASE",
+        amount: 500
+      }
+    });
+    expect(secondDecreaseResp.statusCode).toBe(400);
 
     await app.close();
   });
