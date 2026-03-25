@@ -30,7 +30,8 @@ interface DraggableTabListProps {
   onChange: (id: string) => void;
   onDragEnd: (event: DragEndEvent) => void;
   className?: string;
-  mobileEndSlot?: React.ReactNode;
+  endSlot?: React.ReactNode;
+  containerRef?: React.Ref<HTMLDivElement>;
 }
 
 function SortableTab({
@@ -83,7 +84,8 @@ export function DraggableTabList({
   onChange,
   onDragEnd,
   className,
-  mobileEndSlot,
+  endSlot,
+  containerRef,
 }: DraggableTabListProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -97,6 +99,7 @@ export function DraggableTabList({
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         "flex items-center overflow-x-auto whitespace-nowrap scrollbar-hide",
         className
@@ -137,7 +140,7 @@ export function DraggableTabList({
           ))}
         </SortableContext>
       </DndContext>
-      {mobileEndSlot ? <div className="shrink-0 pl-1">{mobileEndSlot}</div> : null}
+      {endSlot ? <div className="shrink-0 pl-1">{endSlot}</div> : null}
     </div>
   );
 }

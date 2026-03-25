@@ -393,6 +393,10 @@ export default function FundDashboard() {
     });
   }
 
+  async function handleTopNavRefresh() {
+    await actions.manualRefreshAction(dashboard.markManualRefresh);
+  }
+
   if (isAuthChecking) {
     return (
       <main className="flex min-h-screen items-center justify-center">
@@ -485,6 +489,9 @@ export default function FundDashboard() {
         username={currentUser.username}
         onOpenDecisionAiConfig={() => setIsDecisionAiConfigDialogOpen(true)}
         onLogout={handleLogout}
+        onRefresh={handleTopNavRefresh}
+        isRefreshing={dashboard.isLoading}
+        isRefreshDisabled={dashboard.isBusy}
         onCreatePortfolio={() => setIsCreatePortfolioDialogOpen(true)}
         onImportPortfolio={() => setIsImportPortfolioDialogOpen(true)}
         summaryBar={activeSummaryBar}
