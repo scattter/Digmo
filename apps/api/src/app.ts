@@ -26,6 +26,7 @@ import { ValuationTaskRunner } from "./modules/valuation/task.js";
 import { createRequireAuth } from "./routes/middleware/require-auth.js";
 import { createShareCache } from "./modules/share/cache.js";
 import { ShareService } from "./modules/share/service.js";
+import { createLoggerOptions } from "./infra/logging/logger.js";
 
 export interface AppContext {
   app: FastifyInstance;
@@ -69,9 +70,7 @@ function loadSystemPromptFromFile(filePath?: string): string | undefined {
 export async function buildApp(): Promise<AppContext> {
   const config = getConfig();
   const app = Fastify({
-    logger: {
-      level: "info",
-    },
+    logger: createLoggerOptions(),
   });
   await app.register(cors, {
     origin: true,
