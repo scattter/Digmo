@@ -11,6 +11,7 @@ import {
   UserStatus,
 } from "@digmo/shared";
 import { hashPassword } from "../../modules/auth/password.js";
+import { getNextWorkingDaySettlementTime, isSettlementDue } from "../../utils/time.js";
 
 export interface PortfolioItem {
   id: string;
@@ -106,7 +107,16 @@ export interface PositionOperationItem {
   afterHoldingAmount: number;
   beforeHoldingProfitAmount: number;
   afterHoldingProfitAmount: number;
+  status: "PENDING" | "APPLIED";
+  effectiveAt: string;
+  appliedAt?: string;
+  manualCanceledAt?: string;
   createdAt: string;
+}
+
+export interface DeletePositionOperationResult {
+  effect: "REMOVED" | "MARKED_MANUAL_CANCEL";
+  operation?: PositionOperationItem;
 }
 
 export interface PortfolioShareRecord {
@@ -190,6 +200,12 @@ export interface WatchlistStore {
   upsertPortfolioFund(userId: string, input: UpsertPortfolioFundInput): Promise<void>;
   updatePortfolioFund(userId: string, input: UpdatePortfolioFundInput): Promise<boolean>;
   applyPositionOperation(userId: string, input: PositionOperationInput): Promise<PositionOperationItem | undefined>;
+  deletePositionOperation(
+    userId: string,
+    portfolioId: string,
+    fundCode: string,
+    operationId: string
+  ): Promise<DeletePositionOperationResult | undefined>;
   listPositionOperations(
     userId: string,
     portfolioId: string,
@@ -311,6 +327,7 @@ interface FundStateRow {
 
 interface PositionOperationRow {
   id: string;
+  userId?: string;
   portfolioId: string;
   fundCode: string;
   operationType: PositionOperationType;
@@ -326,6 +343,11 @@ interface PositionOperationRow {
   bindActionFundName: string | null;
   bindActionRiskLevel: "LOW" | "MEDIUM" | "HIGH" | null;
   bindActionRationale: string | null;
+  status: "PENDING" | "APPLIED";
+  effectiveAt: string | null;
+  appliedAt: string | null;
+  deletedAt: string | null;
+  manualCanceledAt: string | null;
   createdAt: string;
 }
 
@@ -353,6 +375,52 @@ function toChanges(result: SqliteRunResult): number {
 
 function toIsoLike(value: string | null | undefined): string {
   return value ?? new Date().toISOString();
+}
+
+function roundCurrency(value: number): number {
+  return Number(value.toFixed(2));
+}
+
+function computeOperationSnapshot(input: {
+  beforeHoldingAmount: number;
+  beforeHoldingProfitAmount: number;
+  operationType: PositionOperationType;
+  amount: number;
+}): {
+  beforeHoldingAmount: number;
+  afterHoldingAmount: number;
+  beforeHoldingProfitAmount: number;
+  afterHoldingProfitAmount: number;
+} {
+  const beforeHoldingAmount = roundCurrency(input.beforeHoldingAmount);
+  const beforeHoldingProfitAmount = roundCurrency(input.beforeHoldingProfitAmount);
+  const amount = roundCurrency(input.amount);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("amount must be greater than 0");
+  }
+
+  if (input.operationType === "DECREASE" && amount > beforeHoldingAmount) {
+    throw new Error("decrease amount exceeds current holding amount");
+  }
+
+  const afterHoldingAmount = roundCurrency(
+    input.operationType === "INCREASE" ? beforeHoldingAmount + amount : beforeHoldingAmount - amount
+  );
+  const afterHoldingProfitAmount = roundCurrency(
+    input.operationType === "INCREASE"
+      ? beforeHoldingProfitAmount
+      : beforeHoldingAmount > 0
+        ? beforeHoldingProfitAmount * (afterHoldingAmount / beforeHoldingAmount)
+        : 0
+  );
+
+  return {
+    beforeHoldingAmount,
+    afterHoldingAmount,
+    beforeHoldingProfitAmount,
+    afterHoldingProfitAmount
+  };
 }
 
 function randomShareCode(): string {
@@ -547,9 +615,11 @@ export class SqliteWatchlistStore implements WatchlistStore {
     const schemaVersion = this.getMetaValue("schema_version");
     const hasUserScopedPortfolio = this.tableExists("user_portfolio") && this.hasColumn("user_portfolio", "user_id");
     const hasShareCode = this.hasColumn("user_portfolio", "share_code");
+    const hasPositionOperationStatus = this.hasColumn("user_portfolio_fund_operation", "status");
 
-    if (schemaVersion === "3" && hasUserScopedPortfolio && hasShareCode) {
+    if (schemaVersion === "4" && hasUserScopedPortfolio && hasShareCode && hasPositionOperationStatus) {
       this.ensureUserScopedTables();
+      this.ensurePositionOperationSchema();
       this.ensurePortfolioShareSchema();
       this.ensurePortfolioShareCodeBackfill();
       this.normalizePortfolioDisplayOrder();
@@ -570,13 +640,14 @@ export class SqliteWatchlistStore implements WatchlistStore {
       }
 
       this.ensureUserScopedTables();
+      this.ensurePositionOperationSchema();
       this.ensurePortfolioShareSchema();
       this.migrateLegacyPortfolioTables(defaultUserId);
       this.migrateLegacyWatchlistIfNeeded(defaultUserId);
       this.ensurePortfolioShareCodeBackfill();
       this.normalizePortfolioDisplayOrder();
       this.normalizePortfolioFundDisplayOrder();
-      this.setMetaValue("schema_version", "3");
+      this.setMetaValue("schema_version", "4");
 
       this.db.exec("COMMIT;");
     } catch (error) {
@@ -666,6 +737,11 @@ export class SqliteWatchlistStore implements WatchlistStore {
         bind_action_fund_name TEXT,
         bind_action_risk_level TEXT CHECK(bind_action_risk_level IN ('LOW', 'MEDIUM', 'HIGH')),
         bind_action_rationale TEXT,
+        status TEXT NOT NULL DEFAULT 'APPLIED' CHECK(status IN ('PENDING', 'APPLIED')),
+        effective_at TEXT,
+        applied_at TEXT,
+        deleted_at TEXT,
+        manual_canceled_at TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id, portfolio_id) REFERENCES user_portfolio(user_id, id) ON DELETE CASCADE
       );
@@ -697,6 +773,44 @@ export class SqliteWatchlistStore implements WatchlistStore {
         WHEN mode IN ('responses', 'chat_completions') THEN mode
         ELSE 'chat_completions'
       END;
+    `);
+  }
+
+  private ensurePositionOperationSchema(): void {
+    if (!this.hasColumn("user_portfolio_fund_operation", "status")) {
+      this.db.exec("ALTER TABLE user_portfolio_fund_operation ADD COLUMN status TEXT NOT NULL DEFAULT 'APPLIED';");
+    }
+    if (!this.hasColumn("user_portfolio_fund_operation", "effective_at")) {
+      this.db.exec("ALTER TABLE user_portfolio_fund_operation ADD COLUMN effective_at TEXT;");
+    }
+    if (!this.hasColumn("user_portfolio_fund_operation", "applied_at")) {
+      this.db.exec("ALTER TABLE user_portfolio_fund_operation ADD COLUMN applied_at TEXT;");
+    }
+    if (!this.hasColumn("user_portfolio_fund_operation", "deleted_at")) {
+      this.db.exec("ALTER TABLE user_portfolio_fund_operation ADD COLUMN deleted_at TEXT;");
+    }
+    if (!this.hasColumn("user_portfolio_fund_operation", "manual_canceled_at")) {
+      this.db.exec("ALTER TABLE user_portfolio_fund_operation ADD COLUMN manual_canceled_at TEXT;");
+    }
+
+    this.db.exec(`
+      UPDATE user_portfolio_fund_operation
+      SET
+        status = CASE
+          WHEN status = 'PENDING' THEN 'PENDING'
+          ELSE 'APPLIED'
+        END,
+        effective_at = COALESCE(effective_at, created_at),
+        applied_at = CASE
+          WHEN (CASE WHEN status = 'PENDING' THEN 'PENDING' ELSE 'APPLIED' END) = 'APPLIED'
+            THEN COALESCE(applied_at, effective_at, created_at)
+          ELSE applied_at
+        END
+    `);
+
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_user_portfolio_fund_op_user_status_effective
+        ON user_portfolio_fund_operation(user_id, status, effective_at);
     `);
   }
 
@@ -1221,8 +1335,288 @@ export class SqliteWatchlistStore implements WatchlistStore {
       afterHoldingAmount: Number(row.afterHoldingAmount.toFixed(2)),
       beforeHoldingProfitAmount: Number(row.beforeHoldingProfitAmount.toFixed(2)),
       afterHoldingProfitAmount: Number(row.afterHoldingProfitAmount.toFixed(2)),
+      status: row.status,
+      effectiveAt: row.effectiveAt ?? row.createdAt,
+      ...(row.appliedAt ? { appliedAt: row.appliedAt } : {}),
+      ...(row.manualCanceledAt ? { manualCanceledAt: row.manualCanceledAt } : {}),
       createdAt: row.createdAt
     };
+  }
+
+  private getPortfolioFundStateSync(
+    userId: string,
+    portfolioId: string,
+    fundCode: string
+  ): { holdingAmount: number; holdingProfitAmount: number } | undefined {
+    const row = this.db
+      .prepare(
+        `
+          SELECT
+            holding_amount AS holdingAmount,
+            holding_profit_amount AS holdingProfitAmount
+          FROM user_portfolio_fund
+          WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
+        `
+      )
+      .get(userId, portfolioId, fundCode) as
+      | {
+          holdingAmount: number | null;
+          holdingProfitAmount: number | null;
+        }
+      | undefined;
+
+    if (!row) {
+      return undefined;
+    }
+
+    return {
+      holdingAmount: roundCurrency(row.holdingAmount ?? 0),
+      holdingProfitAmount: roundCurrency(row.holdingProfitAmount ?? 0)
+    };
+  }
+
+  private listPendingOperationRowsForFund(
+    userId: string,
+    portfolioId: string,
+    fundCode: string
+  ): PositionOperationRow[] {
+    return this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            user_id AS userId,
+            portfolio_id AS portfolioId,
+            fund_code AS fundCode,
+            operation_type AS operationType,
+            amount,
+            before_holding_amount AS beforeHoldingAmount,
+            after_holding_amount AS afterHoldingAmount,
+            before_holding_profit_amount AS beforeHoldingProfitAmount,
+            after_holding_profit_amount AS afterHoldingProfitAmount,
+            bind_decision_id AS bindDecisionId,
+            bind_action_order AS bindActionOrder,
+            bind_action_type AS bindActionType,
+            bind_action_fund_code AS bindActionFundCode,
+            bind_action_fund_name AS bindActionFundName,
+            bind_action_risk_level AS bindActionRiskLevel,
+            bind_action_rationale AS bindActionRationale,
+            status,
+            effective_at AS effectiveAt,
+            applied_at AS appliedAt,
+            deleted_at AS deletedAt,
+            manual_canceled_at AS manualCanceledAt,
+            created_at AS createdAt
+          FROM user_portfolio_fund_operation
+          WHERE
+            user_id = ?
+            AND portfolio_id = ?
+            AND fund_code = ?
+            AND status = 'PENDING'
+            AND deleted_at IS NULL
+          ORDER BY effective_at ASC, created_at ASC, id ASC
+        `
+      )
+      .all(userId, portfolioId, fundCode) as unknown as PositionOperationRow[];
+  }
+
+  private getPositionOperationRow(
+    userId: string,
+    portfolioId: string,
+    fundCode: string,
+    operationId: string
+  ): PositionOperationRow | undefined {
+    return this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            user_id AS userId,
+            portfolio_id AS portfolioId,
+            fund_code AS fundCode,
+            operation_type AS operationType,
+            amount,
+            before_holding_amount AS beforeHoldingAmount,
+            after_holding_amount AS afterHoldingAmount,
+            before_holding_profit_amount AS beforeHoldingProfitAmount,
+            after_holding_profit_amount AS afterHoldingProfitAmount,
+            bind_decision_id AS bindDecisionId,
+            bind_action_order AS bindActionOrder,
+            bind_action_type AS bindActionType,
+            bind_action_fund_code AS bindActionFundCode,
+            bind_action_fund_name AS bindActionFundName,
+            bind_action_risk_level AS bindActionRiskLevel,
+            bind_action_rationale AS bindActionRationale,
+            status,
+            effective_at AS effectiveAt,
+            applied_at AS appliedAt,
+            deleted_at AS deletedAt,
+            manual_canceled_at AS manualCanceledAt,
+            created_at AS createdAt
+          FROM user_portfolio_fund_operation
+          WHERE
+            user_id = ?
+            AND portfolio_id = ?
+            AND fund_code = ?
+            AND id = ?
+          LIMIT 1
+        `
+      )
+      .get(userId, portfolioId, fundCode, operationId) as PositionOperationRow | undefined;
+  }
+
+  private recomputePendingOperationsInTransaction(
+    userId: string,
+    portfolioId: string,
+    fundCode: string,
+    baseState: { holdingAmount: number; holdingProfitAmount: number }
+  ): { holdingAmount: number; holdingProfitAmount: number } {
+    const rows = this.listPendingOperationRowsForFund(userId, portfolioId, fundCode);
+    const updateStmt = this.db.prepare(
+      `
+        UPDATE user_portfolio_fund_operation
+        SET
+          before_holding_amount = ?,
+          after_holding_amount = ?,
+          before_holding_profit_amount = ?,
+          after_holding_profit_amount = ?
+        WHERE id = ?
+      `
+    );
+
+    let runningState = {
+      holdingAmount: roundCurrency(baseState.holdingAmount),
+      holdingProfitAmount: roundCurrency(baseState.holdingProfitAmount)
+    };
+
+    for (const row of rows) {
+      let snapshot;
+      try {
+        snapshot = computeOperationSnapshot({
+          beforeHoldingAmount: runningState.holdingAmount,
+          beforeHoldingProfitAmount: runningState.holdingProfitAmount,
+          operationType: row.operationType,
+          amount: row.amount
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("exceeds current holding amount")) {
+          throw new Error("remaining pending operations exceed current holding amount");
+        }
+        throw error;
+      }
+
+      updateStmt.run(
+        snapshot.beforeHoldingAmount,
+        snapshot.afterHoldingAmount,
+        snapshot.beforeHoldingProfitAmount,
+        snapshot.afterHoldingProfitAmount,
+        row.id
+      );
+
+      runningState = {
+        holdingAmount: snapshot.afterHoldingAmount,
+        holdingProfitAmount: snapshot.afterHoldingProfitAmount
+      };
+    }
+
+    return runningState;
+  }
+
+  private settleDuePositionOperations(
+    userId: string,
+    options?: { portfolioId?: string; fundCode?: string }
+  ): void {
+    const now = new Date();
+    const rows = this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            user_id AS userId,
+            portfolio_id AS portfolioId,
+            fund_code AS fundCode,
+            operation_type AS operationType,
+            amount,
+            before_holding_amount AS beforeHoldingAmount,
+            after_holding_amount AS afterHoldingAmount,
+            before_holding_profit_amount AS beforeHoldingProfitAmount,
+            after_holding_profit_amount AS afterHoldingProfitAmount,
+            bind_decision_id AS bindDecisionId,
+            bind_action_order AS bindActionOrder,
+            bind_action_type AS bindActionType,
+            bind_action_fund_code AS bindActionFundCode,
+            bind_action_fund_name AS bindActionFundName,
+            bind_action_risk_level AS bindActionRiskLevel,
+            bind_action_rationale AS bindActionRationale,
+            status,
+            effective_at AS effectiveAt,
+            applied_at AS appliedAt,
+            deleted_at AS deletedAt,
+            manual_canceled_at AS manualCanceledAt,
+            created_at AS createdAt
+          FROM user_portfolio_fund_operation
+          WHERE
+            user_id = ?
+            AND status = 'PENDING'
+            AND deleted_at IS NULL
+            AND effective_at IS NOT NULL
+            AND (? IS NULL OR portfolio_id = ?)
+            AND (? IS NULL OR fund_code = ?)
+          ORDER BY effective_at ASC, created_at ASC, id ASC
+        `
+      )
+      .all(
+        userId,
+        options?.portfolioId ?? null,
+        options?.portfolioId ?? null,
+        options?.fundCode ?? null,
+        options?.fundCode ?? null
+      ) as unknown as PositionOperationRow[];
+
+    const dueRows = rows.filter((row) => row.effectiveAt && isSettlementDue(row.effectiveAt, now));
+    if (dueRows.length === 0) {
+      return;
+    }
+
+    const updateFundStmt = this.db.prepare(
+      `
+        UPDATE user_portfolio_fund
+        SET
+          holding_amount = ?,
+          holding_profit_amount = ?,
+          updated_at = ?
+        WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
+      `
+    );
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const appliedAt = now.toISOString();
+      for (const row of dueRows) {
+        updateFundStmt.run(
+          row.afterHoldingAmount,
+          row.afterHoldingProfitAmount,
+          appliedAt,
+          userId,
+          row.portfolioId,
+          row.fundCode
+        );
+        this.db
+          .prepare(
+            `
+              UPDATE user_portfolio_fund_operation
+              SET
+                status = 'APPLIED',
+                applied_at = ?
+              WHERE id = ?
+            `
+          )
+          .run(appliedAt, row.id);
+      }
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
   }
 
   private getUserByIdSync(userId: string): AppUserWithPasswordItem | undefined {
@@ -1910,6 +2304,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
   }
 
   async listPortfolioFunds(userId: string, portfolioId: string): Promise<PortfolioFundItem[]> {
+    this.settleDuePositionOperations(userId, { portfolioId });
     const rows = this.db
       .prepare(
         `
@@ -1940,6 +2335,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
   }
 
   async listAllPortfolioFunds(userId: string): Promise<PortfolioFundItem[]> {
+    this.settleDuePositionOperations(userId);
     const rows = this.db
       .prepare(
         `
@@ -1970,6 +2366,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
   }
 
   async getPortfolioFund(userId: string, portfolioId: string, fundCode: string): Promise<PortfolioFundItem | undefined> {
+    this.settleDuePositionOperations(userId, { portfolioId, fundCode });
     const row = this.db
       .prepare(
         `
@@ -2060,7 +2457,8 @@ export class SqliteWatchlistStore implements WatchlistStore {
   }
 
   async updatePortfolioFund(userId: string, input: UpdatePortfolioFundInput): Promise<boolean> {
-    const current = await this.getPortfolioFund(userId, input.portfolioId, input.fundCode);
+    this.settleDuePositionOperations(userId, { portfolioId: input.portfolioId, fundCode: input.fundCode });
+    const current = this.getPortfolioFundStateSync(userId, input.portfolioId, input.fundCode);
     if (!current) {
       return false;
     }
@@ -2068,75 +2466,61 @@ export class SqliteWatchlistStore implements WatchlistStore {
     const nextHoldingAmount = typeof input.holdingAmount === "number" ? input.holdingAmount : current.holdingAmount;
     const nextHoldingProfitAmount =
       typeof input.holdingProfitAmount === "number" ? input.holdingProfitAmount : current.holdingProfitAmount;
-    const nextPlannedRatio = input.plannedRatio === undefined ? current.plannedRatio : input.plannedRatio;
+    const nextPlannedRatio = input.plannedRatio;
 
-    this.db
-      .prepare(
-        `
-          UPDATE user_portfolio_fund
-          SET
-            holding_amount = ?,
-            holding_profit_amount = ?,
-            planned_ratio = ?,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
-        `
-      )
-      .run(nextHoldingAmount, nextHoldingProfitAmount, nextPlannedRatio ?? null, userId, input.portfolioId, input.fundCode);
-
-    return true;
-  }
-
-  async applyPositionOperation(userId: string, input: PositionOperationInput): Promise<PositionOperationItem | undefined> {
-    const current = await this.getPortfolioFund(userId, input.portfolioId, input.fundCode);
-    if (!current) {
-      return undefined;
-    }
-
-    const amount = Number(input.amount.toFixed(2));
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new Error("amount must be greater than 0");
-    }
-
-    if (input.operationType === "DECREASE" && amount > current.holdingAmount) {
-      throw new Error("decrease amount exceeds current holding amount");
-    }
-
-    const beforeHoldingAmount = Number(current.holdingAmount.toFixed(2));
-    const beforeHoldingProfitAmount = Number(current.holdingProfitAmount.toFixed(2));
-    const afterHoldingAmount = Number(
-      (input.operationType === "INCREASE" ? beforeHoldingAmount + amount : beforeHoldingAmount - amount).toFixed(2)
-    );
-    const afterHoldingProfitAmount = Number(
-      (
-        input.operationType === "INCREASE"
-          ? beforeHoldingProfitAmount
-          : beforeHoldingAmount > 0
-            ? beforeHoldingProfitAmount * (afterHoldingAmount / beforeHoldingAmount)
-            : 0
-      ).toFixed(2)
-    );
-
-    const operationId = randomUUID();
-    const now = new Date().toISOString();
     this.db.exec("BEGIN IMMEDIATE;");
     try {
-      const updateResult = this.db
+      this.db
         .prepare(
           `
             UPDATE user_portfolio_fund
             SET
               holding_amount = ?,
               holding_profit_amount = ?,
-              updated_at = ?
+              planned_ratio = ?,
+              updated_at = CURRENT_TIMESTAMP
             WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
           `
         )
-        .run(afterHoldingAmount, afterHoldingProfitAmount, now, userId, input.portfolioId, input.fundCode) as SqliteRunResult;
-      if (toChanges(updateResult) === 0) {
-        this.db.exec("ROLLBACK;");
-        return undefined;
-      }
+        .run(nextHoldingAmount, nextHoldingProfitAmount, nextPlannedRatio ?? null, userId, input.portfolioId, input.fundCode);
+
+      this.recomputePendingOperationsInTransaction(userId, input.portfolioId, input.fundCode, {
+        holdingAmount: nextHoldingAmount,
+        holdingProfitAmount: nextHoldingProfitAmount
+      });
+
+      this.db.exec("COMMIT;");
+      return true;
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  async applyPositionOperation(userId: string, input: PositionOperationInput): Promise<PositionOperationItem | undefined> {
+    this.settleDuePositionOperations(userId, { portfolioId: input.portfolioId, fundCode: input.fundCode });
+    const current = this.getPortfolioFundStateSync(userId, input.portfolioId, input.fundCode);
+    if (!current) {
+      return undefined;
+    }
+
+    const amount = roundCurrency(input.amount);
+
+    const operationId = randomUUID();
+    const now = new Date().toISOString();
+    const effectiveAt = getNextWorkingDaySettlementTime(new Date()).toISOString();
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      const projectedState = this.recomputePendingOperationsInTransaction(userId, input.portfolioId, input.fundCode, {
+        holdingAmount: current.holdingAmount,
+        holdingProfitAmount: current.holdingProfitAmount
+      });
+      const snapshot = computeOperationSnapshot({
+        beforeHoldingAmount: projectedState.holdingAmount,
+        beforeHoldingProfitAmount: projectedState.holdingProfitAmount,
+        operationType: input.operationType,
+        amount
+      });
 
       this.db
         .prepare(
@@ -2159,9 +2543,14 @@ export class SqliteWatchlistStore implements WatchlistStore {
               bind_action_fund_name,
               bind_action_risk_level,
               bind_action_rationale,
+              status,
+              effective_at,
+              applied_at,
+              deleted_at,
+              manual_canceled_at,
               created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `
         )
         .run(
@@ -2171,14 +2560,19 @@ export class SqliteWatchlistStore implements WatchlistStore {
           input.fundCode,
           input.operationType,
           amount,
-          beforeHoldingAmount,
-          afterHoldingAmount,
-          beforeHoldingProfitAmount,
-          afterHoldingProfitAmount,
+          snapshot.beforeHoldingAmount,
+          snapshot.afterHoldingAmount,
+          snapshot.beforeHoldingProfitAmount,
+          snapshot.afterHoldingProfitAmount,
           null,
           null,
           null,
           null,
+          null,
+          null,
+          null,
+          "PENDING",
+          effectiveAt,
           null,
           null,
           null,
@@ -2192,11 +2586,72 @@ export class SqliteWatchlistStore implements WatchlistStore {
         fundCode: input.fundCode,
         operationType: input.operationType,
         amount,
-        beforeHoldingAmount,
-        afterHoldingAmount,
-        beforeHoldingProfitAmount,
-        afterHoldingProfitAmount,
+        beforeHoldingAmount: snapshot.beforeHoldingAmount,
+        afterHoldingAmount: snapshot.afterHoldingAmount,
+        beforeHoldingProfitAmount: snapshot.beforeHoldingProfitAmount,
+        afterHoldingProfitAmount: snapshot.afterHoldingProfitAmount,
+        status: "PENDING",
+        effectiveAt,
         createdAt: now
+      };
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  async deletePositionOperation(
+    userId: string,
+    portfolioId: string,
+    fundCode: string,
+    operationId: string
+  ): Promise<DeletePositionOperationResult | undefined> {
+    this.settleDuePositionOperations(userId, { portfolioId, fundCode });
+    const target = this.getPositionOperationRow(userId, portfolioId, fundCode, operationId);
+    if (!target || target.deletedAt) {
+      return undefined;
+    }
+
+    const now = new Date().toISOString();
+    if (target.status === "APPLIED") {
+      this.db
+        .prepare(
+          `
+            UPDATE user_portfolio_fund_operation
+            SET manual_canceled_at = COALESCE(manual_canceled_at, ?)
+            WHERE id = ?
+          `
+        )
+        .run(now, operationId);
+
+      const updated = this.getPositionOperationRow(userId, portfolioId, fundCode, operationId);
+      return {
+        effect: "MARKED_MANUAL_CANCEL",
+        ...(updated ? { operation: this.toPositionOperation(updated) } : {})
+      };
+    }
+
+    const baseState = this.getPortfolioFundStateSync(userId, portfolioId, fundCode);
+    if (!baseState) {
+      return undefined;
+    }
+
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      this.db
+        .prepare(
+          `
+            UPDATE user_portfolio_fund_operation
+            SET deleted_at = ?
+            WHERE id = ?
+          `
+        )
+        .run(now, operationId);
+
+      this.recomputePendingOperationsInTransaction(userId, portfolioId, fundCode, baseState);
+      this.db.exec("COMMIT;");
+      return {
+        effect: "REMOVED"
       };
     } catch (error) {
       this.db.exec("ROLLBACK;");
@@ -2211,6 +2666,10 @@ export class SqliteWatchlistStore implements WatchlistStore {
   ): Promise<PositionOperationItem[]> {
     const limit = Math.max(1, Math.min(200, Math.floor(options?.limit ?? 50)));
     const fundCode = options?.fundCode?.trim();
+    this.settleDuePositionOperations(userId, {
+      portfolioId,
+      ...(fundCode ? { fundCode } : {})
+    });
 
     const rows = (
       fundCode
@@ -2234,9 +2693,14 @@ export class SqliteWatchlistStore implements WatchlistStore {
                   bind_action_fund_name AS bindActionFundName,
                   bind_action_risk_level AS bindActionRiskLevel,
                   bind_action_rationale AS bindActionRationale,
+                  status,
+                  effective_at AS effectiveAt,
+                  applied_at AS appliedAt,
+                  deleted_at AS deletedAt,
+                  manual_canceled_at AS manualCanceledAt,
                   created_at AS createdAt
                 FROM user_portfolio_fund_operation
-                WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
+                WHERE user_id = ? AND portfolio_id = ? AND fund_code = ? AND deleted_at IS NULL
                 ORDER BY created_at DESC
                 LIMIT ?
               `
@@ -2262,9 +2726,14 @@ export class SqliteWatchlistStore implements WatchlistStore {
                   bind_action_fund_name AS bindActionFundName,
                   bind_action_risk_level AS bindActionRiskLevel,
                   bind_action_rationale AS bindActionRationale,
+                  status,
+                  effective_at AS effectiveAt,
+                  applied_at AS appliedAt,
+                  deleted_at AS deletedAt,
+                  manual_canceled_at AS manualCanceledAt,
                   created_at AS createdAt
                 FROM user_portfolio_fund_operation
-                WHERE user_id = ? AND portfolio_id = ?
+                WHERE user_id = ? AND portfolio_id = ? AND deleted_at IS NULL
                 ORDER BY created_at DESC
                 LIMIT ?
               `
@@ -2276,6 +2745,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
   }
 
   async rollPortfolioFundHoldingByNavDate(userId: string, fundCode: string, navDate: string, dailyReturn: number): Promise<number> {
+    this.settleDuePositionOperations(userId, { fundCode });
     const result = this.db
       .prepare(
         `
@@ -2297,21 +2767,36 @@ export class SqliteWatchlistStore implements WatchlistStore {
   }
 
   async removePortfolioFund(userId: string, portfolioId: string, fundCode: string): Promise<boolean> {
-    const result = this.db
-      .prepare(
-        `
-          DELETE FROM user_portfolio_fund
-          WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
-        `
-      )
-      .run(userId, portfolioId, fundCode) as SqliteRunResult;
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      this.db
+        .prepare(
+          `
+            DELETE FROM user_portfolio_fund_operation
+            WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
+          `
+        )
+        .run(userId, portfolioId, fundCode);
 
-    const removed = toChanges(result) > 0;
-    if (removed) {
-      await this.cleanupOrphanFundStates(userId);
+      const result = this.db
+        .prepare(
+          `
+            DELETE FROM user_portfolio_fund
+            WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
+          `
+        )
+        .run(userId, portfolioId, fundCode) as SqliteRunResult;
+
+      const removed = toChanges(result) > 0;
+      this.db.exec("COMMIT;");
+      if (removed) {
+        await this.cleanupOrphanFundStates(userId);
+      }
+      return removed;
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
     }
-
-    return removed;
   }
 
   async validatePortfolioFundSet(userId: string, portfolioId: string, orderedFundCodes: string[]): Promise<boolean> {

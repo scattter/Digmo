@@ -809,6 +809,36 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       return { items };
     });
 
+    protectedApp.delete("/v1/portfolios/:portfolioId/funds/:fundCode/position-operations/:operationId", async (request) => {
+      const userId = requireUserId(request);
+      const params = request.params as { portfolioId: string; fundCode: string; operationId: string };
+      ensurePortfolioId(params.portfolioId);
+      ensureFundCode(params.fundCode);
+      if (!params.operationId.trim()) {
+        throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "operationId is required", 400);
+      }
+
+      await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+
+      try {
+        const result = await deps.store.deletePositionOperation(
+          userId,
+          params.portfolioId,
+          params.fundCode,
+          params.operationId
+        );
+        if (!result) {
+          throw new AppError(ERROR_CODES.PORTFOLIO_FUND_NOT_FOUND, "position operation not found", 404);
+        }
+        return result;
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("remaining pending operations")) {
+          throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, error.message, 400);
+        }
+        throw error;
+      }
+    });
+
     protectedApp.delete("/v1/portfolios/:portfolioId/funds/:fundCode", async (request) => {
       const userId = requireUserId(request);
       const params = request.params as { portfolioId: string; fundCode: string };

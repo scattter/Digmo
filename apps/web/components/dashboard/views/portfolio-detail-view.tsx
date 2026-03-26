@@ -21,7 +21,6 @@ import { PortfolioFundsTable } from "../features/portfolios/portfolio-funds-tabl
 import { DailyDecisionPanel } from "../features/decision/daily-decision-panel";
 import { DecisionHistoryDialog } from "../dialogs/decision-history-dialog";
 import { Card, Typography, Button, Modal, App, Spin } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
 import { FundEditState } from "@/lib/format";
 import { DragEndEvent } from "@dnd-kit/core";
 import { useIsMobile } from "@/hooks/use-is-mobile";
@@ -49,7 +48,6 @@ interface PortfolioDetailViewProps {
   onOpenAddFundDialog: () => void;
   onOpenShareDialog: () => void;
   onOpenDecisionAiConfig: () => void;
-  onRefresh: () => Promise<void>;
   isBusy: boolean;
   isLoading: boolean;
   decisionAiConfigured: boolean;
@@ -67,7 +65,6 @@ export function PortfolioDetailView({
   onOpenAddFundDialog,
   onOpenShareDialog,
   onOpenDecisionAiConfig,
-  onRefresh,
   isBusy,
   isLoading,
   decisionAiConfigured,
@@ -335,7 +332,6 @@ export function PortfolioDetailView({
          onOperateFund={onOperateFund}
          onDeleteFund={onDeleteFund}
          onDragEnd={onDragEnd}
-         onRefresh={onRefresh}
          onOpenAddFundDialog={onOpenAddFundDialog}
          onOpenShareDialog={onOpenShareDialog}
       />

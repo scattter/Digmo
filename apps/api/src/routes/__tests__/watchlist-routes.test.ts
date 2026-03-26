@@ -153,15 +153,6 @@ async function createRouteApp(
     if (!admin) {
       throw new Error("bootstrap admin not found");
     }
-    const token = signAccessToken(
-      {
-        sub: admin.id,
-        username: admin.username,
-        role: admin.role
-      },
-      TEST_JWT_SECRET,
-      3600
-    );
 
     app.addHook("onRequest", async (request) => {
       const isProtectedRoute =
@@ -169,6 +160,15 @@ async function createRouteApp(
         request.url.startsWith("/v1/funds/flat");
 
       if (isProtectedRoute && !request.headers.authorization) {
+        const token = signAccessToken(
+          {
+            sub: admin.id,
+            username: admin.username,
+            role: admin.role
+          },
+          TEST_JWT_SECRET,
+          3600
+        );
         request.headers.authorization = `Bearer ${token}`;
       }
     });
@@ -1412,6 +1412,197 @@ describe("watchlist routes", () => {
     await app.close();
   });
 
+  test("deletes pending operation before settlement and keeps holdings unchanged after effective time", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-03-23T07:20:00.000Z"));
+
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.01
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "删除待生效组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000, holdingProfitAmount: 100 }
+    });
+
+    const operateResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: {
+        operationType: "INCREASE",
+        amount: 200
+      }
+    });
+    const operationId = (operateResp.json() as { operation: { id: string } }).operation.id;
+
+    const deleteResp = await app.inject({
+      method: "DELETE",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations/${operationId}`
+    });
+    expect(deleteResp.statusCode).toBe(200);
+    expect((deleteResp.json() as { effect: string }).effect).toBe("REMOVED");
+
+    const historyResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/position-operations?fundCode=161725`
+    });
+    const historyPayload = historyResp.json() as { items: Array<{ id: string }> };
+    expect(historyPayload.items).toEqual([]);
+
+    vi.setSystemTime(new Date("2026-03-24T01:00:01.000Z"));
+    const afterSettlementResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    const afterSettlementPayload = afterSettlementResp.json() as {
+      funds: Array<{ holdingAmount: number; holdingProfitAmount: number }>;
+    };
+    expect(afterSettlementPayload.funds[0].holdingAmount).toBe(1000);
+    expect(afterSettlementPayload.funds[0].holdingProfitAmount).toBe(100);
+
+    await app.close();
+  });
+
+  test("marks applied operation as manually canceled without changing holdings", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-03-23T07:20:00.000Z"));
+
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.01
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "手动取消已生效组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000, holdingProfitAmount: 100 }
+    });
+
+    const operateResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: {
+        operationType: "INCREASE",
+        amount: 200
+      }
+    });
+    const operationId = (operateResp.json() as { operation: { id: string } }).operation.id;
+
+    vi.setSystemTime(new Date("2026-03-24T01:00:01.000Z"));
+    await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+
+    const deleteResp = await app.inject({
+      method: "DELETE",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations/${operationId}`
+    });
+    expect(deleteResp.statusCode).toBe(200);
+    const deletePayload = deleteResp.json() as {
+      effect: string;
+      operation?: { manualCanceledAt?: string };
+    };
+    expect(deletePayload.effect).toBe("MARKED_MANUAL_CANCEL");
+    expect(typeof deletePayload.operation?.manualCanceledAt).toBe("string");
+
+    const fundsResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`
+    });
+    const fundsPayload = fundsResp.json() as {
+      funds: Array<{ holdingAmount: number; holdingProfitAmount: number }>;
+    };
+    expect(fundsPayload.funds[0].holdingAmount).toBe(1200);
+    expect(fundsPayload.funds[0].holdingProfitAmount).toBe(100);
+
+    const historyResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/position-operations?fundCode=161725`
+    });
+    const historyPayload = historyResp.json() as {
+      items: Array<{
+        status: string;
+        manualCanceledAt?: string;
+      }>;
+    };
+    expect(historyPayload.items[0].status).toBe("APPLIED");
+    expect(typeof historyPayload.items[0].manualCanceledAt).toBe("string");
+
+    await app.close();
+  });
+
+  test("rejects deleting a pending operation when recalculating remaining operations would exceed holdings", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-03-23T07:20:00.000Z"));
+
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.01
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "删除重算冲突组合", type: "FREE" }
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 1000, holdingProfitAmount: 100 }
+    });
+
+    const firstIncreaseResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: {
+        operationType: "INCREASE",
+        amount: 500
+      }
+    });
+    const firstOperationId = (firstIncreaseResp.json() as { operation: { id: string } }).operation.id;
+
+    const secondDecreaseResp = await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations`,
+      payload: {
+        operationType: "DECREASE",
+        amount: 1200
+      }
+    });
+    expect(secondDecreaseResp.statusCode).toBe(201);
+
+    const deleteResp = await app.inject({
+      method: "DELETE",
+      url: `/v1/portfolios/${portfolioId}/funds/161725/position-operations/${firstOperationId}`
+    });
+    expect(deleteResp.statusCode).toBe(400);
+    expect((deleteResp.json() as { message: string }).message).toContain("remaining pending operations");
+
+    await app.close();
+  });
+
   test("rejects a pending decrease that would exceed the projected holding after earlier pending decreases", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-03-23T07:20:00.000Z"));
@@ -1555,6 +1746,148 @@ describe("watchlist routes", () => {
     expect(payload.items[0].fundCode).toBe("161725");
 
     await app.close();
+  });
+
+  test("migrates legacy position operations into applied records", async () => {
+    const ctx = createTempCtx();
+
+    const legacyDb = new DatabaseSync(ctx.dbPath);
+    legacyDb.exec(`
+      CREATE TABLE app_user (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('admin', 'user')),
+        status TEXT NOT NULL CHECK(status IN ('active', 'disabled')),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE user_portfolio (
+        user_id TEXT NOT NULL,
+        id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('FREE', 'RATIO')),
+        share_code TEXT NOT NULL,
+        display_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, id)
+      );
+
+      CREATE TABLE user_portfolio_fund (
+        user_id TEXT NOT NULL,
+        portfolio_id TEXT NOT NULL,
+        fund_code TEXT NOT NULL,
+        display_order INTEGER NOT NULL DEFAULT 0,
+        holding_amount REAL NOT NULL DEFAULT 0,
+        holding_profit_amount REAL NOT NULL DEFAULT 0,
+        planned_ratio REAL,
+        last_holding_roll_nav_date TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, portfolio_id, fund_code)
+      );
+
+      CREATE TABLE user_portfolio_fund_operation (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        portfolio_id TEXT NOT NULL,
+        fund_code TEXT NOT NULL,
+        operation_type TEXT NOT NULL CHECK(operation_type IN ('INCREASE', 'DECREASE')),
+        amount REAL NOT NULL,
+        before_holding_amount REAL NOT NULL,
+        after_holding_amount REAL NOT NULL,
+        before_holding_profit_amount REAL NOT NULL,
+        after_holding_profit_amount REAL NOT NULL,
+        bind_decision_id TEXT,
+        bind_action_order INTEGER,
+        bind_action_type TEXT CHECK(bind_action_type IN ('BUY', 'SELL', 'HOLD', 'REBALANCE')),
+        bind_action_fund_code TEXT,
+        bind_action_fund_name TEXT,
+        bind_action_risk_level TEXT CHECK(bind_action_risk_level IN ('LOW', 'MEDIUM', 'HIGH')),
+        bind_action_rationale TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    legacyDb
+      .prepare(
+        `
+          INSERT INTO app_user (id, username, password_hash, role, status, created_at, updated_at)
+          VALUES (?, ?, ?, 'admin', 'active', ?, ?)
+        `
+      )
+      .run("admin-user-id", "admin", "hashed", "2026-03-01 09:00:00", "2026-03-01 09:00:00");
+    legacyDb
+      .prepare(
+        `
+          INSERT INTO user_portfolio (user_id, id, name, type, share_code, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, 'FREE', ?, 0, ?, ?)
+        `
+      )
+      .run("admin-user-id", "legacy-portfolio", "老组合", "ABCDEFGH", "2026-03-01 09:00:00", "2026-03-01 09:00:00");
+    legacyDb
+      .prepare(
+        `
+          INSERT INTO user_portfolio_fund (
+            user_id,
+            portfolio_id,
+            fund_code,
+            display_order,
+            holding_amount,
+            holding_profit_amount,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, 0, ?, ?, ?, ?)
+        `
+      )
+      .run("admin-user-id", "legacy-portfolio", "161725", 1200, 100, "2026-03-01 09:00:00", "2026-03-01 09:00:00");
+    legacyDb
+      .prepare(
+        `
+          INSERT INTO user_portfolio_fund_operation (
+            id,
+            user_id,
+            portfolio_id,
+            fund_code,
+            operation_type,
+            amount,
+            before_holding_amount,
+            after_holding_amount,
+            before_holding_profit_amount,
+            after_holding_profit_amount,
+            created_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      .run(
+        "legacy-operation",
+        "admin-user-id",
+        "legacy-portfolio",
+        "161725",
+        "INCREASE",
+        200,
+        1000,
+        1200,
+        100,
+        100,
+        "2026-03-01 09:00:00"
+      );
+    legacyDb.close();
+
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const admin = await store.getUserByUsername("admin");
+    expect(admin).toBeDefined();
+
+    const operations = await store.listPositionOperations(admin!.id, "legacy-portfolio");
+    expect(operations).toHaveLength(1);
+    expect(operations[0].status).toBe("APPLIED");
+    expect(operations[0].effectiveAt).toBe("2026-03-01 09:00:00");
+    expect(operations[0].appliedAt).toBe("2026-03-01 09:00:00");
+    expect(operations[0].manualCanceledAt).toBeUndefined();
   });
 
   test("creates fixed share code for each portfolio", async () => {

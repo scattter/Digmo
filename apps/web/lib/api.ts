@@ -13,6 +13,7 @@ import {
   PortfolioFundItem,
   PortfolioShareResult,
   PortfolioShareValidity,
+  PositionOperationDeleteResult,
   PositionOperationRecord,
   PositionOperationType,
   PortfolioSummary,
@@ -403,7 +404,7 @@ export async function fetchPositionOperations(
     search.set("limit", String(options.limit));
   }
   if (options?.fundCode) {
-    search.set("fundCode", options.fundCode);
+    search.set("fundCode", normalizeFundCodeForPath(options.fundCode));
   }
   const query = search.toString();
   const path = query ? `/v1/portfolios/${portfolioId}/position-operations?${query}` : `/v1/portfolios/${portfolioId}/position-operations`;
@@ -413,6 +414,24 @@ export async function fetchPositionOperations(
   await ensureOk(response, "Fetch position operations failed");
   const data = (await response.json()) as { items?: PositionOperationRecord[] };
   return data.items ?? [];
+}
+
+export async function deletePositionOperation(
+  portfolioId: string,
+  fundCode: string,
+  operationId: string
+): Promise<PositionOperationDeleteResult> {
+  const normalizedFundCode = normalizeFundCodeForPath(fundCode);
+  const response = await apiRequest(
+    `/v1/portfolios/${portfolioId}/funds/${normalizedFundCode}/position-operations/${operationId}`,
+    {
+      method: "DELETE",
+      auth: true
+    }
+  );
+
+  await ensureOk(response, "Delete position operation failed");
+  return response.json() as Promise<PositionOperationDeleteResult>;
 }
 
 export async function reorderPortfolioFunds(portfolioId: string, fundCodes: string[]): Promise<void> {

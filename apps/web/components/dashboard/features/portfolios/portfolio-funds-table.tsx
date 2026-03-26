@@ -24,8 +24,9 @@ import {
   MoreOutlined,
   EditOutlined,
   DeleteOutlined,
-  ReloadOutlined,
+  HistoryOutlined,
   PlusOutlined,
+  ShareAltOutlined,
   HolderOutlined,
 } from "@ant-design/icons";
 import React, { useMemo, useState, useContext, createContext } from "react";
@@ -40,9 +41,11 @@ import {
   Space,
   Skeleton,
   Empty,
+  Tooltip,
 } from "antd";
 import type { TableProps, MenuProps } from "antd";
 
+import { FundOperationHistoryDialog } from "@/components/dashboard/dialogs/fund-operation-history-dialog";
 import { UpdateFundDialog } from "@/components/dashboard/dialogs/update-fund-dialog";
 import { FundEditState, formatCurrency, formatSignedPct } from "@/lib/format";
 import { useIsMobile } from "@/hooks/use-is-mobile";
@@ -71,7 +74,6 @@ interface PortfolioFundsTableProps {
   ) => Promise<void>;
   onDeleteFund: (item: PortfolioFundItem) => void;
   onDragEnd: (event: DragEndEvent) => void;
-  onRefresh: () => Promise<void>;
   onOpenAddFundDialog: () => void;
   onOpenShareDialog: () => void;
 }
@@ -153,11 +155,13 @@ export function PortfolioFundsTable({
   onOperateFund,
   onDeleteFund,
   onDragEnd,
-  onRefresh,
   onOpenAddFundDialog,
   onOpenShareDialog,
 }: PortfolioFundsTableProps) {
   const [updateTarget, setUpdateTarget] = useState<PortfolioFundItem | null>(
+    null,
+  );
+  const [historyTarget, setHistoryTarget] = useState<PortfolioFundItem | null>(
     null,
   );
   const isMobile = useIsMobile();
@@ -388,6 +392,12 @@ export function PortfolioFundsTable({
             icon: <EditOutlined />,
             onClick: () => onOpenUpdateDialog(record),
           },
+          {
+            key: "history",
+            label: "更新记录",
+            icon: <HistoryOutlined />,
+            onClick: () => setHistoryTarget(record),
+          },
           { type: "divider" },
           {
             key: "delete",
@@ -446,22 +456,22 @@ export function PortfolioFundsTable({
               {/*</Text>*/}
             </div>
             <Space>
-              <Button
-                icon={<ReloadOutlined />}
-                onClick={() => void onRefresh()}
-                disabled={isBusy}
-                loading={isBusy}
-                size={isMobile ? "small" : "middle"}
-              >
-                {isMobile ? "" : "刷新"}
-              </Button>
-              <Button
-                onClick={onOpenShareDialog}
-                disabled={isBusy}
-                size={isMobile ? "small" : "middle"}
-              >
-                {isMobile ? "分享" : "分享组合"}
-              </Button>
+              <Tooltip title={`分享${portfolioName}`}>
+                <Button
+                  aria-label={`分享组合 ${portfolioName}`}
+                  icon={<ShareAltOutlined />}
+                  onClick={onOpenShareDialog}
+                  disabled={isBusy}
+                  size={isMobile ? "small" : "middle"}
+                  style={{
+                    width: isMobile ? 36 : 40,
+                    height: isMobile ? 24 : 40,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                />
+              </Tooltip>
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
@@ -542,6 +552,18 @@ export function PortfolioFundsTable({
           }
         }}
         isBusy={isBusy}
+      />
+
+      <FundOperationHistoryDialog
+        open={Boolean(historyTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setHistoryTarget(null);
+          }
+        }}
+        portfolioId={historyTarget?.portfolioId}
+        fundCode={historyTarget?.fundCode}
+        fundName={historyTarget?.fundName}
       />
     </>
   );

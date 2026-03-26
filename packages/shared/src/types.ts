@@ -274,5 +274,14 @@ export interface PositionOperationRecord {
   afterHoldingAmount: number;
   beforeHoldingProfitAmount: number;
   afterHoldingProfitAmount: number;
+  status: "PENDING" | "APPLIED";
+  effectiveAt: string;
+  appliedAt?: string;
+  manualCanceledAt?: string;
   createdAt: string;
+}
+
+export interface PositionOperationDeleteResult {
+  effect: "REMOVED" | "MARKED_MANUAL_CANCEL";
+  operation?: PositionOperationRecord;
 }

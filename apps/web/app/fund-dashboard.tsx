@@ -462,7 +462,6 @@ export default function FundDashboard() {
               // `FlatAddFundDialog` has a portfolio select dropdown.
               // We want to pre-select the current portfolio.
               // We can pass `initialPortfolioId={activeTabId}` to it.
-              onRefresh={dashboard.refreshData}
               isBusy={dashboard.isBusy}
               isLoading={dashboard.isLoadingPortfolioFunds}
               decisionAiConfigured={Boolean(decisionAiConfig?.hasApiKey)}
