@@ -76,6 +76,7 @@ interface PortfolioFundsTableProps {
   onDragEnd: (event: DragEndEvent) => void;
   onOpenAddFundDialog: () => void;
   onOpenShareDialog: () => void;
+  onDeletePortfolio: () => void;
 }
 
 function formatSignedCurrencyValue(value: number | undefined): string {
@@ -157,6 +158,7 @@ export function PortfolioFundsTable({
   onDragEnd,
   onOpenAddFundDialog,
   onOpenShareDialog,
+  onDeletePortfolio,
 }: PortfolioFundsTableProps) {
   const [updateTarget, setUpdateTarget] = useState<PortfolioFundItem | null>(
     null,
@@ -177,6 +179,15 @@ export function PortfolioFundsTable({
     () => funds.map((item) => item.fundCode),
     [funds],
   );
+  const portfolioMenuItems: MenuProps["items"] = [
+    {
+      key: "delete-portfolio",
+      label: "删除组合",
+      icon: <DeleteOutlined />,
+      danger: true,
+      onClick: onDeletePortfolio,
+    },
+  ];
 
   function getEditState(item: PortfolioFundItem): FundEditState {
     return (
@@ -478,9 +489,21 @@ export function PortfolioFundsTable({
                 onClick={onOpenAddFundDialog}
                 disabled={isBusy}
                 size={isMobile ? "small" : "middle"}
+                >
+                  {isMobile ? "添加" : "添加基金"}
+                </Button>
+              <Dropdown
+                menu={{ items: portfolioMenuItems }}
+                placement="bottomRight"
+                trigger={["click"]}
               >
-                {isMobile ? "添加" : "添加基金"}
-              </Button>
+                <Button
+                  aria-label="组合更多操作"
+                  icon={<MoreOutlined />}
+                  disabled={isBusy}
+                  size={isMobile ? "small" : "middle"}
+                />
+              </Dropdown>
             </Space>
           </div>
         }

@@ -41,6 +41,7 @@ import {
 } from "@/lib/api";
 import { clearAccessToken, getAccessToken } from "@/lib/auth-session";
 import { TabItem } from "@/components/dashboard/navigation/draggable-tab-list";
+import { getNextActiveTabAfterPortfolioDelete } from "@/lib/portfolio-navigation";
 
 const renameSchema = z
   .string()
@@ -384,11 +385,13 @@ export default function FundDashboard() {
       cancelText: "取消",
       centered: true,
       onOk: async () => {
+        const nextActiveTabId = getNextActiveTabAfterPortfolioDelete({
+          activeTabId,
+          deletedPortfolioId: portfolio.id,
+          portfolioIds: dashboard.portfolios.map((item) => item.id),
+        });
         await actions.deletePortfolioAction(portfolio);
-        // If deleted, switch to summary
-        if (activeTabId === portfolio.id) {
-           setActiveTabId("summary");
-        }
+        setActiveTabId(nextActiveTabId);
       }
     });
   }
@@ -458,6 +461,7 @@ export default function FundDashboard() {
               // I should check if `useFundReorder` exists.
               onOpenAddFundDialog={() => setIsFlatAddFundDialogOpen(true)} // Wait, FlatAddFundDialog adds to *selected* portfolio?
               onOpenShareDialog={() => setIsSharePortfolioDialogOpen(true)}
+              onDeletePortfolio={() => handleDeletePortfolio(portfolio)}
               onOpenDecisionAiConfig={() => setIsDecisionAiConfigDialogOpen(true)}
               // `FlatAddFundDialog` has a portfolio select dropdown.
               // We want to pre-select the current portfolio.

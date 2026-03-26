@@ -17,6 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "antd";
 import { cn } from "@/lib/utils";
+import { TAB_DRAG_MODIFIERS } from "@/lib/portfolio-navigation";
 
 export interface TabItem {
   id: string;
@@ -124,6 +125,7 @@ export function DraggableTabList({
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
+        modifiers={TAB_DRAG_MODIFIERS}
         onDragEnd={onDragEnd}
       >
         <SortableContext
