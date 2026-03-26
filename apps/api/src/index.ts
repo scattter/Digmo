@@ -1,18 +1,28 @@
 import { buildApp } from "./app.js";
 import { getConfig } from "./config.js";
+import { createListenTextResolver } from "./infra/logging/logger.js";
 
 async function main(): Promise<void> {
   const config = getConfig();
   const { app, scheduler } = await buildApp();
 
   try {
-    await app.listen({
+    const url = await app.listen({
       host: config.host,
-      port: config.port
+      port: config.port,
+      listenTextResolver: createListenTextResolver(),
     });
 
     scheduler.start();
-    app.log.info({ host: config.host, port: config.port }, "digmo api started");
+    app.log.info(
+      {
+        healthcheck: `${url}/v1/health`,
+        host: config.host,
+        port: config.port,
+        url,
+      },
+      "digmo api started",
+    );
   } catch (error) {
     app.log.error({ err: error }, "failed to start digmo api");
     process.exit(1);
