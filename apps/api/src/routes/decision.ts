@@ -78,6 +78,21 @@ function calcProfitPctByCost(holdingAmount: number, holdingProfitAmount: number)
   return Number((holdingProfitAmount / cost).toFixed(6));
 }
 
+function calcActualRatioAgainstTotalAsset(holdingAmount: number, totalAsset: number): number {
+  if (totalAsset <= 0) {
+    return 0;
+  }
+  return Number((holdingAmount / totalAsset).toFixed(6));
+}
+
+function resolvePortfolioTotalAsset(totalAsset: number, holdingAmount: number): number {
+  const normalizedTotalAsset = Number(totalAsset.toFixed(2));
+  if (normalizedTotalAsset > 0) {
+    return normalizedTotalAsset;
+  }
+  return Number(holdingAmount.toFixed(2));
+}
+
 function toPromptSnapshot(input: {
   asOf: string;
   portfolio: {
@@ -187,6 +202,7 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
       const estimateResp = await deps.service.getBatchEstimates(fundCodes);
       const estimateMap = new Map(estimateResp.data.map((item) => [item.fundCode, item]));
       const totalAmount = Number(portfolioFunds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2));
+      const resolvedTotalAsset = resolvePortfolioTotalAsset(portfolio.totalAsset, totalAmount);
       const totalProfitAmount = Number(portfolioFunds.reduce((sum, item) => sum + item.holdingProfitAmount, 0).toFixed(2));
       const dailyProfitAmount = Number(
         portfolioFunds
@@ -218,8 +234,8 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
               dailyProfitPct: estimate?.estimateChangePct,
               officialNavDate: estimate?.baseNavDate,
               ...(typeof item.plannedRatio === "number" ? { plannedRatio: item.plannedRatio } : {}),
-              ...(portfolio.type === "RATIO" && totalAmount > 0
-                ? { actualRatio: Number((item.holdingAmount / totalAmount).toFixed(6)) }
+              ...(portfolio.type === "RATIO"
+                ? { actualRatio: calcActualRatioAgainstTotalAsset(item.holdingAmount, resolvedTotalAsset) }
                 : {}),
               holdingProfitPct: calcProfitPctByCost(item.holdingAmount, holdingProfitAmount)
             };

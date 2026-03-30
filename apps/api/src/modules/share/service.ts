@@ -60,6 +60,9 @@ function toSummary(portfolio: PortfolioItem, fundCount: number): PortfolioSummar
     type: portfolio.type,
     fundCount,
     totalAmount: 0,
+    totalAsset: portfolio.totalAsset,
+    cashAmount: portfolio.totalAsset,
+    cashRatio: portfolio.totalAsset > 0 ? 1 : 0,
     totalProfitAmount: 0,
     totalProfitPct: 0,
     totalProfitDisplay: "0.00 / 0.00%",
@@ -267,7 +270,7 @@ export class ShareService {
 
     const snapshot = parseSnapshot(record.snapshotJson);
     const nextName = await this.getNextImportedPortfolioName(input.userId, snapshot.sourcePortfolioName);
-    const createdPortfolio = await this.store.createPortfolio(input.userId, nextName, snapshot.portfolioType);
+    const createdPortfolio = await this.store.createPortfolio(input.userId, nextName, snapshot.portfolioType, 0);
 
     const dedupedFunds = Array.from(
       new Map(snapshot.funds.map((item) => [item.fundCode, item])).values(),

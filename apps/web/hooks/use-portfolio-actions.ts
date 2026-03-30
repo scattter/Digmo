@@ -10,13 +10,14 @@ import {
   removePortfolioFund,
   renamePortfolio,
   sharePortfolio,
+  updatePortfolio,
   updatePortfolioFund
 } from "@/lib/api";
 import { ImportPortfolioByShareCodeResult, PortfolioShareResult } from "@digmo/shared";
 import { parseNonNegativeNumber, parseRatioPercent, parseSignedNumber } from "@/lib/format";
 
 interface UsePortfolioActionsArgs {
-  refreshData: (options?: { silent?: boolean }) => Promise<void>;
+  refreshData: (options?: { silent?: boolean; selectedPortfolioId?: string }) => Promise<void>;
   selectedPortfolioId: string;
   setSelectedPortfolioId: (value: string) => void;
   setIsLoading: (value: boolean) => void;
@@ -27,12 +28,19 @@ interface UsePortfolioActionsArgs {
 export function usePortfolioActions(args: UsePortfolioActionsArgs) {
   const { refreshData, selectedPortfolioId, setSelectedPortfolioId, setIsLoading, setErrorText, setStatusText } = args;
 
-  async function createPortfolioAction(name: string, type: PortfolioType) {
+  async function createPortfolioAction(name: string, type: PortfolioType, totalAssetRaw: string) {
+    const totalAsset = parseNonNegativeNumber(totalAssetRaw);
+    if (totalAsset === undefined) {
+      const message = "组合总资产格式错误，请输入大于等于 0 的数字";
+      setErrorText(message);
+      throw new Error(message);
+    }
+
     setIsLoading(true);
     setErrorText("");
     setStatusText("");
     try {
-      await createPortfolio(name.trim(), type);
+      await createPortfolio(name.trim(), type, totalAsset);
       await refreshData();
       const message = `已创建组合: ${name.trim()}`;
       setStatusText(message);
@@ -63,6 +71,30 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
     }
   }
 
+  async function updatePortfolioTotalAssetAction(portfolio: PortfolioSummary, totalAssetRaw: string) {
+    const totalAsset = parseNonNegativeNumber(totalAssetRaw);
+    if (totalAsset === undefined) {
+      const message = "组合总资产格式错误，请输入大于等于 0 的数字";
+      setErrorText(message);
+      throw new Error(message);
+    }
+
+    setIsLoading(true);
+    setErrorText("");
+    setStatusText("");
+    try {
+      await updatePortfolio(portfolio.id, { totalAsset });
+      await refreshData();
+      setStatusText(`已更新组合 ${portfolio.name} 的总资产`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "更新组合总资产失败";
+      setErrorText(message);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   async function deletePortfolioAction(portfolio: PortfolioSummary) {
     setIsLoading(true);
     setErrorText("");
@@ -71,8 +103,10 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
       await deletePortfolio(portfolio.id);
       if (selectedPortfolioId === portfolio.id) {
         setSelectedPortfolioId("all");
+        await refreshData({ selectedPortfolioId: "all" });
+      } else {
+        await refreshData();
       }
-      await refreshData();
       const message = `已删除组合 ${portfolio.name}`;
       setStatusText(message);
     } catch (error) {
@@ -325,6 +359,7 @@ export function usePortfolioActions(args: UsePortfolioActionsArgs) {
   return {
     createPortfolioAction,
     renamePortfolioAction,
+    updatePortfolioTotalAssetAction,
     deletePortfolioAction,
     addFundAction,
     updateFundAction,

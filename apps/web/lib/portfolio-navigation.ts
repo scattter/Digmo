@@ -9,23 +9,29 @@ interface NextActiveTabInput {
   portfolioIds: string[];
 }
 
+interface SelectedPortfolioFromActiveTabInput {
+  activeTabId: string;
+  portfolioIds: string[];
+}
+
 export function getNextActiveTabAfterPortfolioDelete({
   activeTabId,
   deletedPortfolioId,
-  portfolioIds,
 }: NextActiveTabInput): string {
   if (activeTabId !== deletedPortfolioId) {
     return activeTabId;
   }
 
-  const deletedIndex = portfolioIds.indexOf(deletedPortfolioId);
-  if (deletedIndex < 0) {
-    return "summary";
+  return "summary";
+}
+
+export function getSelectedPortfolioIdFromActiveTab({
+  activeTabId,
+  portfolioIds,
+}: SelectedPortfolioFromActiveTabInput): string | undefined {
+  if (activeTabId === "summary" || activeTabId === "funds") {
+    return undefined;
   }
 
-  return (
-    portfolioIds[deletedIndex - 1] ??
-    portfolioIds[deletedIndex + 1] ??
-    "summary"
-  );
+  return portfolioIds.includes(activeTabId) ? activeTabId : undefined;
 }

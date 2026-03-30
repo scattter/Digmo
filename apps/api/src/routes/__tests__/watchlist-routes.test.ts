@@ -901,6 +901,127 @@ describe("watchlist routes", () => {
     await app.close();
   });
 
+  test("creates portfolio with total asset and computes cash summary plus actual ratios against total asset", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.02,
+      "110011": 0.01,
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "总资产组合", type: "RATIO", totalAsset: 5000 },
+    });
+    expect(createResp.statusCode).toBe(201);
+    const createPayload = createResp.json() as {
+      portfolio: { id: string; totalAsset?: number; cashAmount?: number; cashRatio?: number };
+    };
+    expect(createPayload.portfolio.totalAsset).toBe(5000);
+    expect(createPayload.portfolio.cashAmount).toBe(5000);
+    expect(createPayload.portfolio.cashRatio).toBe(1);
+
+    const portfolioId = createPayload.portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 2000, holdingProfitAmount: 100, plannedRatio: 0.5 },
+    });
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "110011", holdingAmount: 1000, holdingProfitAmount: -50, plannedRatio: 0.3 },
+    });
+
+    const listResp = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios",
+    });
+    expect(listResp.statusCode).toBe(200);
+    const listPayload = listResp.json() as {
+      portfolios: Array<{
+        id: string;
+        totalAsset?: number;
+        totalAmount: number;
+        cashAmount?: number;
+        cashRatio?: number;
+      }>;
+    };
+    const summary = listPayload.portfolios.find((item) => item.id === portfolioId);
+    expect(summary?.totalAsset).toBe(5000);
+    expect(summary?.totalAmount).toBe(3000);
+    expect(summary?.cashAmount).toBe(2000);
+    expect(summary?.cashRatio).toBe(0.4);
+
+    const fundsResp = await app.inject({
+      method: "GET",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+    });
+    expect(fundsResp.statusCode).toBe(200);
+    const fundsPayload = fundsResp.json() as {
+      portfolio: { totalAsset?: number; cashAmount?: number; cashRatio?: number };
+      funds: Array<{ fundCode: string; actualRatio?: number }>;
+    };
+    expect(fundsPayload.portfolio.totalAsset).toBe(5000);
+    expect(fundsPayload.portfolio.cashAmount).toBe(2000);
+    expect(fundsPayload.portfolio.cashRatio).toBe(0.4);
+    expect(fundsPayload.funds.find((item) => item.fundCode === "161725")?.actualRatio).toBe(0.4);
+    expect(fundsPayload.funds.find((item) => item.fundCode === "110011")?.actualRatio).toBe(0.2);
+
+    await app.close();
+  });
+
+  test("updates total asset with validation against current holdings", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, {
+      "161725": 0.02,
+    });
+
+    const createResp = await app.inject({
+      method: "POST",
+      url: "/v1/portfolios",
+      payload: { name: "调整总资产组合", type: "FREE", totalAsset: 1000 },
+    });
+    const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
+
+    await app.inject({
+      method: "POST",
+      url: `/v1/portfolios/${portfolioId}/funds`,
+      payload: { fundCode: "161725", holdingAmount: 800 },
+    });
+
+    const invalidResp = await app.inject({
+      method: "PATCH",
+      url: `/v1/portfolios/${portfolioId}`,
+      payload: { totalAsset: 700 },
+    });
+    expect(invalidResp.statusCode).toBe(400);
+
+    const validResp = await app.inject({
+      method: "PATCH",
+      url: `/v1/portfolios/${portfolioId}`,
+      payload: { totalAsset: 1200 },
+    });
+    expect(validResp.statusCode).toBe(200);
+
+    const listResp = await app.inject({
+      method: "GET",
+      url: "/v1/portfolios",
+    });
+    const listPayload = listResp.json() as {
+      portfolios: Array<{ id: string; totalAsset?: number; cashAmount?: number; cashRatio?: number }>;
+    };
+    const summary = listPayload.portfolios.find((item) => item.id === portfolioId);
+    expect(summary?.totalAsset).toBe(1200);
+    expect(summary?.cashAmount).toBe(400);
+    expect(summary?.cashRatio).toBe(0.333333);
+
+    await app.close();
+  });
+
   test("reorders portfolios and appends new portfolio to the end", async () => {
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);
@@ -1241,14 +1362,14 @@ describe("watchlist routes", () => {
     const createResp = await app.inject({
       method: "POST",
       url: "/v1/portfolios",
-      payload: { name: "操作组合", type: "FREE" }
+      payload: { name: "操作组合", type: "RATIO", totalAsset: 2000 }
     });
     const portfolioId = (createResp.json() as { portfolio: { id: string } }).portfolio.id;
 
     await app.inject({
       method: "POST",
       url: `/v1/portfolios/${portfolioId}/funds`,
-      payload: { fundCode: "161725", holdingAmount: 1000, holdingProfitAmount: 100 }
+      payload: { fundCode: "161725", holdingAmount: 1000, holdingProfitAmount: 100, plannedRatio: 0.7 }
     });
 
     const operateResp = await app.inject({
@@ -1274,9 +1395,15 @@ describe("watchlist routes", () => {
       url: `/v1/portfolios/${portfolioId}/funds`
     });
     expect(fundsResp.statusCode).toBe(200);
-    const fundsPayload = fundsResp.json() as { funds: Array<{ holdingAmount: number; holdingProfitAmount: number }> };
+    const fundsPayload = fundsResp.json() as {
+      portfolio: { cashAmount?: number; cashRatio?: number };
+      funds: Array<{ holdingAmount: number; holdingProfitAmount: number; actualRatio?: number }>;
+    };
     expect(fundsPayload.funds[0].holdingAmount).toBe(1000);
     expect(fundsPayload.funds[0].holdingProfitAmount).toBe(100);
+    expect(fundsPayload.funds[0].actualRatio).toBe(0.5);
+    expect(fundsPayload.portfolio.cashAmount).toBe(1000);
+    expect(fundsPayload.portfolio.cashRatio).toBe(0.5);
 
     const historyResp = await app.inject({
       method: "GET",
@@ -1320,10 +1447,14 @@ describe("watchlist routes", () => {
       url: `/v1/portfolios/${portfolioId}/funds`
     });
     const afterSettlementPayload = afterSettlementResp.json() as {
-      funds: Array<{ holdingAmount: number; holdingProfitAmount: number }>;
+      portfolio: { cashAmount?: number; cashRatio?: number };
+      funds: Array<{ holdingAmount: number; holdingProfitAmount: number; actualRatio?: number }>;
     };
     expect(afterSettlementPayload.funds[0].holdingAmount).toBe(1200);
     expect(afterSettlementPayload.funds[0].holdingProfitAmount).toBe(100);
+    expect(afterSettlementPayload.funds[0].actualRatio).toBe(0.6);
+    expect(afterSettlementPayload.portfolio.cashAmount).toBe(800);
+    expect(afterSettlementPayload.portfolio.cashRatio).toBe(0.4);
 
     const settledHistoryResp = await app.inject({
       method: "GET",

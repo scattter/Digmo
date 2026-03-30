@@ -41,7 +41,10 @@ import {
 } from "@/lib/api";
 import { clearAccessToken, getAccessToken } from "@/lib/auth-session";
 import { TabItem } from "@/components/dashboard/navigation/draggable-tab-list";
-import { getNextActiveTabAfterPortfolioDelete } from "@/lib/portfolio-navigation";
+import {
+  getNextActiveTabAfterPortfolioDelete,
+  getSelectedPortfolioIdFromActiveTab
+} from "@/lib/portfolio-navigation";
 
 const renameSchema = z
   .string()
@@ -82,7 +85,10 @@ export default function FundDashboard() {
       : undefined;
 
   const accountSummaryBar = useMemo(() => {
-    const totalAmount = dashboard.portfolios.reduce((sum, portfolio) => sum + portfolio.totalAmount, 0);
+    const totalAmount = dashboard.portfolios.reduce(
+      (sum, portfolio) => sum + (portfolio.totalAsset ?? portfolio.totalAmount),
+      0,
+    );
     const hasCompleteIntradayEstimate =
       dashboard.portfolios.length > 0 &&
       dashboard.portfolios.every((portfolio) => typeof portfolio.intradayEstimatePct === "number");
@@ -111,7 +117,7 @@ export default function FundDashboard() {
       return accountSummaryBar;
     }
     return {
-      totalAmount: portfolio.totalAmount,
+      totalAmount: portfolio.totalAsset ?? portfolio.totalAmount,
       intradayProfitAmount: computeIntradayProfitAmount(
         portfolio.totalAmount,
         portfolio.intradayEstimatePct
@@ -179,12 +185,22 @@ export default function FundDashboard() {
 
   // Sync activeTabId with selectedPortfolioId
   useEffect(() => {
-    if (activeTabId !== "summary" && activeTabId !== "funds") {
-       if (dashboard.selectedPortfolioId !== activeTabId) {
-          dashboard.setSelectedPortfolioId(activeTabId);
-       }
+    const nextSelectedPortfolioId = getSelectedPortfolioIdFromActiveTab({
+      activeTabId,
+      portfolioIds: dashboard.portfolios.map((portfolio) => portfolio.id)
+    });
+    if (
+      nextSelectedPortfolioId &&
+      dashboard.selectedPortfolioId !== nextSelectedPortfolioId
+    ) {
+      dashboard.setSelectedPortfolioId(nextSelectedPortfolioId);
     }
-  }, [activeTabId, dashboard.selectedPortfolioId, dashboard.setSelectedPortfolioId]);
+  }, [
+    activeTabId,
+    dashboard.portfolios,
+    dashboard.selectedPortfolioId,
+    dashboard.setSelectedPortfolioId
+  ]);
 
   const [fundsTabIndex, setFundsTabIndex] = useState(0);
 
@@ -462,6 +478,7 @@ export default function FundDashboard() {
               onOpenAddFundDialog={() => setIsFlatAddFundDialogOpen(true)} // Wait, FlatAddFundDialog adds to *selected* portfolio?
               onOpenShareDialog={() => setIsSharePortfolioDialogOpen(true)}
               onDeletePortfolio={() => handleDeletePortfolio(portfolio)}
+              onUpdatePortfolioTotalAsset={actions.updatePortfolioTotalAssetAction}
               onOpenDecisionAiConfig={() => setIsDecisionAiConfigDialogOpen(true)}
               // `FlatAddFundDialog` has a portfolio select dropdown.
               // We want to pre-select the current portfolio.
@@ -509,7 +526,11 @@ export default function FundDashboard() {
           open={isCreatePortfolioDialogOpen}
           onOpenChange={setIsCreatePortfolioDialogOpen}
           onSubmit={async (values) => {
-            await actions.createPortfolioAction(values.name, values.type as PortfolioType);
+            await actions.createPortfolioAction(
+              values.name,
+              values.type as PortfolioType,
+              values.totalAsset,
+            );
             setIsCreatePortfolioDialogOpen(false);
           }}
           isBusy={dashboard.isBusy}

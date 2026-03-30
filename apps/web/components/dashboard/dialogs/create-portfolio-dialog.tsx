@@ -6,6 +6,7 @@ import { PortfolioType } from "@digmo/shared";
 interface CreatePortfolioFormValues {
   name: string;
   type: PortfolioType;
+  totalAsset: string;
 }
 
 interface CreatePortfolioDialogProps {
@@ -51,13 +52,13 @@ export function CreatePortfolioDialog({
       centered
     >
       <div style={{ marginBottom: 16, color: 'rgba(0, 0, 0, 0.45)' }}>
-        填写组合名称并选择类型。
+        填写组合名称、类型和组合总资产。
       </div>
       <Form
         form={form}
         layout="vertical"
         name="create_portfolio_form"
-        initialValues={{ type: "FREE" }}
+        initialValues={{ type: "FREE", totalAsset: "0" }}
       >
         <Form.Item
           name="name"
@@ -79,6 +80,28 @@ export function CreatePortfolioDialog({
             <Select.Option value="FREE">自由组合</Select.Option>
             <Select.Option value="RATIO">按比例组合</Select.Option>
           </Select>
+        </Form.Item>
+
+        <Form.Item
+          name="totalAsset"
+          label="组合总资产"
+          rules={[
+            { required: true, message: "请输入组合总资产" },
+            {
+              validator: async (_, value: string) => {
+                const normalized = value?.trim?.() ?? "";
+                if (!normalized) {
+                  throw new Error("请输入组合总资产");
+                }
+                const amount = Number(normalized.replace(/,/g, ""));
+                if (!Number.isFinite(amount) || amount < 0) {
+                  throw new Error("组合总资产必须是大于等于 0 的数字");
+                }
+              }
+            }
+          ]}
+        >
+          <Input placeholder="例如：10000" disabled={isBusy} />
         </Form.Item>
       </Form>
     </Modal>

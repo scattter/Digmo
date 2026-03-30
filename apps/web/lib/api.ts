@@ -173,14 +173,18 @@ export async function fetchPortfolios(): Promise<PortfolioSummary[]> {
   return data.portfolios ?? [];
 }
 
-export async function createPortfolio(name: string, type: PortfolioType): Promise<PortfolioSummary> {
+export async function createPortfolio(
+  name: string,
+  type: PortfolioType,
+  totalAsset: number
+): Promise<PortfolioSummary> {
   const response = await apiRequest("/v1/portfolios", {
     method: "POST",
     auth: true,
     headers: {
       "content-type": "application/json"
     },
-    body: JSON.stringify({ name, type })
+    body: JSON.stringify({ name, type, totalAsset })
   });
 
   await ensureOk(response, "Create portfolio failed");
@@ -188,17 +192,27 @@ export async function createPortfolio(name: string, type: PortfolioType): Promis
   return data.portfolio;
 }
 
-export async function renamePortfolio(portfolioId: string, name: string): Promise<void> {
+export async function updatePortfolio(
+  portfolioId: string,
+  params: { name?: string; totalAsset?: number }
+): Promise<void> {
   const response = await apiRequest(`/v1/portfolios/${portfolioId}`, {
     method: "PATCH",
     auth: true,
     headers: {
       "content-type": "application/json"
     },
-    body: JSON.stringify({ name })
+    body: JSON.stringify({
+      name: params.name,
+      totalAsset: params.totalAsset
+    })
   });
 
-  await ensureOk(response, "Rename portfolio failed");
+  await ensureOk(response, "Update portfolio failed");
+}
+
+export async function renamePortfolio(portfolioId: string, name: string): Promise<void> {
+  await updatePortfolio(portfolioId, { name });
 }
 
 export async function deletePortfolio(portfolioId: string): Promise<void> {
@@ -290,6 +304,9 @@ export async function fetchPortfolioFunds(
     id: string;
     name: string;
     type: PortfolioType;
+    totalAsset?: number;
+    cashAmount?: number;
+    cashRatio?: number;
     createdAt: string;
     updatedAt: string;
   };
@@ -306,6 +323,9 @@ export async function fetchPortfolioFunds(
       id: string;
       name: string;
       type: PortfolioType;
+      totalAsset?: number;
+      cashAmount?: number;
+      cashRatio?: number;
       createdAt: string;
       updatedAt: string;
     };

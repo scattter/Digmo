@@ -141,6 +141,7 @@ function PortfolioCard({
 }) {
   const isProfit = typeof portfolio.dailyProfitPct === "number" && portfolio.dailyProfitPct > 0;
   const isLoss = typeof portfolio.dailyProfitPct === "number" && portfolio.dailyProfitPct < 0;
+  const displayTotalAsset = portfolio.totalAsset ?? portfolio.totalAmount;
 
   const menuItems: MenuProps['items'] = [
     { key: 'open', label: '查看详情', icon: <FolderOpenOutlined />, onClick: onOpen },
@@ -189,7 +190,7 @@ function PortfolioCard({
       <div style={{ display: 'flex', flexDirection: 'column', marginBottom: isMobile ? 10 : 12 }}>
         <Text type="secondary" style={{ fontSize: isMobile ? 11 : 12 }}>总资产</Text>
         <Text strong style={{ fontSize: isMobile ? 20 : 22, fontFamily: 'monospace', lineHeight: 1.25 }}>
-          ¥{formatCurrency(portfolio.totalAmount)}
+          ¥{formatCurrency(displayTotalAsset)}
         </Text>
       </div>
 

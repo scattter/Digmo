@@ -1,7 +1,6 @@
 "use client";
 
 import { PortfolioSummary } from "@digmo/shared";
-import { Card } from "antd";
 import { FolderOpenOutlined, ArrowUpOutlined, ArrowDownOutlined } from "@ant-design/icons";
 import { formatCurrency, formatSignedAmount, formatSignedPct } from "@/lib/format";
 
@@ -11,6 +10,7 @@ interface PortfolioSummaryCardProps {
 }
 
 export function PortfolioSummaryCard({ portfolio, onClick }: PortfolioSummaryCardProps) {
+  const displayTotalAsset = portfolio.totalAsset ?? portfolio.totalAmount;
   // Helpers for styling
   const getTrendColor = (val: number | undefined) => {
     if (typeof val !== "number") return "text-gray-500";
@@ -72,7 +72,7 @@ export function PortfolioSummaryCard({ portfolio, onClick }: PortfolioSummaryCar
           <div>
             <div className="text-gray-500 text-xs mb-1">账户资产</div>
             <div className="text-xl font-bold text-gray-900 leading-none">
-              {formatCurrency(portfolio.totalAmount)}
+              {formatCurrency(displayTotalAsset)}
             </div>
           </div>
 

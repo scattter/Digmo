@@ -47,14 +47,18 @@ import type { TableProps, MenuProps } from "antd";
 
 import { FundOperationHistoryDialog } from "@/components/dashboard/dialogs/fund-operation-history-dialog";
 import { UpdateFundDialog } from "@/components/dashboard/dialogs/update-fund-dialog";
-import { FundEditState, formatCurrency, formatSignedPct } from "@/lib/format";
+import { FundEditState, formatCurrency, formatPct, formatSignedPct } from "@/lib/format";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 
 const { Text, Title } = Typography;
+const CASH_ROW_KEY = "__portfolio_cash_placeholder__";
 
 interface PortfolioFundsTableProps {
   portfolioName: string;
   portfolioType: PortfolioType;
+  portfolioTotalAsset?: number;
+  portfolioCashAmount?: number;
+  portfolioCashRatio?: number;
   funds: PortfolioFundItem[];
   editStateMap: Map<string, FundEditState>;
   isBusy: boolean;
@@ -76,6 +80,7 @@ interface PortfolioFundsTableProps {
   onDragEnd: (event: DragEndEvent) => void;
   onOpenAddFundDialog: () => void;
   onOpenShareDialog: () => void;
+  onOpenUpdateTotalAssetDialog?: () => void;
   onDeletePortfolio: () => void;
 }
 
@@ -98,6 +103,25 @@ const RowContext = createContext<RowContextProps>({});
 // Row component for DnD
 interface RowProps extends React.HTMLAttributes<HTMLTableRowElement> {
   "data-row-key": string;
+}
+
+interface CashDisplayRow {
+  key: typeof CASH_ROW_KEY;
+  rowType: "cash";
+  cashPlannedRatio: number;
+  cashActualRatio?: number;
+  cashAmount?: number;
+}
+
+interface FundDisplayRow extends PortfolioFundItem {
+  key: string;
+  rowType: "fund";
+}
+
+type DisplayRow = CashDisplayRow | FundDisplayRow;
+
+function isCashDisplayRow(record: DisplayRow): record is CashDisplayRow {
+  return record.rowType === "cash";
 }
 
 const SortableRow = ({ children, ...props }: RowProps) => {
@@ -129,6 +153,17 @@ const SortableRow = ({ children, ...props }: RowProps) => {
   );
 };
 
+const StaticRow = ({ children, ...props }: RowProps) => (
+  <tr {...props}>{children}</tr>
+);
+
+const BodyRow = (props: RowProps) => {
+  if (props["data-row-key"] === CASH_ROW_KEY) {
+    return <StaticRow {...props} />;
+  }
+  return <SortableRow {...props} />;
+};
+
 // Drag Handle Component
 const DragHandle = () => {
   const { setActivatorNodeRef, listeners } = useContext(RowContext);
@@ -147,6 +182,9 @@ const DragHandle = () => {
 export function PortfolioFundsTable({
   portfolioName,
   portfolioType,
+  portfolioTotalAsset,
+  portfolioCashAmount,
+  portfolioCashRatio,
   funds,
   editStateMap,
   isBusy,
@@ -158,6 +196,7 @@ export function PortfolioFundsTable({
   onDragEnd,
   onOpenAddFundDialog,
   onOpenShareDialog,
+  onOpenUpdateTotalAssetDialog,
   onDeletePortfolio,
 }: PortfolioFundsTableProps) {
   const [updateTarget, setUpdateTarget] = useState<PortfolioFundItem | null>(
@@ -179,7 +218,75 @@ export function PortfolioFundsTable({
     () => funds.map((item) => item.fundCode),
     [funds],
   );
+  const ratioSummary = useMemo(() => {
+    if (portfolioType !== "RATIO") {
+      return null;
+    }
+
+    const hasCompletePlannedRatios = funds.every(
+      (item) => typeof item.plannedRatio === "number",
+    );
+    if (!hasCompletePlannedRatios) {
+      return null;
+    }
+
+    const allocatedRatio = Number(
+      funds
+        .reduce((sum, item) => sum + (item.plannedRatio ?? 0), 0)
+        .toFixed(6),
+    );
+    const cashRatio = Number(Math.max(0, 1 - allocatedRatio).toFixed(6));
+
+    return {
+      allocatedRatio,
+      cashRatio,
+      showCashRow: funds.length > 0 && cashRatio > 0,
+    };
+  }, [funds, portfolioType]);
+  const displayTotalAsset =
+    typeof portfolioTotalAsset === "number" ? portfolioTotalAsset : undefined;
+  const displayCashAmount =
+    typeof portfolioCashAmount === "number" ? portfolioCashAmount : undefined;
+  const displayCashRatio =
+    typeof portfolioCashRatio === "number" ? portfolioCashRatio : undefined;
+  const displayRows = useMemo<DisplayRow[]>(() => {
+    const fundRows: FundDisplayRow[] = funds.map((item) => ({
+      ...item,
+      key: item.fundCode,
+      rowType: "fund",
+    }));
+
+    if (!ratioSummary?.showCashRow) {
+      return fundRows;
+    }
+
+    return [
+      {
+        key: CASH_ROW_KEY,
+        rowType: "cash",
+        cashPlannedRatio: ratioSummary.cashRatio,
+        ...(typeof displayCashRatio === "number"
+          ? { cashActualRatio: displayCashRatio }
+          : {}),
+        ...(typeof displayCashAmount === "number"
+          ? { cashAmount: displayCashAmount }
+          : {}),
+      },
+      ...fundRows,
+    ];
+  }, [displayCashAmount, displayCashRatio, funds, ratioSummary]);
   const portfolioMenuItems: MenuProps["items"] = [
+    ...(onOpenUpdateTotalAssetDialog
+      ? [
+          {
+            key: "update-total-asset",
+            label: "更新总资产",
+            icon: <EditOutlined />,
+            onClick: onOpenUpdateTotalAssetDialog,
+          },
+          { type: "divider" as const },
+        ]
+      : []),
     {
       key: "delete-portfolio",
       label: "删除组合",
@@ -223,7 +330,7 @@ export function PortfolioFundsTable({
     setUpdateTarget(item);
   }
 
-  const columns: TableProps<PortfolioFundItem>["columns"] = [
+  const columns: TableProps<DisplayRow>["columns"] = [
     ...(isMobile
       ? []
       : [
@@ -231,7 +338,8 @@ export function PortfolioFundsTable({
             key: "sort",
             width: 50,
             fixed: "left" as const,
-            render: () => <DragHandle />,
+            render: (_: unknown, record: DisplayRow) =>
+              isCashDisplayRow(record) ? null : <DragHandle />,
           },
         ]),
     {
@@ -248,6 +356,22 @@ export function PortfolioFundsTable({
             textAlign: "center",
           }}
         >
+          {isCashDisplayRow(record) ? (
+            <>
+              <Space size={4} orientation="vertical" align="center">
+                <Tag color="gold" style={{ margin: 0, fontSize: isMobile ? 10 : 12 }}>
+                  现金
+                </Tag>
+                <Text
+                  strong
+                  style={{ fontSize: isMobile ? 12 : 14 }}
+                >
+                  现金 / 待配置
+                </Text>
+              </Space>
+            </>
+          ) : (
+            <>
           <Text
             strong
             ellipsis={{ tooltip: record.fundName }}
@@ -258,6 +382,8 @@ export function PortfolioFundsTable({
           <Text type="secondary" style={{ fontSize: isMobile ? 10 : 12 }}>
             {record.fundCode}
           </Text>
+            </>
+          )}
         </div>
       ),
     },
@@ -267,7 +393,12 @@ export function PortfolioFundsTable({
       key: "holdingAmount",
       align: "center",
       width: isMobile ? 86 : 120,
-      render: (value) => `¥${formatCurrency(value)}`,
+      render: (value, record) =>
+        isCashDisplayRow(record)
+          ? typeof record.cashAmount === "number"
+            ? `¥${formatCurrency(record.cashAmount)}`
+            : "-"
+          : `¥${formatCurrency(value as number)}`,
     },
     {
       title: "持有收益",
@@ -275,6 +406,9 @@ export function PortfolioFundsTable({
       align: "center",
       width: isMobile ? 86 : 120,
       render: (_, record) => {
+        if (isCashDisplayRow(record)) {
+          return "-";
+        }
         const profit = record.holdingProfitAmount;
         const pct = record.holdingProfitPct;
         const color =
@@ -302,6 +436,9 @@ export function PortfolioFundsTable({
       align: "center",
       width: isMobile ? 86 : 120,
       render: (_, record) => {
+        if (isCashDisplayRow(record)) {
+          return "-";
+        }
         const pct =
           typeof record.dailyProfitPct === "number"
             ? record.dailyProfitPct
@@ -351,7 +488,54 @@ export function PortfolioFundsTable({
             key: "ratio",
             align: "center" as const,
             width: isMobile ? 86 : 120,
-            render: (_: unknown, record: PortfolioFundItem) => {
+            render: (_: unknown, record: DisplayRow) => {
+              if (isCashDisplayRow(record)) {
+                const actualPct =
+                  typeof record.cashActualRatio === "number"
+                    ? record.cashActualRatio * 100
+                    : undefined;
+                const plannedPct = record.cashPlannedRatio * 100;
+                const diffPct =
+                  typeof actualPct === "number"
+                    ? actualPct - plannedPct
+                    : undefined;
+                const diffText =
+                  typeof diffPct === "number"
+                    ? `${diffPct >= 0 ? "+" : ""}${diffPct.toFixed(1)}%`
+                    : undefined;
+                const color =
+                  typeof diffPct === "number"
+                    ? diffPct > 0
+                      ? "orange"
+                      : diffPct < 0
+                        ? "green"
+                        : "default"
+                    : "default";
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      textAlign: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {typeof actualPct === "number"
+                        ? `${actualPct.toFixed(1)}%/${plannedPct.toFixed(1)}%`
+                        : `计划 ${formatPct(record.cashPlannedRatio)}`}
+                    </Text>
+                    {diffText ? (
+                      <div>
+                        <Tag color={color} style={{ margin: 0, fontSize: 10 }}>
+                          {diffText}
+                        </Tag>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              }
               if (
                 typeof record.actualRatio !== "number" ||
                 typeof record.plannedRatio !== "number"
@@ -396,6 +580,9 @@ export function PortfolioFundsTable({
       align: "center",
       width: isMobile ? 36 : 60,
       render: (_, record) => {
+        if (isCashDisplayRow(record)) {
+          return null;
+        }
         const items: MenuProps["items"] = [
           {
             key: "update",
@@ -462,6 +649,40 @@ export function PortfolioFundsTable({
                 {portfolioType === "FREE" ? "自由组合" : "按比例组合"} ·{" "}
                 {funds.length} 只
               </Title>
+              {ratioSummary ? (
+                <Text
+                  type="secondary"
+                  style={{
+                    display: "block",
+                    marginTop: 4,
+                    fontSize: isMobile ? 10 : 12,
+                  }}
+                >
+                  已配置 {formatPct(ratioSummary.allocatedRatio)} ·{" "}
+                  {ratioSummary.cashRatio > 0
+                    ? `现金/待配置 ${formatPct(ratioSummary.cashRatio)}`
+                    : "已满配"}
+                </Text>
+              ) : null}
+              {typeof displayTotalAsset === "number" ? (
+                <Text
+                  type="secondary"
+                  style={{
+                    display: "block",
+                    marginTop: 4,
+                    fontSize: isMobile ? 10 : 12,
+                  }}
+                >
+                  总资产 ¥{formatCurrency(displayTotalAsset)}
+                  {typeof displayCashAmount === "number"
+                    ? ` · 真实现金 ¥${formatCurrency(displayCashAmount)}${
+                        typeof displayCashRatio === "number"
+                          ? ` (${formatPct(displayCashRatio)})`
+                          : ""
+                      }`
+                    : ""}
+                </Text>
+              ) : null}
               {/*<Text type="secondary" style={{ fontSize: isMobile ? 10 : 12, fontWeight: 'normal' }}>*/}
               {/*   {portfolioType === "FREE" ? "自由组合" : "按比例组合"} · 共 {funds.length} 只基金*/}
               {/*</Text>*/}
@@ -490,7 +711,7 @@ export function PortfolioFundsTable({
                 disabled={isBusy}
                 size={isMobile ? "small" : "middle"}
                 >
-                  {isMobile ? "添加" : "添加基金"}
+                  {isMobile ? "" : "添加基金"}
                 </Button>
               <Dropdown
                 menu={{ items: portfolioMenuItems }}
@@ -535,14 +756,23 @@ export function PortfolioFundsTable({
             >
               <Table
                 columns={columns}
-                dataSource={funds}
-                rowKey="fundCode"
+                dataSource={displayRows}
+                rowKey="key"
                 pagination={false}
                 scroll={{ x: isMobile ? 640 : 800 }}
                 size={isMobile ? "small" : "middle"}
+                onRow={(record) =>
+                  isCashDisplayRow(record)
+                    ? {
+                        style: {
+                          backgroundColor: "#fafafa",
+                        },
+                      }
+                    : {}
+                }
                 components={{
                   body: {
-                    row: SortableRow,
+                    row: BodyRow,
                   },
                 }}
               />

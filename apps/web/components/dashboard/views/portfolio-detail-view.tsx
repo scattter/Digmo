@@ -20,10 +20,11 @@ import { PlanCompletionCard } from "../cards/plan-completion-card";
 import { PortfolioFundsTable } from "../features/portfolios/portfolio-funds-table";
 import { DailyDecisionPanel } from "../features/decision/daily-decision-panel";
 import { DecisionHistoryDialog } from "../dialogs/decision-history-dialog";
-import { Card, Typography, Button, Modal, App, Spin } from "antd";
+import { Card, Typography, Button, Modal, App, Spin, Input } from "antd";
 import { FundEditState } from "@/lib/format";
 import { DragEndEvent } from "@dnd-kit/core";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { formatCurrency } from "@/lib/format";
 
 const { Title, Text } = Typography;
 
@@ -48,6 +49,7 @@ interface PortfolioDetailViewProps {
   onOpenAddFundDialog: () => void;
   onOpenShareDialog: () => void;
   onDeletePortfolio: () => void;
+  onUpdatePortfolioTotalAsset: (portfolio: PortfolioSummary, totalAssetRaw: string) => Promise<void>;
   onOpenDecisionAiConfig: () => void;
   isBusy: boolean;
   isLoading: boolean;
@@ -66,6 +68,7 @@ export function PortfolioDetailView({
   onOpenAddFundDialog,
   onOpenShareDialog,
   onDeletePortfolio,
+  onUpdatePortfolioTotalAsset,
   onOpenDecisionAiConfig,
   isBusy,
   isLoading,
@@ -84,9 +87,22 @@ export function PortfolioDetailView({
   const [isDecisionDocSubmitting, setIsDecisionDocSubmitting] = useState(false);
   const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
   const [isDecisionDrawerOpen, setIsDecisionDrawerOpen] = useState(false);
+  const [isTotalAssetDialogOpen, setIsTotalAssetDialogOpen] = useState(false);
+  const [totalAssetInput, setTotalAssetInput] = useState("");
   const isMobile = useIsMobile();
   const isDecisionBusy = isBusy || isDecisionDocSubmitting || isGeneratingSuggestion;
   const hasActiveDecisionDoc = typeof decisionDocVersion === "number";
+  const displayTotalAsset = typeof portfolio.totalAsset === "number" ? portfolio.totalAsset : portfolio.totalAmount;
+  const displayCashAmount =
+    typeof portfolio.cashAmount === "number"
+      ? portfolio.cashAmount
+      : Math.max(0, Number((displayTotalAsset - portfolio.totalAmount).toFixed(2)));
+  const displayCashRatio =
+    typeof portfolio.cashRatio === "number"
+      ? portfolio.cashRatio
+      : displayTotalAsset > 0
+        ? Number((displayCashAmount / displayTotalAsset).toFixed(6))
+        : 0;
 
   const loadDecisionArtifacts = useCallback(async () => {
     setIsDecisionLoading(true);
@@ -112,6 +128,10 @@ export function PortfolioDetailView({
     void loadDecisionArtifacts();
     setDecisionHistory([]);
   }, [loadDecisionArtifacts]);
+
+  useEffect(() => {
+    setTotalAssetInput(String(displayTotalAsset));
+  }, [displayTotalAsset, portfolio.id]);
 
   async function onUploadDecisionDoc(file: File) {
     const content = await file.text();
@@ -203,6 +223,11 @@ export function PortfolioDetailView({
   async function onOpenDecisionHistoryDialog() {
     setIsDecisionHistoryDialogOpen(true);
     await loadDecisionHistory();
+  }
+
+  async function onSubmitTotalAsset() {
+    await onUpdatePortfolioTotalAsset(portfolio, totalAssetInput);
+    setIsTotalAssetDialogOpen(false);
   }
 
   const ratioAnalysis: RatioAnalysisRow[] = useMemo(() => {
@@ -325,6 +350,9 @@ export function PortfolioDetailView({
       <PortfolioFundsTable
          portfolioName={portfolio.name}
          portfolioType={portfolio.type}
+         portfolioTotalAsset={displayTotalAsset}
+         portfolioCashAmount={displayCashAmount}
+         portfolioCashRatio={displayCashRatio}
          funds={funds}
          editStateMap={editStateMap}
          isBusy={isBusy}
@@ -336,8 +364,38 @@ export function PortfolioDetailView({
          onDragEnd={onDragEnd}
          onOpenAddFundDialog={onOpenAddFundDialog}
          onOpenShareDialog={onOpenShareDialog}
+         onOpenUpdateTotalAssetDialog={() => setIsTotalAssetDialogOpen(true)}
          onDeletePortfolio={onDeletePortfolio}
       />
+
+      <Modal
+         title="更新组合总资产"
+         open={isTotalAssetDialogOpen}
+         onCancel={() => {
+           setIsTotalAssetDialogOpen(false);
+           setTotalAssetInput(String(displayTotalAsset));
+         }}
+         onOk={() => void onSubmitTotalAsset()}
+         okText="保存"
+         cancelText="取消"
+         confirmLoading={isBusy}
+         centered
+      >
+         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Text type="secondary">
+              真实现金会按“总资产 - 已生效基金持仓金额合计”自动计算。
+            </Text>
+            <Input
+              value={totalAssetInput}
+              onChange={(event) => setTotalAssetInput(event.target.value)}
+              placeholder="请输入组合总资产"
+              disabled={isBusy}
+            />
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              当前基金持仓合计 ¥{formatCurrency(portfolio.totalAmount)}，当前真实现金 ¥{formatCurrency(displayCashAmount)}。
+            </Text>
+         </div>
+      </Modal>
 
       <Modal
          title="决策与操作"

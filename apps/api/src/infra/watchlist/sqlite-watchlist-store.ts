@@ -18,6 +18,7 @@ export interface PortfolioItem {
   name: string;
   type: PortfolioType;
   shareCode: string;
+  totalAsset: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -152,6 +153,7 @@ export interface ExportDataPayload {
     name: string;
     type: PortfolioType;
     shareCode: string;
+    totalAsset?: number;
     displayOrder: number;
     createdAt: string;
     updatedAt: string;
@@ -181,8 +183,12 @@ export interface ExportDataPayload {
 export interface WatchlistStore {
   listPortfolios(userId: string): Promise<PortfolioItem[]>;
   getPortfolio(userId: string, portfolioId: string): Promise<PortfolioItem | undefined>;
-  createPortfolio(userId: string, name: string, type: PortfolioType): Promise<PortfolioItem>;
-  renamePortfolio(userId: string, portfolioId: string, name: string): Promise<boolean>;
+  createPortfolio(userId: string, name: string, type: PortfolioType, totalAsset?: number): Promise<PortfolioItem>;
+  updatePortfolio(
+    userId: string,
+    portfolioId: string,
+    input: { name?: string; totalAsset?: number }
+  ): Promise<boolean>;
   deletePortfolio(userId: string, portfolioId: string): Promise<boolean>;
   validatePortfolioSet(userId: string, orderedPortfolioIds: string[]): Promise<boolean>;
   reorderPortfolios(userId: string, orderedPortfolioIds: string[]): Promise<void>;
@@ -268,6 +274,7 @@ interface PortfolioRow {
   name: string;
   type: string;
   shareCode: string | null;
+  totalAsset: number | null;
   displayOrder: number | null;
   createdAt: string;
   updatedAt: string;
@@ -664,6 +671,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
         name TEXT NOT NULL,
         type TEXT NOT NULL CHECK(type IN ('FREE', 'RATIO')),
         share_code TEXT,
+        total_asset REAL NOT NULL DEFAULT 0,
         display_order INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -773,6 +781,16 @@ export class SqliteWatchlistStore implements WatchlistStore {
         WHEN mode IN ('responses', 'chat_completions') THEN mode
         ELSE 'chat_completions'
       END;
+    `);
+
+    if (!this.hasColumn("user_portfolio", "total_asset")) {
+      this.db.exec("ALTER TABLE user_portfolio ADD COLUMN total_asset REAL NOT NULL DEFAULT 0;");
+    }
+
+    this.db.exec(`
+      UPDATE user_portfolio
+      SET total_asset = COALESCE(total_asset, 0)
+      WHERE total_asset IS NULL;
     `);
   }
 
@@ -926,15 +944,17 @@ export class SqliteWatchlistStore implements WatchlistStore {
             name,
             type,
             share_code,
+            total_asset,
             display_order,
             created_at,
             updated_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(user_id, id) DO UPDATE SET
             name = excluded.name,
             type = excluded.type,
             share_code = excluded.share_code,
+            total_asset = excluded.total_asset,
             display_order = excluded.display_order,
             updated_at = excluded.updated_at
         `
@@ -947,6 +967,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           row.name,
           row.type === "RATIO" ? "RATIO" : "FREE",
           this.nextUniqueShareCodeSync(),
+          0,
           row.displayOrder ?? 0,
           toIsoLike(row.createdAt),
           toIsoLike(row.updatedAt)
@@ -1288,6 +1309,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
       name: row.name,
       type: toPortfolioType(row.type),
       shareCode: row.shareCode ?? "",
+      totalAsset: roundCurrency(row.totalAsset ?? 0),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt
     };
@@ -1780,6 +1802,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
                   name,
                   type,
                   share_code AS shareCode,
+                  total_asset AS totalAsset,
                   display_order AS displayOrder,
                   created_at AS createdAt,
                   updated_at AS updatedAt
@@ -1924,12 +1947,13 @@ export class SqliteWatchlistStore implements WatchlistStore {
 
       const upsertPortfolio = this.db.prepare(
         `
-          INSERT INTO user_portfolio (user_id, id, name, type, share_code, display_order, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO user_portfolio (user_id, id, name, type, share_code, total_asset, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(user_id, id) DO UPDATE SET
             name = excluded.name,
             type = excluded.type,
             share_code = excluded.share_code,
+            total_asset = excluded.total_asset,
             display_order = excluded.display_order,
             updated_at = excluded.updated_at
         `
@@ -1943,6 +1967,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           row.name,
           row.type,
           row.shareCode ?? this.nextUniqueShareCodeSync(),
+          row.totalAsset ?? 0,
           row.displayOrder,
           toIsoLike(row.createdAt),
           toIsoLike(row.updatedAt)
@@ -2049,6 +2074,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
             name,
             type,
             share_code AS shareCode,
+            total_asset AS totalAsset,
             display_order AS displayOrder,
             created_at AS createdAt,
             updated_at AS updatedAt
@@ -2072,6 +2098,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
             name,
             type,
             share_code AS shareCode,
+            total_asset AS totalAsset,
             display_order AS displayOrder,
             created_at AS createdAt,
             updated_at AS updatedAt
@@ -2088,7 +2115,21 @@ export class SqliteWatchlistStore implements WatchlistStore {
     return this.toPortfolio(row);
   }
 
-  async createPortfolio(userId: string, name: string, type: PortfolioType): Promise<PortfolioItem> {
+  private getPortfolioHoldingAmountTotal(userId: string, portfolioId: string): number {
+    const row = this.db
+      .prepare(
+        `
+          SELECT COALESCE(SUM(holding_amount), 0) AS totalHoldingAmount
+          FROM user_portfolio_fund
+          WHERE user_id = ? AND portfolio_id = ?
+        `
+      )
+      .get(userId, portfolioId) as { totalHoldingAmount: number | null } | undefined;
+
+    return roundCurrency(row?.totalHoldingAmount ?? 0);
+  }
+
+  async createPortfolio(userId: string, name: string, type: PortfolioType, totalAsset = 0): Promise<PortfolioItem> {
     const id = randomUUID();
     const shareCode = this.nextUniqueShareCodeSync();
     const row = this.db
@@ -2105,11 +2146,11 @@ export class SqliteWatchlistStore implements WatchlistStore {
     this.db
       .prepare(
         `
-          INSERT INTO user_portfolio (user_id, id, name, type, share_code, display_order, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO user_portfolio (user_id, id, name, type, share_code, total_asset, display_order, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `
       )
-      .run(userId, id, name, type, shareCode, nextDisplayOrder);
+      .run(userId, id, name, type, shareCode, roundCurrency(totalAsset), nextDisplayOrder);
 
     const created = await this.getPortfolio(userId, id);
     if (!created) {
@@ -2119,16 +2160,35 @@ export class SqliteWatchlistStore implements WatchlistStore {
     return created;
   }
 
-  async renamePortfolio(userId: string, portfolioId: string, name: string): Promise<boolean> {
+  async updatePortfolio(
+    userId: string,
+    portfolioId: string,
+    input: { name?: string; totalAsset?: number }
+  ): Promise<boolean> {
+    const assignments: string[] = [];
+    const values: Array<string | number> = [];
+
+    if (typeof input.name === "string") {
+      assignments.push("name = ?");
+      values.push(input.name);
+    }
+    if (typeof input.totalAsset === "number") {
+      assignments.push("total_asset = ?");
+      values.push(roundCurrency(input.totalAsset));
+    }
+    if (assignments.length === 0) {
+      return false;
+    }
+
     const result = this.db
       .prepare(
         `
           UPDATE user_portfolio
-          SET name = ?, updated_at = CURRENT_TIMESTAMP
+          SET ${assignments.join(", ")}, updated_at = CURRENT_TIMESTAMP
           WHERE user_id = ? AND id = ?
         `
       )
-      .run(name, userId, portfolioId) as SqliteRunResult;
+      .run(...values, userId, portfolioId) as SqliteRunResult;
 
     return toChanges(result) > 0;
   }

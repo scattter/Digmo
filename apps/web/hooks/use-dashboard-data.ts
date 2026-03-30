@@ -20,6 +20,7 @@ export type MainView = "funds" | "portfolios" | "overview" | "analysis";
 export type LandingSection = "overview" | "portfolios" | "funds";
 export interface RefreshDataOptions {
   silent?: boolean;
+  selectedPortfolioId?: string;
 }
 
 export interface PortfolioMeta {
@@ -186,14 +187,14 @@ export function useDashboardData() {
     setFlatFunds(next);
   }, [flatExpand, flatSortOrder]);
 
-  const loadSelectedPortfolioFunds = useCallback(async () => {
-    if (selectedPortfolioId === "all") {
+  const loadSelectedPortfolioFunds = useCallback(async (portfolioId = selectedPortfolioId) => {
+    if (portfolioId === "all") {
       setPortfolioFunds([]);
       setSelectedPortfolioMeta(null);
       return;
     }
 
-    const data = await fetchPortfolioFunds(selectedPortfolioId);
+    const data = await fetchPortfolioFunds(portfolioId);
     setSelectedPortfolioMeta(data.portfolio);
     setPortfolioFunds(data.funds.slice().sort((a, b) => a.displayOrder - b.displayOrder));
 
@@ -212,13 +213,14 @@ export function useDashboardData() {
 
   const refreshData = useCallback(async (options?: RefreshDataOptions) => {
     const silent = options?.silent ?? false;
+    const portfolioId = options?.selectedPortfolioId ?? selectedPortfolioId;
     if (!silent) {
       setIsLoadingPortfolios(true);
       setIsLoadingFlatFunds(true);
       setIsLoadingPortfolioFunds(true);
     }
     try {
-      await Promise.all([loadPortfolios(), loadFlatFunds(), loadSelectedPortfolioFunds()]);
+      await Promise.all([loadPortfolios(), loadFlatFunds(), loadSelectedPortfolioFunds(portfolioId)]);
     } finally {
       if (!silent) {
         setIsLoadingPortfolios(false);
@@ -226,7 +228,7 @@ export function useDashboardData() {
         setIsLoadingPortfolioFunds(false);
       }
     }
-  }, [loadFlatFunds, loadPortfolios, loadSelectedPortfolioFunds]);
+  }, [loadFlatFunds, loadPortfolios, loadSelectedPortfolioFunds, selectedPortfolioId]);
 
   useEffect(() => {
     setIsLoadingPortfolios(true);

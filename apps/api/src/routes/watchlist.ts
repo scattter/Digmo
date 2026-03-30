@@ -69,6 +69,22 @@ function parseHoldingAmount(raw: unknown, required: boolean): number | undefined
   return Number(value.toFixed(2));
 }
 
+function parseTotalAsset(raw: unknown, required: boolean): number | undefined {
+  if (raw === undefined || raw === null || raw === "") {
+    if (required) {
+      throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "totalAsset is required", 400);
+    }
+    return undefined;
+  }
+
+  const value = typeof raw === "string" ? Number(raw.trim()) : Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "totalAsset must be a non-negative number", 400);
+  }
+
+  return Number(value.toFixed(2));
+}
+
 function parsePlannedRatio(raw: unknown, required: boolean): number | undefined {
   if (raw === undefined || raw === null || raw === "") {
     if (required) {
@@ -229,6 +245,72 @@ function calcProfitPctByCost(holdingAmount: number, holdingProfitAmount: number)
   return Number((holdingProfitAmount / cost).toFixed(6));
 }
 
+function calcCashSummary(totalAsset: number, holdingAmount: number): {
+  totalAsset: number;
+  cashAmount: number;
+  cashRatio: number;
+} {
+  const normalizedTotalAsset = Number(totalAsset.toFixed(2));
+  const normalizedHoldingAmount = Number(holdingAmount.toFixed(2));
+  const cashAmount = Number(Math.max(0, normalizedTotalAsset - normalizedHoldingAmount).toFixed(2));
+  const cashRatio = normalizedTotalAsset > 0 ? Number((cashAmount / normalizedTotalAsset).toFixed(6)) : 0;
+
+  return {
+    totalAsset: normalizedTotalAsset,
+    cashAmount,
+    cashRatio,
+  };
+}
+
+function resolvePortfolioTotalAsset(totalAsset: number, holdingAmount: number): number {
+  const normalizedTotalAsset = Number(totalAsset.toFixed(2));
+  if (normalizedTotalAsset > 0) {
+    return normalizedTotalAsset;
+  }
+  return Number(holdingAmount.toFixed(2));
+}
+
+function calcActualRatioAgainstTotalAsset(holdingAmount: number, totalAsset: number): number {
+  if (totalAsset <= 0) {
+    return 0;
+  }
+  return Number((holdingAmount / totalAsset).toFixed(6));
+}
+
+function ensureTotalAssetCanCoverHoldings(totalAsset: number, holdingAmount: number): void {
+  if (totalAsset <= 0) {
+    return;
+  }
+  if (totalAsset + 0.000001 < holdingAmount) {
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "totalAsset must be >= current holding amount", 400);
+  }
+}
+
+async function getPortfolioHoldingSnapshot(store: WatchlistStore, userId: string, portfolioId: string): Promise<{
+  settledHoldingAmount: number;
+  projectedHoldingAmount: number;
+}> {
+  const [portfolioFunds, operations] = await Promise.all([
+    store.listPortfolioFunds(userId, portfolioId),
+    store.listPositionOperations(userId, portfolioId, { limit: 200 }),
+  ]);
+
+  const settledHoldingAmount = Number(
+    portfolioFunds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2),
+  );
+  const pendingDelta = Number(
+    operations
+      .filter((item) => item.status === "PENDING")
+      .reduce((sum, item) => sum + (item.afterHoldingAmount - item.beforeHoldingAmount), 0)
+      .toFixed(2),
+  );
+
+  return {
+    settledHoldingAmount,
+    projectedHoldingAmount: Number((settledHoldingAmount + pendingDelta).toFixed(2)),
+  };
+}
+
 async function chunkGetEstimates(
   service: ValuationService,
   fundCodes: string[]
@@ -360,6 +442,8 @@ async function buildPortfolioSummaries(
   const summary = portfolios.map((portfolio) => {
     const funds = grouped.get(portfolio.id) ?? [];
     const totalAmount = Number(funds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2));
+    const resolvedTotalAsset = resolvePortfolioTotalAsset(portfolio.totalAsset, totalAmount);
+    const { totalAsset, cashAmount, cashRatio } = calcCashSummary(resolvedTotalAsset, totalAmount);
     const totalProfitAmount = Number(funds.reduce((sum, item) => sum + item.holdingProfitAmount, 0).toFixed(2));
     const totalCost = Number((totalAmount - totalProfitAmount).toFixed(2));
     const totalProfitPct = totalCost > 0 ? Number((totalProfitAmount / totalCost).toFixed(6)) : 0;
@@ -388,6 +472,9 @@ async function buildPortfolioSummaries(
       type: portfolio.type,
       fundCount: funds.length,
       totalAmount,
+      totalAsset,
+      cashAmount,
+      cashRatio,
       totalProfitAmount,
       totalProfitPct,
       totalProfitDisplay: `${formatSignedAmount(totalProfitAmount)} / ${formatSignedPct(totalProfitPct)}`,
@@ -418,12 +505,13 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
 
     protectedApp.post("/v1/portfolios", async (request, reply) => {
       const userId = requireUserId(request);
-      const body = request.body as { name?: unknown; type?: unknown };
+      const body = request.body as { name?: unknown; type?: unknown; totalAsset?: unknown };
       const name = parsePortfolioName(body?.name);
       const type = parsePortfolioType(body?.type);
+      const totalAsset = parseTotalAsset(body?.totalAsset, false) ?? 0;
 
       try {
-        const created = await deps.store.createPortfolio(userId, name, type);
+        const created = await deps.store.createPortfolio(userId, name, type, totalAsset);
         reply.code(201);
         return {
           portfolio: {
@@ -432,6 +520,9 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
             type: created.type,
             fundCount: 0,
             totalAmount: 0,
+            totalAsset: created.totalAsset,
+            cashAmount: created.totalAsset,
+            cashRatio: created.totalAsset > 0 ? 1 : 0,
             totalProfitAmount: 0,
             totalProfitPct: 0,
             totalProfitDisplay: "0.00 / 0.00%",
@@ -527,13 +618,30 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       const userId = requireUserId(request);
       const params = request.params as { portfolioId: string };
       ensurePortfolioId(params.portfolioId);
-      const body = request.body as { name?: unknown };
-      const name = parsePortfolioName(body?.name);
+      const body = request.body as { name?: unknown; totalAsset?: unknown };
+      const hasName = body?.name !== undefined;
+      const hasTotalAsset = body?.totalAsset !== undefined;
+      if (!hasName && !hasTotalAsset) {
+        throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "name or totalAsset is required", 400);
+      }
+      const name = hasName ? parsePortfolioName(body?.name) : undefined;
+      const totalAsset = hasTotalAsset ? parseTotalAsset(body?.totalAsset, false) : undefined;
 
       await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+      if (typeof totalAsset === "number") {
+        const { projectedHoldingAmount } = await getPortfolioHoldingSnapshot(
+          deps.store,
+          userId,
+          params.portfolioId,
+        );
+        ensureTotalAssetCanCoverHoldings(totalAsset, projectedHoldingAmount);
+      }
 
       try {
-        const updated = await deps.store.renamePortfolio(userId, params.portfolioId, name);
+        const updated = await deps.store.updatePortfolio(userId, params.portfolioId, {
+          ...(typeof name === "string" ? { name } : {}),
+          ...(typeof totalAsset === "number" ? { totalAsset } : {}),
+        });
         return { updated };
       } catch (error) {
         if (error instanceof Error && error.message.includes("UNIQUE")) {
@@ -565,7 +673,9 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
         deps.store.listFundStatesByCodes(userId, fundCodes)
       ]);
 
-      const totalAmount = items.reduce((sum, item) => sum + item.holdingAmount, 0);
+      const totalAmount = Number(items.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2));
+      const resolvedTotalAsset = resolvePortfolioTotalAsset(portfolio.totalAsset, totalAmount);
+      const cashSummary = calcCashSummary(resolvedTotalAsset, totalAmount);
 
       const funds = items.map((item) => {
         const estimate = estimateMap.get(item.fundCode);
@@ -578,7 +688,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
             : undefined;
         const holdingProfitAmount = item.holdingProfitAmount;
         const holdingProfitPct = calcProfitPctByCost(item.holdingAmount, holdingProfitAmount);
-        const actualRatio = totalAmount > 0 ? Number((item.holdingAmount / totalAmount).toFixed(6)) : 0;
+        const actualRatio = calcActualRatioAgainstTotalAsset(item.holdingAmount, resolvedTotalAsset);
         return {
           portfolioId: item.portfolioId,
           portfolioName: item.portfolioName,
@@ -606,7 +716,12 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       });
 
       return {
-        portfolio,
+        portfolio: {
+          ...portfolio,
+          totalAsset: cashSummary.totalAsset,
+          cashAmount: cashSummary.cashAmount,
+          cashRatio: cashSummary.cashRatio,
+        },
         funds
       };
     });
@@ -667,6 +782,17 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
         if (currentSumWithoutFund + nextPlannedRatio > 1.0000001) {
           throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "plannedRatio sum must be <= 1", 400);
         }
+      }
+
+      if (portfolio.totalAsset > 0) {
+        const portfolioFunds = await deps.store.listPortfolioFunds(userId, params.portfolioId);
+        const currentHoldingAmount = Number(
+          portfolioFunds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2)
+        );
+        const projectedHoldingAmount = Number(
+          (currentHoldingAmount - (existing?.holdingAmount ?? 0) + holdingAmount).toFixed(2)
+        );
+        ensureTotalAssetCanCoverHoldings(portfolio.totalAsset, projectedHoldingAmount);
       }
 
       await deps.store.upsertPortfolioFund(userId, {
@@ -732,6 +858,17 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
         plannedRatio = undefined;
       }
 
+      if (typeof holdingAmount === "number" && portfolio.totalAsset > 0) {
+        const portfolioFunds = await deps.store.listPortfolioFunds(userId, params.portfolioId);
+        const currentHoldingAmount = Number(
+          portfolioFunds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2)
+        );
+        const projectedHoldingAmount = Number(
+          (currentHoldingAmount - existing.holdingAmount + holdingAmount).toFixed(2)
+        );
+        ensureTotalAssetCanCoverHoldings(portfolio.totalAsset, projectedHoldingAmount);
+      }
+
       const input: UpdatePortfolioFundInput = {
         portfolioId: params.portfolioId,
         fundCode: params.fundCode,
@@ -751,7 +888,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       const params = request.params as { portfolioId: string; fundCode: string };
       ensurePortfolioId(params.portfolioId);
       ensureFundCode(params.fundCode);
-      await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+      const portfolio = await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
 
       const body = request.body as {
         operationType?: unknown;
@@ -770,6 +907,20 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
         operationType,
         amount
       };
+      if (portfolio.totalAsset > 0) {
+        const { projectedHoldingAmount } = await getPortfolioHoldingSnapshot(
+          deps.store,
+          userId,
+          params.portfolioId,
+        );
+        const projectedAfterOperation = Number(
+          (
+            projectedHoldingAmount +
+            (operationType === "INCREASE" ? amount : -amount)
+          ).toFixed(2),
+        );
+        ensureTotalAssetCanCoverHoldings(portfolio.totalAsset, projectedAfterOperation);
+      }
       try {
         const operation = await deps.store.applyPositionOperation(userId, input);
         if (!operation) {
@@ -856,6 +1007,20 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       const sortOrder = query.sortOrder === "asc" || query.sortOrder === "desc" ? query.sortOrder : "default";
 
       const portfolioFunds = await deps.store.listAllPortfolioFunds(userId);
+      const portfolios = await deps.store.listPortfolios(userId);
+      const settledHoldingAmountMap = new Map<string, number>();
+      for (const row of portfolioFunds) {
+        settledHoldingAmountMap.set(
+          row.portfolioId,
+          Number(((settledHoldingAmountMap.get(row.portfolioId) ?? 0) + row.holdingAmount).toFixed(2)),
+        );
+      }
+      const portfolioTotalAssetMap = new Map(
+        portfolios.map((item) => [
+          item.id,
+          resolvePortfolioTotalAsset(item.totalAsset, settledHoldingAmountMap.get(item.id) ?? 0),
+        ]),
+      );
       const fundCodes = Array.from(new Set(portfolioFunds.map((item) => item.fundCode)));
 
       const [estimateMap, fundStates] = await Promise.all([
@@ -863,16 +1028,11 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
         deps.store.listFundStatesByCodes(userId, fundCodes)
       ]);
 
-      const totalAmountMap = new Map<string, number>();
-      for (const row of portfolioFunds) {
-        totalAmountMap.set(row.portfolioId, (totalAmountMap.get(row.portfolioId) ?? 0) + row.holdingAmount);
-      }
-
       if (expand === "expanded") {
         const expandedRows = portfolioFunds.map((row) => {
           const estimate = estimateMap.get(row.fundCode);
           const totalChangePct = fundStates.get(row.fundCode)?.totalChangePct ?? 0;
-          const totalAmount = totalAmountMap.get(row.portfolioId) ?? 0;
+          const totalAsset = portfolioTotalAssetMap.get(row.portfolioId) ?? 0;
           return {
             fundCode: row.fundCode,
             fundName: estimate?.fundName,
@@ -887,7 +1047,9 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
             portfolioType: row.portfolioType,
             plannedRatio: row.portfolioType === "RATIO" ? row.plannedRatio : undefined,
             actualRatio:
-              row.portfolioType === "RATIO" && totalAmount > 0 ? Number((row.holdingAmount / totalAmount).toFixed(6)) : undefined
+              row.portfolioType === "RATIO"
+                ? calcActualRatioAgainstTotalAsset(row.holdingAmount, totalAsset)
+                : undefined
           } satisfies FlatFundItem;
         });
 

@@ -134,6 +134,7 @@ export interface Portfolio {
   id: string;
   name: string;
   type: PortfolioType;
+  totalAsset?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -144,6 +145,9 @@ export interface PortfolioSummary {
   type: PortfolioType;
   fundCount: number;
   totalAmount: number;
+  totalAsset?: number;
+  cashAmount?: number;
+  cashRatio?: number;
   totalProfitAmount: number;
   totalProfitPct: number;
   totalProfitDisplay: string;
