@@ -86,7 +86,6 @@ export function CreatePortfolioDialog({
           name="totalAsset"
           label="组合总资产"
           rules={[
-            { required: true, message: "请输入组合总资产" },
             {
               validator: async (_, value: string) => {
                 const normalized = value?.trim?.() ?? "";

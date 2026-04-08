@@ -646,24 +646,11 @@ export function PortfolioFundsTable({
                 level={isMobile ? 5 : 5}
                 style={{ margin: 0, fontSize: isMobile ? 14 : 16 }}
               >
-                {portfolioType === "FREE" ? "自由组合" : "按比例组合"} ·{" "}
-                {funds.length} 只
+                {portfolioType === "FREE" ? "自由组合" : "按比例组合"}
+                {ratioSummary && <span> · {ratioSummary.cashRatio > 0
+                  ? `现金 ${formatPct(ratioSummary.cashRatio)}`
+                  : "已满配"}</span>}
               </Title>
-              {ratioSummary ? (
-                <Text
-                  type="secondary"
-                  style={{
-                    display: "block",
-                    marginTop: 4,
-                    fontSize: isMobile ? 10 : 12,
-                  }}
-                >
-                  已配置 {formatPct(ratioSummary.allocatedRatio)} ·{" "}
-                  {ratioSummary.cashRatio > 0
-                    ? `现金/待配置 ${formatPct(ratioSummary.cashRatio)}`
-                    : "已满配"}
-                </Text>
-              ) : null}
               {typeof displayTotalAsset === "number" ? (
                 <Text
                   type="secondary"
@@ -673,9 +660,9 @@ export function PortfolioFundsTable({
                     fontSize: isMobile ? 10 : 12,
                   }}
                 >
-                  总资产 ¥{formatCurrency(displayTotalAsset)}
+                  总额 {formatCurrency(displayTotalAsset)}
                   {typeof displayCashAmount === "number"
-                    ? ` · 真实现金 ¥${formatCurrency(displayCashAmount)}${
+                    ? `/现金 ${formatCurrency(displayCashAmount)}${
                         typeof displayCashRatio === "number"
                           ? ` (${formatPct(displayCashRatio)})`
                           : ""
