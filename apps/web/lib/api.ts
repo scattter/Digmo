@@ -163,9 +163,10 @@ export async function fetchBatchEstimates(fundCodes: string[]): Promise<BatchEst
   return response.json() as Promise<BatchEstimateResponse>;
 }
 
-export async function fetchPortfolios(): Promise<PortfolioSummary[]> {
+export async function fetchPortfolios(signal?: AbortSignal): Promise<PortfolioSummary[]> {
   const response = await apiRequest("/v1/portfolios", {
-    auth: true
+    auth: true,
+    signal
   });
 
   await ensureOk(response, "Fetch portfolios failed");
@@ -298,7 +299,8 @@ export async function updateDecisionAiConfig(params: {
 }
 
 export async function fetchPortfolioFunds(
-  portfolioId: string
+  portfolioId: string,
+  signal?: AbortSignal
 ): Promise<{
   portfolio: {
     id: string;
@@ -313,7 +315,8 @@ export async function fetchPortfolioFunds(
   funds: PortfolioFundItem[];
 }> {
   const response = await apiRequest(`/v1/portfolios/${portfolioId}/funds`, {
-    auth: true
+    auth: true,
+    signal
   });
 
   await ensureOk(response, "Fetch portfolio funds failed");
@@ -467,9 +470,10 @@ export async function reorderPortfolioFunds(portfolioId: string, fundCodes: stri
   await ensureOk(response, "Reorder portfolio funds failed");
 }
 
-export async function fetchFlatFunds(expand: FlatExpandMode, sortOrder: SortOrder): Promise<FlatFundItem[]> {
+export async function fetchFlatFunds(expand: FlatExpandMode, sortOrder: SortOrder, signal?: AbortSignal): Promise<FlatFundItem[]> {
   const response = await apiRequest(`/v1/funds/flat?expand=${expand}&sortOrder=${sortOrder}`, {
-    auth: true
+    auth: true,
+    signal
   });
 
   await ensureOk(response, "Fetch flat funds failed");
@@ -478,9 +482,10 @@ export async function fetchFlatFunds(expand: FlatExpandMode, sortOrder: SortOrde
   return data.items ?? [];
 }
 
-export async function fetchDecisionDoc(portfolioId: string): Promise<PortfolioDecisionDoc | null> {
+export async function fetchDecisionDoc(portfolioId: string, signal?: AbortSignal): Promise<PortfolioDecisionDoc | null> {
   const response = await apiRequest(`/v1/portfolios/${portfolioId}/decision-doc`, {
-    auth: true
+    auth: true,
+    signal
   });
 
   if (response.status === 404) {
@@ -527,18 +532,20 @@ export async function generateDailyDecision(portfolioId: string): Promise<DailyD
   return data.decision;
 }
 
-export async function fetchLatestDailyDecision(portfolioId: string): Promise<DailyDecision | null> {
+export async function fetchLatestDailyDecision(portfolioId: string, signal?: AbortSignal): Promise<DailyDecision | null> {
   const response = await apiRequest(`/v1/portfolios/${portfolioId}/daily-decision/latest`, {
-    auth: true
+    auth: true,
+    signal
   });
   await ensureOk(response, "Fetch latest daily decision failed");
   const data = (await response.json()) as { decision: DailyDecision | null };
   return data.decision;
 }
 
-export async function fetchDailyDecisionHistory(portfolioId: string, limit = 10): Promise<DailyDecision[]> {
+export async function fetchDailyDecisionHistory(portfolioId: string, limit = 10, signal?: AbortSignal): Promise<DailyDecision[]> {
   const response = await apiRequest(`/v1/portfolios/${portfolioId}/daily-decision/history?limit=${limit}`, {
-    auth: true
+    auth: true,
+    signal
   });
   await ensureOk(response, "Fetch daily decision history failed");
   const data = (await response.json()) as { items?: DailyDecision[] };

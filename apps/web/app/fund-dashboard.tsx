@@ -8,10 +8,10 @@ import {
   PortfolioFundItem,
   UserDecisionAiConfigSummary
 } from "@digmo/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
-import { App, Spin } from "antd";
+import { Alert, App, Spin } from "antd";
 import { DragEndEvent } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 
@@ -29,6 +29,7 @@ import { FlatFundsTable } from "@/components/dashboard/features/funds/flat-funds
 
 import { useDashboardData } from "@/hooks/use-dashboard-data";
 import { FundEditState } from "@/lib/format";
+import { useFundReorder } from "@/hooks/use-fund-reorder";
 import { usePortfolioActions } from "@/hooks/use-portfolio-actions";
 import {
   fetchDecisionAiConfig,
@@ -41,10 +42,6 @@ import {
 } from "@/lib/api";
 import { clearAccessToken, getAccessToken } from "@/lib/auth-session";
 import { TabItem } from "@/components/dashboard/navigation/draggable-tab-list";
-import {
-  getNextActiveTabAfterPortfolioDelete,
-  getSelectedPortfolioIdFromActiveTab
-} from "@/lib/portfolio-navigation";
 
 const renameSchema = z
   .string()
@@ -61,11 +58,11 @@ export default function FundDashboard() {
   const authRequiredEventName = getAuthRequiredEventName();
   const { modal, message } = App.useApp();
 
-  // Dashboard Data Hook
-  const dashboard = useDashboardData();
-
-  // Local state for tabs
   const [activeTabId, setActiveTabId] = useState("summary");
+  const selectedPortfolioId = activeTabId === "summary" || activeTabId === "funds" ? "all" : activeTabId;
+  const dashboard = useDashboardData({ enabled: Boolean(currentUser), selectedPortfolioId });
+  const tabReorderPending = useRef(false);
+  const tabLayoutVersion = useRef(0);
   
   // Dialog states
   const [isCreatePortfolioDialogOpen, setIsCreatePortfolioDialogOpen] = useState(false);
@@ -76,31 +73,23 @@ export default function FundDashboard() {
   const [isDecisionAiConfigSaving, setIsDecisionAiConfigSaving] = useState(false);
   const [decisionAiConfig, setDecisionAiConfig] = useState<UserDecisionAiConfigSummary | null>(null);
 
-  const computeIntradayProfitAmount = (
-    totalAmount: number,
-    intradayEstimatePct: number | undefined
-  ) =>
-    typeof intradayEstimatePct === "number"
-      ? totalAmount - totalAmount / (1 + intradayEstimatePct)
-      : undefined;
-
   const accountSummaryBar = useMemo(() => {
     const totalAmount = dashboard.portfolios.reduce(
       (sum, portfolio) => sum + (portfolio.totalAsset ?? portfolio.totalAmount),
       0,
     );
-    const hasCompleteIntradayEstimate =
+    const hasCompleteDailyProfit =
       dashboard.portfolios.length > 0 &&
-      dashboard.portfolios.every((portfolio) => typeof portfolio.intradayEstimatePct === "number");
+      dashboard.portfolios.every((portfolio) => typeof portfolio.dailyProfitAmount === "number");
 
-    if (!hasCompleteIntradayEstimate) {
+    if (!hasCompleteDailyProfit) {
       return { totalAmount, intradayProfitAmount: undefined };
     }
 
     return {
       totalAmount,
       intradayProfitAmount: dashboard.portfolios.reduce((sum, portfolio) => {
-        return sum + (computeIntradayProfitAmount(portfolio.totalAmount, portfolio.intradayEstimatePct) ?? 0);
+        return sum + (portfolio.dailyProfitAmount ?? 0);
       }, 0)
     };
   }, [dashboard.portfolios]);
@@ -118,10 +107,7 @@ export default function FundDashboard() {
     }
     return {
       totalAmount: portfolio.totalAsset ?? portfolio.totalAmount,
-      intradayProfitAmount: computeIntradayProfitAmount(
-        portfolio.totalAmount,
-        portfolio.intradayEstimatePct
-      )
+      intradayProfitAmount: portfolio.dailyProfitAmount
     };
   }, [activeTabId, accountSummaryBar, dashboard.portfolios]);
 
@@ -165,7 +151,8 @@ export default function FundDashboard() {
   const actions = usePortfolioActions({
     refreshData: dashboard.refreshData,
     selectedPortfolioId: dashboard.selectedPortfolioId,
-    setSelectedPortfolioId: dashboard.setSelectedPortfolioId,
+    setSelectedPortfolioId: (id) => setActiveTabId((current) =>
+      current === selectedPortfolioId ? (id === "all" ? "summary" : id) : current),
     setIsLoading: dashboard.setIsLoading,
     setErrorText: (msg) => {
       const text = msg.trim();
@@ -183,24 +170,14 @@ export default function FundDashboard() {
     },
   });
 
-  // Sync activeTabId with selectedPortfolioId
-  useEffect(() => {
-    const nextSelectedPortfolioId = getSelectedPortfolioIdFromActiveTab({
-      activeTabId,
-      portfolioIds: dashboard.portfolios.map((portfolio) => portfolio.id)
-    });
-    if (
-      nextSelectedPortfolioId &&
-      dashboard.selectedPortfolioId !== nextSelectedPortfolioId
-    ) {
-      dashboard.setSelectedPortfolioId(nextSelectedPortfolioId);
-    }
-  }, [
-    activeTabId,
-    dashboard.portfolios,
-    dashboard.selectedPortfolioId,
-    dashboard.setSelectedPortfolioId
-  ]);
+  const fundReorder = useFundReorder({
+    selectedPortfolioId,
+    portfolioFunds: dashboard.portfolioFunds,
+    setPortfolioFunds: dashboard.setPortfolioFunds,
+    setIsReordering: dashboard.setIsReordering,
+    setErrorText: (text) => { if (text) message.error(text); },
+    setStatusText: (text) => { if (text) message.success(text); }
+  });
 
   const [fundsTabIndex, setFundsTabIndex] = useState(0);
 
@@ -210,12 +187,13 @@ export default function FundDashboard() {
     }
 
     let active = true;
+    const layoutVersion = tabLayoutVersion.current;
     void Promise.allSettled([fetchPortfolioTabLayout(), fetchDecisionAiConfig()])
       .then(([layoutResult, decisionAiConfigResult]) => {
         if (!active) {
           return;
         }
-        if (layoutResult.status === "fulfilled") {
+        if (layoutResult.status === "fulfilled" && layoutVersion === tabLayoutVersion.current) {
           const nextIndex = Math.max(0, Math.floor(layoutResult.value.fundsTabIndex));
           setFundsTabIndex(nextIndex);
         }
@@ -274,6 +252,7 @@ export default function FundDashboard() {
   );
 
   function handleTabDragEnd(event: DragEndEvent) {
+    if (tabReorderPending.current || dashboard.isBusy) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -299,6 +278,7 @@ export default function FundDashboard() {
       return;
     }
 
+    tabLayoutVersion.current += 1;
     if (isFundsTabIndexChanged) {
       setFundsTabIndex(newFundsIndex);
     }
@@ -315,6 +295,7 @@ export default function FundDashboard() {
       dashboard.setPortfolios(nextPortfolios);
     }
 
+    tabReorderPending.current = true;
     dashboard.setIsReordering(true);
     void (async () => {
       const [layoutResult, reorderResult] = await Promise.allSettled([
@@ -323,11 +304,11 @@ export default function FundDashboard() {
       ]);
 
       if (layoutResult.status === "rejected") {
-        setFundsTabIndex(previousFundsTabIndex);
+        setFundsTabIndex((current) => current === newFundsIndex ? previousFundsTabIndex : current);
       }
 
       if (reorderResult.status === "rejected") {
-        dashboard.setPortfolios(previousPortfolios);
+        dashboard.setPortfolios((current) => current === nextPortfolios ? previousPortfolios : current);
       }
 
       if (layoutResult.status === "rejected" || reorderResult.status === "rejected") {
@@ -341,6 +322,7 @@ export default function FundDashboard() {
         message.error(errorText);
       }
 
+      tabReorderPending.current = false;
       dashboard.setIsReordering(false);
     })();
   }
@@ -401,13 +383,7 @@ export default function FundDashboard() {
       cancelText: "取消",
       centered: true,
       onOk: async () => {
-        const nextActiveTabId = getNextActiveTabAfterPortfolioDelete({
-          activeTabId,
-          deletedPortfolioId: portfolio.id,
-          portfolioIds: dashboard.portfolios.map((item) => item.id),
-        });
         await actions.deletePortfolioAction(portfolio);
-        setActiveTabId(nextActiveTabId);
       }
     });
   }
@@ -459,6 +435,7 @@ export default function FundDashboard() {
      if (portfolio) {
         content = (
            <PortfolioDetailView
+              key={portfolio.id}
               portfolio={portfolio}
               funds={dashboard.portfolioFunds}
               editStateMap={dashboard.editStateMap}
@@ -466,23 +443,12 @@ export default function FundDashboard() {
               onUpdateFund={handleUpdateFund}
               onOperateFund={(item, input) => actions.operatePositionAction(item, input.operationType, input.amountRaw)}
               onDeleteFund={actions.deleteFundAction}
-              onDragEnd={() => {}} // PortfolioFundsTable internal drag? Or fund reorder?
-              // PortfolioFundsTable has internal drag for funds.
-              // We need `actions` to reorder funds.
-              // `usePortfolioReorder` doesn't handle fund reorder?
-              // `apps/web/hooks/use-fund-reorder.ts` exists?
-              // `usePortfolioReorder` handles portfolio reorder.
-              // Let's check `useFundReorder`? 
-              // `FundDashboard` doesn't import `useFundReorder`.
-              // I should check if `useFundReorder` exists.
-              onOpenAddFundDialog={() => setIsFlatAddFundDialogOpen(true)} // Wait, FlatAddFundDialog adds to *selected* portfolio?
+              onDragEnd={(event) => fundReorder.onPortfolioFundsDragEnd(event, dashboard.isBusy)}
+              onOpenAddFundDialog={() => setIsFlatAddFundDialogOpen(true)}
               onOpenShareDialog={() => setIsSharePortfolioDialogOpen(true)}
               onDeletePortfolio={() => handleDeletePortfolio(portfolio)}
               onUpdatePortfolioTotalAsset={actions.updatePortfolioTotalAssetAction}
               onOpenDecisionAiConfig={() => setIsDecisionAiConfigDialogOpen(true)}
-              // `FlatAddFundDialog` has a portfolio select dropdown.
-              // We want to pre-select the current portfolio.
-              // We can pass `initialPortfolioId={activeTabId}` to it.
               isBusy={dashboard.isBusy}
               isLoading={dashboard.isLoadingPortfolioFunds}
               decisionAiConfigured={Boolean(decisionAiConfig?.hasApiKey)}
@@ -520,6 +486,7 @@ export default function FundDashboard() {
         onTabChange={setActiveTabId}
         onTabDragEnd={handleTabDragEnd}
       >
+        {dashboard.errorText && <Alert type="error" showIcon title={dashboard.errorText} className="m-4" />}
         {content}
         
         <CreatePortfolioDialog

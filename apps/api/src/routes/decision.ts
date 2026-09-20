@@ -4,8 +4,9 @@ import { DecisionStore } from "../infra/decision/sqlite-decision-store.js";
 import { WatchlistStore } from "../infra/watchlist/sqlite-watchlist-store.js";
 import { DecisionAIProvider, DecisionAIProviderFactory } from "../modules/decision/provider.js";
 import { ValuationService } from "../modules/valuation/service.js";
+import { calcDailyProfitAmount, calcDailyProfitPct } from "../modules/valuation/profit.js";
 import { AppError } from "../utils/app-error.js";
-import { formatDate, nowInShanghai } from "../utils/time.js";
+import { formatDate, isSameShanghaiDay, nowInShanghai } from "../utils/time.js";
 
 interface RegisterDecisionRoutesDeps {
   store: WatchlistStore;
@@ -201,17 +202,34 @@ export function registerDecisionRoutes(app: FastifyInstance, deps: RegisterDecis
       const fundCodes = portfolioFunds.map((item) => item.fundCode);
       const estimateResp = await deps.service.getBatchEstimates(fundCodes);
       const estimateMap = new Map(estimateResp.data.map((item) => [item.fundCode, item]));
+      const now = nowInShanghai();
+      const unavailableCodes = fundCodes.filter((fundCode) => {
+        const estimate = estimateMap.get(fundCode);
+        return estimateResp.partialFailed.includes(fundCode) || !estimate ||
+          !Number.isFinite(estimate.estimateChangePct) ||
+          !Number.isFinite(estimate.officialNav) || estimate.officialNav <= 0 ||
+          !Number.isFinite(estimate.estimateNav) || estimate.estimateNav <= 0 ||
+          !isSameShanghaiDay(estimate.estimateTime, now);
+      });
+      if (unavailableCodes.length > 0) {
+        throw new AppError(
+          ERROR_CODES.DATA_SOURCE_UNAVAILABLE,
+          `以下基金暂无有效的当日行情，请稍后重试：${unavailableCodes.join("、")}`,
+          503,
+          { fundCodes: unavailableCodes }
+        );
+      }
       const totalAmount = Number(portfolioFunds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2));
       const resolvedTotalAsset = resolvePortfolioTotalAsset(portfolio.totalAsset, totalAmount);
       const totalProfitAmount = Number(portfolioFunds.reduce((sum, item) => sum + item.holdingProfitAmount, 0).toFixed(2));
       const dailyProfitAmount = Number(
         portfolioFunds
-          .reduce((sum, item) => sum + item.holdingAmount * (estimateMap.get(item.fundCode)?.estimateChangePct ?? 0), 0)
+          .reduce((sum, item) => sum + calcDailyProfitAmount(item.holdingAmount, estimateMap.get(item.fundCode)!.estimateChangePct), 0)
           .toFixed(2)
       );
-      const dailyProfitPct = totalAmount > 0 ? Number((dailyProfitAmount / totalAmount).toFixed(6)) : 0;
+      const dailyProfitPct = calcDailyProfitPct(dailyProfitAmount, totalAmount);
 
-      const asOf = nowInShanghai().toISOString();
+      const asOf = now.toISOString();
       const input = {
         asOf,
         timezone,

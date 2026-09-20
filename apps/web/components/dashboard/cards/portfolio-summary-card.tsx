@@ -27,12 +27,7 @@ export function PortfolioSummaryCard({ portfolio, onClick }: PortfolioSummaryCar
     return `${base} bg-gray-50 text-gray-500`;
   };
 
-  // Calculate daily profit amount (approximate) based on intradayEstimatePct
-  // Profit = Current - (Current / (1 + rate))
-  const dailyProfitAmount =
-    typeof portfolio.intradayEstimatePct === "number"
-      ? portfolio.totalAmount - (portfolio.totalAmount / (1 + portfolio.intradayEstimatePct))
-      : undefined;
+  const dailyProfitAmount = portfolio.dailyProfitAmount;
 
   return (
     <div 
@@ -104,8 +99,8 @@ export function PortfolioSummaryCard({ portfolio, onClick }: PortfolioSummaryCar
               <span className={`text-base font-medium ${getTrendColor(dailyProfitAmount)}`}>
                 {formatSignedAmount(dailyProfitAmount)}
               </span>
-              <span className={getTrendBgBadge(portfolio.intradayEstimatePct)}>
-                {formatSignedPct(portfolio.intradayEstimatePct)}
+              <span className={getTrendBgBadge(portfolio.dailyProfitPct)}>
+                {formatSignedPct(portfolio.dailyProfitPct)}
               </span>
             </div>
           </div>

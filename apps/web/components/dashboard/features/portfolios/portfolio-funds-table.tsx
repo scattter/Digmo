@@ -47,7 +47,7 @@ import type { TableProps, MenuProps } from "antd";
 
 import { FundOperationHistoryDialog } from "@/components/dashboard/dialogs/fund-operation-history-dialog";
 import { UpdateFundDialog } from "@/components/dashboard/dialogs/update-fund-dialog";
-import { FundEditState, formatCurrency, formatPct, formatSignedPct } from "@/lib/format";
+import { FundEditState, formatCurrency, formatEstimateTime, formatPct, formatSignedPct } from "@/lib/format";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 
 const { Text, Title } = Typography;
@@ -439,18 +439,8 @@ export function PortfolioFundsTable({
         if (isCashDisplayRow(record)) {
           return "-";
         }
-        const pct =
-          typeof record.dailyProfitPct === "number"
-            ? record.dailyProfitPct
-            : typeof record.estimateChangePct === "number"
-              ? record.estimateChangePct
-              : undefined;
-        const amount =
-          typeof record.dailyProfitAmount === "number"
-            ? record.dailyProfitAmount
-            : typeof pct === "number"
-              ? Number((record.holdingAmount * pct).toFixed(2))
-              : undefined;
+        const pct = record.dailyProfitPct;
+        const amount = record.dailyProfitAmount;
         const color =
           typeof amount === "number"
             ? amount > 0
@@ -472,6 +462,14 @@ export function PortfolioFundsTable({
           >
             <span>{formatSignedCurrencyValue(amount)}</span>
             <span>{formatSignedPct(pct)}</span>
+            {record.estimateTime && (
+              <Text type="secondary" style={{ fontSize: 10 }}>
+                {formatEstimateTime(record.estimateTime)}
+                {typeof pct !== "number" && typeof record.estimateChangePct === "number"
+                  ? ` · ${formatSignedPct(record.estimateChangePct)}`
+                  : ""}
+              </Text>
+            )}
             {record.dailyProfitOfficialUpdated && (
               <Text type="secondary" style={{ fontSize: 10 }}>
                 已更新

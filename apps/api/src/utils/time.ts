@@ -65,6 +65,11 @@ export function formatDate(input: Date): string {
   return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
 }
 
+export function isSameShanghaiDay(input: Date | string | undefined, reference: Date = nowInShanghai()): boolean {
+  const date = typeof input === "string" ? new Date(input) : input;
+  return Boolean(date && Number.isFinite(date.getTime()) && formatDate(date) === formatDate(reference));
+}
+
 export function getShanghaiYear(input: Date): number {
   return getShanghaiParts(input).year;
 }

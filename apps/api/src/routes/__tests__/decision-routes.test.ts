@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { BatchEstimateResponse, ERROR_CODES } from "@digmo/shared";
 import Fastify from "fastify";
 import { afterEach, describe, expect, test } from "vitest";
 import { SqliteWatchlistStore } from "../../infra/watchlist/sqlite-watchlist-store.js";
@@ -92,29 +93,33 @@ async function createApp(
   provider: DecisionAIProvider,
   options?: {
     providerFactory?: (input: DecisionAiConfigInput) => DecisionAIProvider;
+    mapEstimates?: (response: BatchEstimateResponse) => BatchEstimateResponse;
   }
 ) {
   const app = Fastify({ logger: false });
 
   const service = {
-    getBatchEstimates: async (fundCodes: string[]) => ({
-      data: fundCodes.map((fundCode) => ({
-        fundCode,
-        fundName: `基金${fundCode}`,
-        officialNav: 1,
-        estimateNav: 1,
-        estimateChangePct: 0.012,
-        baseNavDate: "2026-03-02",
-        estimateTime: "2026-03-02T02:00:00.000Z",
-        confidenceLevel: "HIGH" as const,
-        confidenceScore: 100,
-        method: "FUND_GZ_DIRECT" as const,
-        inputsStalenessSec: 1,
-        topHoldings: [],
-        disclaimer: "test"
-      })),
-      partialFailed: []
-    })
+    getBatchEstimates: async (fundCodes: string[]) => {
+      const response: BatchEstimateResponse = {
+        data: fundCodes.map((fundCode) => ({
+          fundCode,
+          fundName: `基金${fundCode}`,
+          officialNav: 1,
+          estimateNav: 1,
+          estimateChangePct: 0.012,
+          baseNavDate: "2026-03-02",
+          estimateTime: new Date().toISOString(),
+          confidenceLevel: "HIGH" as const,
+          confidenceScore: 100,
+          method: "FUND_GZ_DIRECT" as const,
+          inputsStalenessSec: 1,
+          topHoldings: [],
+          disclaimer: "test"
+        })),
+        partialFailed: []
+      };
+      return options?.mapEstimates ? options.mapEstimates(response) : response;
+    }
   };
 
   const requireAuth = createRequireAuth({
@@ -180,6 +185,77 @@ afterEach(() => {
 });
 
 describe("decision routes", () => {
+  test.each(["partial", "missing", "all", "stale", "invalid"])(
+    "rejects %s market data without calling AI or replacing the previous decision",
+    async (failure) => {
+      const ctx = createTempCtx();
+      const store = new SqliteWatchlistStore(ctx.dbPath);
+      let fail = false;
+      const inputs: DecisionGenerationInput[] = [];
+      const app = await createApp(store, ctx.dbPath, {
+        name: "stub-provider",
+        model: "stub-model",
+        async generateDailyDecision(input) {
+          inputs.push(input);
+          return { summary: "保留原有建议" };
+        }
+      }, {
+        mapEstimates(response) {
+          const data = response.data.map((row) => ({ ...row, estimateChangePct: 0.01 }));
+          if (!fail) {
+            return { data, partialFailed: [] };
+          }
+          if (failure === "all") {
+            return { data: [], partialFailed: data.map((row) => row.fundCode) };
+          }
+          if (failure === "partial" || failure === "missing") {
+            return { data: data.filter((row) => row.fundCode !== "110011"), partialFailed: failure === "partial" ? ["110011"] : [] };
+          }
+          return {
+            data: data.map((row) => row.fundCode !== "110011" ? row : {
+              ...row,
+              ...(failure === "stale"
+                ? { estimateTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() }
+                : { estimateChangePct: Number.NaN })
+            }),
+            partialFailed: []
+          };
+        }
+      });
+
+      const created = await app.inject({ method: "POST", url: "/v1/portfolios", payload: { name: "行情校验", type: "FREE" } });
+      const portfolioId = created.json().portfolio.id as string;
+      for (const fundCode of ["161725", "110011"]) {
+        const added = await app.inject({
+          method: "POST", url: `/v1/portfolios/${portfolioId}/funds`, payload: { fundCode, holdingAmount: 0.49 }
+        });
+        expect(added.statusCode).toBe(201);
+      }
+      await app.inject({
+        method: "PUT", url: `/v1/portfolios/${portfolioId}/decision-doc`, payload: { format: "TEXT", content: "测试策略" }
+      });
+      await saveDecisionAiConfig(store);
+      const generated = await app.inject({ method: "POST", url: `/v1/portfolios/${portfolioId}/daily-decision:generate` });
+      expect(generated.statusCode).toBe(200);
+      const previous = generated.json().decision;
+      expect(inputs).toHaveLength(1);
+      expect(inputs[0].portfolio.dailyProfitPct).toBe(0);
+
+      fail = true;
+      const rejected = await app.inject({ method: "POST", url: `/v1/portfolios/${portfolioId}/daily-decision:generate` });
+      expect(rejected.statusCode).toBe(503);
+      expect(rejected.json()).toMatchObject({ code: ERROR_CODES.DATA_SOURCE_UNAVAILABLE });
+      expect(rejected.json().message).toContain("110011");
+      expect(inputs).toHaveLength(1);
+      const latest = await app.inject({ method: "GET", url: `/v1/portfolios/${portfolioId}/daily-decision/latest` });
+      expect(latest.json().decision.id).toBe(previous.id);
+      expect(latest.json().decision.summary).toBe("保留原有建议");
+      const history = await app.inject({ method: "GET", url: `/v1/portfolios/${portfolioId}/daily-decision/history` });
+      expect(history.json().items).toHaveLength(1);
+      await app.close();
+    }
+  );
+
   test("saves and reads active decision doc", async () => {
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);

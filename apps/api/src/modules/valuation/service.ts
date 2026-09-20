@@ -1,7 +1,7 @@
 import { BatchEstimateResponse, DISCLAIMER, ERROR_CODES, FundEstimateSnapshot } from "@digmo/shared";
 import { Cache } from "../../infra/cache/cache.js";
 import { Repository, StoredEstimate } from "../../infra/repo/repository.js";
-import { floorToBucketIso, getBucketSeconds, nowInShanghai, secondsStaleness } from "../../utils/time.js";
+import { floorToBucketIso, getBucketSeconds, isSameShanghaiDay, nowInShanghai, secondsStaleness } from "../../utils/time.js";
 import { AppError } from "../../utils/app-error.js";
 import { FundDataProvider } from "../data/provider.js";
 
@@ -35,7 +35,8 @@ interface ValuationServiceDeps {
   realtimeEstimateFetcher?: RealtimeEstimateFetcher;
 }
 
-function toPublicSnapshot(snapshot: StoredEstimate | FundEstimateSnapshot): FundEstimateSnapshot {
+function toPublicSnapshot(snapshot: StoredEstimate | FundEstimateSnapshot, now: Date = nowInShanghai()): FundEstimateSnapshot {
+  const isToday = isSameShanghaiDay(snapshot.estimateTime, now);
   return {
     fundCode: snapshot.fundCode,
     fundName: snapshot.fundName,
@@ -45,10 +46,10 @@ function toPublicSnapshot(snapshot: StoredEstimate | FundEstimateSnapshot): Fund
     estimateChangePct: snapshot.estimateChangePct,
     baseNavDate: snapshot.baseNavDate,
     estimateTime: snapshot.estimateTime,
-    confidenceLevel: snapshot.confidenceLevel,
-    confidenceScore: snapshot.confidenceScore,
+    confidenceLevel: isToday ? "HIGH" : "LOW",
+    confidenceScore: isToday ? 100 : 0,
     method: snapshot.method,
-    inputsStalenessSec: snapshot.inputsStalenessSec,
+    inputsStalenessSec: secondsStaleness(snapshot.estimateTime, now),
     holdingReportDate: snapshot.holdingReportDate,
     topHoldings: snapshot.topHoldings,
     disclaimer: snapshot.disclaimer
@@ -60,7 +61,7 @@ function toFiniteNumber(value: unknown): number | undefined {
     return value;
   }
 
-  if (typeof value === "string") {
+  if (typeof value === "string" && value.trim()) {
     const parsed = Number(value.trim());
     if (Number.isFinite(parsed)) {
       return parsed;
@@ -70,18 +71,27 @@ function toFiniteNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-function parseFundGzTimeToIso(raw: string | undefined, fallback: Date): string {
-  if (!raw) {
-    return fallback.toISOString();
+function isValidDate(raw: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return false;
   }
+  const date = new Date(`${raw}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === raw;
+}
 
-  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/);
+function parseFundGzTimeToIso(raw: unknown): string | undefined {
+  const match = typeof raw === "string"
+    ? raw.trim().match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}):(\d{2})(?::(\d{2}))?$/)
+    : undefined;
   if (!match) {
-    return fallback.toISOString();
+    return undefined;
   }
 
-  const [, year, month, day, hour, minute, second = "00"] = match;
-  return `${year}-${month}-${day}T${hour}:${minute}:${second}+08:00`;
+  const [, date, hour, minute, second = "00"] = match;
+  if (!isValidDate(date) || Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59) {
+    return undefined;
+  }
+  return `${date}T${hour}:${minute}:${second}+08:00`;
 }
 
 async function mapWithConcurrency<T, R>(
@@ -140,17 +150,19 @@ export class ValuationService {
     }
 
     const now = nowInShanghai();
-    return this.computeAndPersist(fundCode, {
+    const snapshot = await this.computeAndPersist(fundCode, {
       now,
       bucketIso: floorToBucketIso(now, getBucketSeconds(now))
     });
+    return toPublicSnapshot(snapshot);
   }
 
   async getBatchEstimates(fundCodes: string[]): Promise<BatchEstimateResponse> {
     const cacheKey = `estimate_batch:${fundCodes.slice().sort().join(",")}`;
     const cached = await this.cache.get<BatchEstimateResponse>(cacheKey);
     if (cached) {
-      return cached;
+      const now = nowInShanghai();
+      return { ...cached, data: cached.data.map((snapshot) => toPublicSnapshot(snapshot, now)) };
     }
 
     const results = await mapWithConcurrency<
@@ -168,10 +180,11 @@ export class ValuationService {
       }
     });
 
+    const now = nowInShanghai();
     const response: BatchEstimateResponse = {
       data: results
         .filter((item): item is { fundCode: string; snapshot: FundEstimateSnapshot } => Boolean(item.snapshot))
-        .map((item) => item.snapshot),
+        .map((item) => toPublicSnapshot(item.snapshot, now)),
       partialFailed: results.filter((item) => !item.snapshot).map((item) => item.fundCode)
     };
 
@@ -189,6 +202,7 @@ export class ValuationService {
       );
     }
 
+    const isToday = isSameShanghaiDay(realtime.quoteTime, options.now);
     const snapshot: StoredEstimate = {
       fundCode: realtime.fundCode,
       fundName: realtime.fundName,
@@ -197,8 +211,8 @@ export class ValuationService {
       estimateChangePct: realtime.estimateChangePct,
       baseNavDate: realtime.baseNavDate,
       estimateTime: realtime.quoteTime,
-      confidenceLevel: "HIGH",
-      confidenceScore: 100,
+      confidenceLevel: isToday ? "HIGH" : "LOW",
+      confidenceScore: isToday ? 100 : 0,
       method: "FUND_GZ_DIRECT",
       inputsStalenessSec: secondsStaleness(realtime.quoteTime, options.now),
       topHoldings: [],
@@ -212,12 +226,12 @@ export class ValuationService {
     };
 
     await this.repository.saveEstimate(snapshot);
-    const publicSnapshot = toPublicSnapshot(snapshot);
+    const publicSnapshot = toPublicSnapshot(snapshot, options.now);
     await this.cache.set(`estimate:${fundCode}`, publicSnapshot, ESTIMATE_CACHE_TTL);
     return publicSnapshot;
   }
 
-  private async fetchRealtimeEstimateFromFundGz(fundCode: string, now: Date): Promise<FundGzEstimate | undefined> {
+  private async fetchRealtimeEstimateFromFundGz(fundCode: string): Promise<FundGzEstimate | undefined> {
     const code = fundCode.trim();
     if (!/^\d{6}$/.test(code)) {
       return undefined;
@@ -225,9 +239,9 @@ export class ValuationService {
 
     const url = `https://fundgz.1234567.com.cn/js/${code}.js?rt=${Date.now()}`;
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FUND_GZ_TIMEOUT_MS);
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), FUND_GZ_TIMEOUT_MS);
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -237,8 +251,6 @@ export class ValuationService {
         },
         signal: controller.signal
       });
-      clearTimeout(timeout);
-
       if (!response.ok) {
         return undefined;
       }
@@ -263,14 +275,16 @@ export class ValuationService {
       const estimateNav = toFiniteNumber(payload.gsz);
       const changePctPercent = toFiniteNumber(payload.gszzl);
       const baseNavDate = typeof payload.jzrq === "string" ? payload.jzrq.trim() : "";
-      const quoteTime = parseFundGzTimeToIso(payload.gztime, now);
+      const quoteTime = parseFundGzTimeToIso(payload.gztime);
 
       if (
         payload.fundcode !== code ||
-        typeof payload.name !== "string" ||
-        !baseNavDate ||
+        typeof payload.name !== "string" || !payload.name.trim() ||
+        !isValidDate(baseNavDate) || !quoteTime ||
         typeof officialNav !== "number" ||
+        officialNav <= 0 ||
         typeof estimateNav !== "number" ||
+        estimateNav <= 0 ||
         typeof changePctPercent !== "number"
       ) {
         return undefined;
@@ -281,12 +295,14 @@ export class ValuationService {
         fundName: payload.name.trim(),
         officialNav,
         estimateNav,
-        estimateChangePct: Number((changePctPercent / 100).toFixed(6)),
+        estimateChangePct: Number((changePctPercent / 100).toFixed(6)) || 0,
         baseNavDate,
         quoteTime
       };
     } catch {
       return undefined;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }

@@ -151,6 +151,7 @@ export interface PortfolioSummary {
   totalProfitAmount: number;
   totalProfitPct: number;
   totalProfitDisplay: string;
+  dailyProfitAmount?: number;
   dailyProfitPct?: number;
   allFundsDailyUpdated: boolean;
   intradayEstimatePct?: number;
@@ -187,6 +188,7 @@ export interface PortfolioFundItem {
   fundName?: string;
   holdingAmount: number;
   estimateChangePct?: number;
+  estimateTime?: string;
   totalChangePct: number;
   intradayAmount?: number;
   totalProfitAmount: number;
@@ -205,6 +207,7 @@ export interface FlatFundItem {
   fundName?: string;
   holdingAmount: number;
   estimateChangePct?: number;
+  estimateTime?: string;
   totalChangePct: number;
   trend: TrendType;
   portfolioCount: number;

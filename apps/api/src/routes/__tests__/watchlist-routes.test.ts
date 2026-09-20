@@ -36,6 +36,7 @@ function createTempCtx(): TestCtx {
 interface EstimateSeed {
   estimateChangePct: number;
   baseNavDate?: string;
+  estimateTime?: string;
 }
 
 function toEstimateSeed(input: number | EstimateSeed): EstimateSeed {
@@ -50,7 +51,8 @@ function toEstimateSeed(input: number | EstimateSeed): EstimateSeed {
 function buildSnapshot(
   fundCode: string,
   estimateChangePct: number,
-  baseNavDate = "2026-03-02"
+  baseNavDate = "2026-03-02",
+  estimateTime = new Date().toISOString()
 ): FundEstimateSnapshot {
   return {
     fundCode,
@@ -59,7 +61,7 @@ function buildSnapshot(
     estimateNav: 1,
     estimateChangePct,
     baseNavDate,
-    estimateTime: "2026-03-02T02:00:00.000Z",
+    estimateTime,
     confidenceLevel: "HIGH",
     confidenceScore: 90,
     method: "FUND_GZ_DIRECT",
@@ -115,7 +117,7 @@ async function createRouteApp(
             .filter((code) => Object.prototype.hasOwnProperty.call(estimates, code))
             .map((code) => {
               const seed = toEstimateSeed(estimates[code]);
-              return buildSnapshot(code, seed.estimateChangePct, seed.baseNavDate);
+              return buildSnapshot(code, seed.estimateChangePct, seed.baseNavDate, seed.estimateTime);
             }),
           partialFailed: []
         };
@@ -124,7 +126,7 @@ async function createRouteApp(
       options?.serviceOverrides?.getOrComputeEstimate ??
       (async (fundCode: string) => {
         const seed = toEstimateSeed(estimates[fundCode] ?? 0);
-        return buildSnapshot(fundCode, seed.estimateChangePct, seed.baseNavDate);
+        return buildSnapshot(fundCode, seed.estimateChangePct, seed.baseNavDate, seed.estimateTime);
       })
   } as unknown as ValuationService;
 
@@ -853,6 +855,136 @@ describe("watchlist routes", () => {
     expect(summary?.dailyProfitPct).toBeUndefined();
     expect(summary?.intradayEstimatePct).toBeUndefined();
 
+    await app.close();
+  });
+
+  test.each(["POST", "PATCH"] as const)("recomputes pending holdings through the %s update route", async (method) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-03-18T06:00:00Z"));
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, { "000001": 0.01 });
+    const user = (await store.getUserByUsername("admin"))!;
+    const portfolio = await store.createPortfolio(user.id, "结算一致性", "FREE", 0);
+    await store.upsertPortfolioFund(user.id, {
+      portfolioId: portfolio.id, fundCode: "000001", holdingAmount: 1000, holdingProfitAmount: 100,
+    });
+    const fundUrl = `/v1/portfolios/${portfolio.id}/funds`;
+    const operation = await app.inject({
+      method: "POST", url: `${fundUrl}/000001/position-operations`,
+      payload: { operationType: "INCREASE", amount: 100 },
+    });
+    expect(operation.statusCode).toBe(201);
+    const update = await app.inject({
+      method, url: method === "POST" ? fundUrl : `${fundUrl}/000001`,
+      payload: { fundCode: "000001", holdingAmount: 2000, holdingProfitAmount: 200 },
+    });
+    expect(update.statusCode).toBe(200);
+    vi.setSystemTime(new Date("2026-03-19T01:00:00Z"));
+    const detail = (await app.inject({ method: "GET", url: fundUrl })).json();
+    expect(detail.funds[0]).toMatchObject({ holdingAmount: 2100, holdingProfitAmount: 200 });
+    await app.close();
+  });
+
+  test.each(["POST", "PATCH"] as const)("rejects %s holdings that exceed total assets after pending operations", async (method) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-03-18T06:00:00Z"));
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, { "000001": 0.01 });
+    const user = (await store.getUserByUsername("admin"))!;
+    const portfolio = await store.createPortfolio(user.id, "资产约束", "FREE", 1500);
+    await store.upsertPortfolioFund(user.id, { portfolioId: portfolio.id, fundCode: "000001", holdingAmount: 1000 });
+    await store.applyPositionOperation(user.id, {
+      portfolioId: portfolio.id, fundCode: "000001", operationType: "INCREASE", amount: 500,
+    });
+    const fundUrl = `/v1/portfolios/${portfolio.id}/funds`;
+    const update = await app.inject({
+      method, url: method === "POST" ? fundUrl : `${fundUrl}/000001`,
+      payload: { fundCode: "000001", holdingAmount: 1500 },
+    });
+    expect(update.statusCode).toBe(400);
+    expect((await app.inject({ method: "GET", url: fundUrl })).json().funds[0].holdingAmount).toBe(1000);
+    vi.setSystemTime(new Date("2026-03-19T01:00:00Z"));
+    expect((await app.inject({ method: "GET", url: fundUrl })).json().funds[0].holdingAmount).toBe(1500);
+    await app.close();
+  });
+
+  test.each([
+    { rate: 0.01, expected: 100 },
+    { rate: -0.01, expected: -100 },
+    { rate: 0, expected: 0 },
+  ])("uses the same daily amount in detail and summary for $rate", async ({ rate, expected }) => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, { "161725": rate });
+    const user = (await store.getUserByUsername("admin"))!;
+    const portfolio = await store.createPortfolio(user.id, "收益金额", "FREE", 0);
+    await store.upsertPortfolioFund(user.id, { portfolioId: portfolio.id, fundCode: "161725", holdingAmount: 10000 });
+
+    const detail = (await app.inject({ method: "GET", url: `/v1/portfolios/${portfolio.id}/funds` })).json();
+    const summary = (await app.inject({ method: "GET", url: "/v1/portfolios" })).json().portfolios
+      .find((item: { id: string }) => item.id === portfolio.id);
+    expect(detail.funds[0].dailyProfitAmount).toBe(expected);
+    expect(summary.dailyProfitAmount).toBe(expected);
+    expect(summary.dailyProfitPct).toBe(rate);
+    expect(summary.intradayEstimatePct).toBe(rate);
+    await app.close();
+  });
+
+  test("sums rounded fund amounts before calculating the portfolio daily rate", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const app = await createRouteApp(store, { "000001": 0.016, "000002": 0.016 });
+    const user = (await store.getUserByUsername("admin"))!;
+    const portfolio = await store.createPortfolio(user.id, "舍入收益", "FREE", 0);
+    for (const fundCode of ["000001", "000002"]) {
+      await store.upsertPortfolioFund(user.id, { portfolioId: portfolio.id, fundCode, holdingAmount: 1 });
+    }
+    const detail = (await app.inject({ method: "GET", url: `/v1/portfolios/${portfolio.id}/funds` })).json();
+    const summary = (await app.inject({ method: "GET", url: "/v1/portfolios" })).json().portfolios
+      .find((item: { id: string }) => item.id === portfolio.id);
+    expect(detail.funds.map((item: { dailyProfitAmount: number }) => item.dailyProfitAmount)).toEqual([0.02, 0.02]);
+    expect(summary.dailyProfitAmount).toBe(0.04);
+    expect(summary.dailyProfitPct).toBe(0.02);
+    expect(summary.intradayEstimatePct).toBe(0.02);
+    await app.close();
+  });
+
+  test.each(["stale", "missing"])("leaves daily summary unknown for a %s fund while retaining latest quotes", async (mode) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-03-18T01:00:00.000Z"));
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    const oldTime = "2026-03-17T07:00:00.000Z";
+    const app = await createRouteApp(store, {
+      "000001": 0.01,
+      ...(mode === "stale" ? { "000002": { estimateChangePct: -0.02, estimateTime: oldTime } } : {}),
+    });
+    const user = (await store.getUserByUsername("admin"))!;
+    const portfolio = await store.createPortfolio(user.id, "不完整行情", "FREE", 0);
+    for (const fundCode of ["000001", "000002"]) {
+      await store.upsertPortfolioFund(user.id, { portfolioId: portfolio.id, fundCode, holdingAmount: 10000 });
+    }
+    const detail = (await app.inject({ method: "GET", url: `/v1/portfolios/${portfolio.id}/funds` })).json();
+    const staleFund = detail.funds.find((item: { fundCode: string }) => item.fundCode === "000002");
+    expect(staleFund.dailyProfitAmount).toBeUndefined();
+    expect(staleFund.dailyProfitPct).toBeUndefined();
+    expect(staleFund.intradayAmount).toBeUndefined();
+    const summary = (await app.inject({ method: "GET", url: "/v1/portfolios" })).json().portfolios
+      .find((item: { id: string }) => item.id === portfolio.id);
+    expect(summary.dailyProfitAmount).toBeUndefined();
+    expect(summary.dailyProfitPct).toBeUndefined();
+    expect(summary.intradayEstimatePct).toBeUndefined();
+    if (mode === "stale") {
+      expect(staleFund.estimateChangePct).toBe(-0.02);
+      expect(staleFund.estimateTime).toBe(oldTime);
+      for (const expand of ["dedup", "expanded"]) {
+        const flat = (await app.inject({ method: "GET", url: `/v1/funds/flat?expand=${expand}` })).json();
+        expect(flat.items.find((item: { fundCode: string }) => item.fundCode === "000002"))
+          .toMatchObject({ estimateTime: oldTime, estimateChangePct: -0.02 });
+      }
+    }
     await app.close();
   });
 

@@ -15,7 +15,7 @@ import {
 } from "antd";
 import type { TableProps } from "antd";
 import { FlatExpandMode } from "@/lib/api";
-import { formatCurrency, formatSignedPct, trendTone } from "@/lib/format";
+import { formatCurrency, formatEstimateTime, formatSignedPct, trendTone } from "@/lib/format";
 import { useState, useMemo } from "react";
 
 const { Text } = Typography;
@@ -140,7 +140,16 @@ export function FlatFundsTable({
       render: (value, record) => {
         const tone = trendTone(record.trend);
         const color = getTrendColor(tone);
-        return <Tag color={color}>{formatSignedPct(value)}</Tag>;
+        return (
+          <div>
+            <Tag color={color}>{formatSignedPct(value)}</Tag>
+            {record.estimateTime && (
+              <Text type="secondary" style={{ display: "block", fontSize: 12 }}>
+                {formatEstimateTime(record.estimateTime)}
+              </Text>
+            )}
+          </div>
+        );
       },
       sorter: true,
     },
@@ -184,6 +193,9 @@ export function FlatFundsTable({
           }
         >
           <Space orientation="vertical" style={{ width: "100%" }}>
+            {item.estimateTime && (
+              <Text type="secondary">{formatEstimateTime(item.estimateTime)}</Text>
+            )}
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <Text type="secondary">代码</Text>
               <Text>{item.fundCode}</Text>

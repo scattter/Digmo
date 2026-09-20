@@ -19,8 +19,9 @@ import {
 } from "../infra/watchlist/sqlite-watchlist-store.js";
 import { ShareService } from "../modules/share/service.js";
 import { ValuationService } from "../modules/valuation/service.js";
+import { calcDailyProfitAmount, calcDailyProfitPct } from "../modules/valuation/profit.js";
 import { AppError } from "../utils/app-error.js";
-import { formatDate, nowInShanghai } from "../utils/time.js";
+import { isSameShanghaiDay, nowInShanghai } from "../utils/time.js";
 import { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
 
 interface RegisterWatchlistRoutesDeps {
@@ -277,40 +278,6 @@ function calcActualRatioAgainstTotalAsset(holdingAmount: number, totalAsset: num
   return Number((holdingAmount / totalAsset).toFixed(6));
 }
 
-function ensureTotalAssetCanCoverHoldings(totalAsset: number, holdingAmount: number): void {
-  if (totalAsset <= 0) {
-    return;
-  }
-  if (totalAsset + 0.000001 < holdingAmount) {
-    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "totalAsset must be >= current holding amount", 400);
-  }
-}
-
-async function getPortfolioHoldingSnapshot(store: WatchlistStore, userId: string, portfolioId: string): Promise<{
-  settledHoldingAmount: number;
-  projectedHoldingAmount: number;
-}> {
-  const [portfolioFunds, operations] = await Promise.all([
-    store.listPortfolioFunds(userId, portfolioId),
-    store.listPositionOperations(userId, portfolioId, { limit: 200 }),
-  ]);
-
-  const settledHoldingAmount = Number(
-    portfolioFunds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2),
-  );
-  const pendingDelta = Number(
-    operations
-      .filter((item) => item.status === "PENDING")
-      .reduce((sum, item) => sum + (item.afterHoldingAmount - item.beforeHoldingAmount), 0)
-      .toFixed(2),
-  );
-
-  return {
-    settledHoldingAmount,
-    projectedHoldingAmount: Number((settledHoldingAmount + pendingDelta).toFixed(2)),
-  };
-}
-
 async function chunkGetEstimates(
   service: ValuationService,
   fundCodes: string[]
@@ -395,15 +362,18 @@ async function buildPortfolioSummaries(
     fundStateMap.set(code, { totalChangePct: row.totalChangePct, lastAccumulatedNavDate: row.lastAccumulatedNavDate });
   }
 
+  const now = nowInShanghai();
   const grouped = new Map<string, PortfolioFundItem[]>();
   for (const item of portfolioFunds) {
     const estimate = estimateMap.get(item.fundCode);
     const fundState = fundStateMap.get(item.fundCode);
     const totalChangePct = fundState?.totalChangePct ?? 0;
-    const dailyProfitPct = estimate?.estimateChangePct;
+    const dailyProfitPct = estimate && isSameShanghaiDay(estimate.estimateTime, now)
+      ? estimate.estimateChangePct
+      : undefined;
     const dailyProfitAmount =
       typeof dailyProfitPct === "number"
-        ? Number((item.holdingAmount * dailyProfitPct).toFixed(2))
+        ? calcDailyProfitAmount(item.holdingAmount, dailyProfitPct)
         : undefined;
     const holdingProfitAmount = item.holdingProfitAmount;
     const holdingProfitPct = calcProfitPctByCost(item.holdingAmount, holdingProfitAmount);
@@ -418,11 +388,9 @@ async function buildPortfolioSummaries(
       fundName: estimate?.fundName,
       holdingAmount: item.holdingAmount,
       estimateChangePct: estimate?.estimateChangePct,
+      estimateTime: estimate?.estimateTime,
       totalChangePct,
-      intradayAmount:
-        typeof estimate?.estimateChangePct === "number"
-          ? Number((item.holdingAmount * estimate.estimateChangePct).toFixed(2))
-          : undefined,
+      intradayAmount: dailyProfitAmount,
       totalProfitAmount: holdingProfitAmount,
       holdingProfitAmount,
       holdingProfitPct,
@@ -447,24 +415,14 @@ async function buildPortfolioSummaries(
     const totalProfitAmount = Number(funds.reduce((sum, item) => sum + item.holdingProfitAmount, 0).toFixed(2));
     const totalCost = Number((totalAmount - totalProfitAmount).toFixed(2));
     const totalProfitPct = totalCost > 0 ? Number((totalProfitAmount / totalCost).toFixed(6)) : 0;
-    const hasCompleteDailyProfit = funds.length > 0 && funds.every((item) => typeof item.dailyProfitPct === "number");
-    const weightedDailyProfitAmount = hasCompleteDailyProfit
-      ? funds.reduce((sum, item) => sum + item.holdingAmount * (item.dailyProfitPct as number), 0)
-      : 0;
-    const dailyProfitPct =
-      totalAmount > 0 && hasCompleteDailyProfit
-        ? Number((weightedDailyProfitAmount / totalAmount).toFixed(6))
-        : undefined;
-
-    const hasCompleteIntradayEstimate =
-      funds.length > 0 && funds.every((item) => typeof item.estimateChangePct === "number");
-    const weightedIntradayAmount = hasCompleteIntradayEstimate
-      ? funds.reduce((sum, item) => sum + item.holdingAmount * (item.estimateChangePct as number), 0)
-      : 0;
-    const intradayEstimatePct =
-      totalAmount > 0 && hasCompleteIntradayEstimate
-        ? Number((weightedIntradayAmount / totalAmount).toFixed(6))
-        : undefined;
+    const hasCompleteDailyProfit = funds.length > 0 && funds.every((item) => typeof item.dailyProfitAmount === "number");
+    const dailyProfitAmount = hasCompleteDailyProfit
+      ? Number(funds.reduce((sum, item) => sum + (item.dailyProfitAmount as number), 0).toFixed(2))
+      : undefined;
+    const dailyProfitPct = totalAmount > 0 && typeof dailyProfitAmount === "number"
+      ? calcDailyProfitPct(dailyProfitAmount, totalAmount)
+      : undefined;
+    const intradayEstimatePct = dailyProfitPct;
 
     return {
       id: portfolio.id,
@@ -478,6 +436,7 @@ async function buildPortfolioSummaries(
       totalProfitAmount,
       totalProfitPct,
       totalProfitDisplay: `${formatSignedAmount(totalProfitAmount)} / ${formatSignedPct(totalProfitPct)}`,
+      ...(typeof dailyProfitAmount === "number" ? { dailyProfitAmount } : {}),
       ...(typeof dailyProfitPct === "number" ? { dailyProfitPct } : {}),
       allFundsDailyUpdated: false,
       ...(typeof intradayEstimatePct === "number" ? { intradayEstimatePct } : {})
@@ -526,6 +485,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
             totalProfitAmount: 0,
             totalProfitPct: 0,
             totalProfitDisplay: "0.00 / 0.00%",
+            dailyProfitAmount: 0,
             dailyProfitPct: 0,
             allFundsDailyUpdated: false,
             intradayEstimatePct: 0
@@ -628,14 +588,6 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       const totalAsset = hasTotalAsset ? parseTotalAsset(body?.totalAsset, false) : undefined;
 
       await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
-      if (typeof totalAsset === "number") {
-        const { projectedHoldingAmount } = await getPortfolioHoldingSnapshot(
-          deps.store,
-          userId,
-          params.portfolioId,
-        );
-        ensureTotalAssetCanCoverHoldings(totalAsset, projectedHoldingAmount);
-      }
 
       try {
         const updated = await deps.store.updatePortfolio(userId, params.portfolioId, {
@@ -677,14 +629,17 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       const resolvedTotalAsset = resolvePortfolioTotalAsset(portfolio.totalAsset, totalAmount);
       const cashSummary = calcCashSummary(resolvedTotalAsset, totalAmount);
 
+      const now = nowInShanghai();
       const funds = items.map((item) => {
         const estimate = estimateMap.get(item.fundCode);
         const fundState = fundStates.get(item.fundCode);
         const totalChangePct = fundState?.totalChangePct ?? 0;
-        const dailyProfitPct = estimate?.estimateChangePct;
+        const dailyProfitPct = estimate && isSameShanghaiDay(estimate.estimateTime, now)
+          ? estimate.estimateChangePct
+          : undefined;
         const dailyProfitAmount =
           typeof dailyProfitPct === "number"
-            ? Number((item.holdingAmount * dailyProfitPct).toFixed(2))
+            ? calcDailyProfitAmount(item.holdingAmount, dailyProfitPct)
             : undefined;
         const holdingProfitAmount = item.holdingProfitAmount;
         const holdingProfitPct = calcProfitPctByCost(item.holdingAmount, holdingProfitAmount);
@@ -698,11 +653,9 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
           fundName: estimate?.fundName,
           holdingAmount: item.holdingAmount,
           estimateChangePct: estimate?.estimateChangePct,
+          estimateTime: estimate?.estimateTime,
           totalChangePct,
-          intradayAmount:
-            typeof estimate?.estimateChangePct === "number"
-              ? Number((item.holdingAmount * estimate.estimateChangePct).toFixed(2))
-              : undefined,
+          intradayAmount: dailyProfitAmount,
           totalProfitAmount: holdingProfitAmount,
           holdingProfitAmount,
           holdingProfitPct,
@@ -784,17 +737,6 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
         }
       }
 
-      if (portfolio.totalAsset > 0) {
-        const portfolioFunds = await deps.store.listPortfolioFunds(userId, params.portfolioId);
-        const currentHoldingAmount = Number(
-          portfolioFunds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2)
-        );
-        const projectedHoldingAmount = Number(
-          (currentHoldingAmount - (existing?.holdingAmount ?? 0) + holdingAmount).toFixed(2)
-        );
-        ensureTotalAssetCanCoverHoldings(portfolio.totalAsset, projectedHoldingAmount);
-      }
-
       await deps.store.upsertPortfolioFund(userId, {
         portfolioId: params.portfolioId,
         fundCode,
@@ -858,17 +800,6 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
         plannedRatio = undefined;
       }
 
-      if (typeof holdingAmount === "number" && portfolio.totalAsset > 0) {
-        const portfolioFunds = await deps.store.listPortfolioFunds(userId, params.portfolioId);
-        const currentHoldingAmount = Number(
-          portfolioFunds.reduce((sum, item) => sum + item.holdingAmount, 0).toFixed(2)
-        );
-        const projectedHoldingAmount = Number(
-          (currentHoldingAmount - existing.holdingAmount + holdingAmount).toFixed(2)
-        );
-        ensureTotalAssetCanCoverHoldings(portfolio.totalAsset, projectedHoldingAmount);
-      }
-
       const input: UpdatePortfolioFundInput = {
         portfolioId: params.portfolioId,
         fundCode: params.fundCode,
@@ -888,7 +819,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
       const params = request.params as { portfolioId: string; fundCode: string };
       ensurePortfolioId(params.portfolioId);
       ensureFundCode(params.fundCode);
-      const portfolio = await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
+      await ensurePortfolioOrThrow(deps.store, userId, params.portfolioId);
 
       const body = request.body as {
         operationType?: unknown;
@@ -907,20 +838,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
         operationType,
         amount
       };
-      if (portfolio.totalAsset > 0) {
-        const { projectedHoldingAmount } = await getPortfolioHoldingSnapshot(
-          deps.store,
-          userId,
-          params.portfolioId,
-        );
-        const projectedAfterOperation = Number(
-          (
-            projectedHoldingAmount +
-            (operationType === "INCREASE" ? amount : -amount)
-          ).toFixed(2),
-        );
-        ensureTotalAssetCanCoverHoldings(portfolio.totalAsset, projectedAfterOperation);
-      }
+
       try {
         const operation = await deps.store.applyPositionOperation(userId, input);
         if (!operation) {
@@ -1038,6 +956,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
             fundName: estimate?.fundName,
             holdingAmount: row.holdingAmount,
             estimateChangePct: estimate?.estimateChangePct,
+            estimateTime: estimate?.estimateTime,
             totalChangePct,
             trend: trendFromEstimate(estimate?.estimateChangePct),
             portfolioCount: 1,
@@ -1071,6 +990,7 @@ export function registerWatchlistRoutes(app: FastifyInstance, deps: RegisterWatc
             fundName: estimate?.fundName,
             holdingAmount: 0,
             estimateChangePct: estimate?.estimateChangePct,
+            estimateTime: estimate?.estimateTime,
             totalChangePct,
             trend: trendFromEstimate(estimate?.estimateChangePct),
             portfolioCount: 0,

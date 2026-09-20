@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
   DecisionAiMode,
+  ERROR_CODES,
   PortfolioType,
   PositionOperationType,
   UserDecisionAiConfigSummary,
@@ -12,6 +13,7 @@ import {
 } from "@digmo/shared";
 import { hashPassword } from "../../modules/auth/password.js";
 import { getNextWorkingDaySettlementTime, isSettlementDue } from "../../utils/time.js";
+import { AppError } from "../../utils/app-error.js";
 
 export interface PortfolioItem {
   id: string;
@@ -404,11 +406,11 @@ function computeOperationSnapshot(input: {
   const amount = roundCurrency(input.amount);
 
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("amount must be greater than 0");
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "amount must be greater than 0", 400);
   }
 
   if (input.operationType === "DECREASE" && amount > beforeHoldingAmount) {
-    throw new Error("decrease amount exceeds current holding amount");
+    throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "decrease amount exceeds current holding amount", 400);
   }
 
   const afterHoldingAmount = roundCurrency(
@@ -1436,7 +1438,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
             AND fund_code = ?
             AND status = 'PENDING'
             AND deleted_at IS NULL
-          ORDER BY effective_at ASC, created_at ASC, id ASC
+          ORDER BY effective_at ASC, created_at ASC, rowid ASC
         `
       )
       .all(userId, portfolioId, fundCode) as unknown as PositionOperationRow[];
@@ -1522,7 +1524,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
         });
       } catch (error) {
         if (error instanceof Error && error.message.includes("exceeds current holding amount")) {
-          throw new Error("remaining pending operations exceed current holding amount");
+          throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "remaining pending operations exceed current holding amount", 400);
         }
         throw error;
       }
@@ -1545,6 +1547,33 @@ export class SqliteWatchlistStore implements WatchlistStore {
   }
 
   private settleDuePositionOperations(
+    userId: string,
+    options?: { portfolioId?: string; fundCode?: string }
+  ): void {
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      this.settleDuePositionOperationsInTransaction(userId, options);
+      this.db.exec("COMMIT;");
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  private runPortfolioMutation<T>(userId: string, portfolioId: string, mutate: () => T): T {
+    this.db.exec("BEGIN IMMEDIATE;");
+    try {
+      this.settleDuePositionOperationsInTransaction(userId, { portfolioId });
+      const result = mutate();
+      this.db.exec("COMMIT;");
+      return result;
+    } catch (error) {
+      this.db.exec("ROLLBACK;");
+      throw error;
+    }
+  }
+
+  private settleDuePositionOperationsInTransaction(
     userId: string,
     options?: { portfolioId?: string; fundCode?: string }
   ): void {
@@ -1584,7 +1613,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
             AND effective_at IS NOT NULL
             AND (? IS NULL OR portfolio_id = ?)
             AND (? IS NULL OR fund_code = ?)
-          ORDER BY effective_at ASC, created_at ASC, id ASC
+          ORDER BY effective_at ASC, created_at ASC, rowid ASC
         `
       )
       .all(
@@ -1610,34 +1639,27 @@ export class SqliteWatchlistStore implements WatchlistStore {
         WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
       `
     );
-    this.db.exec("BEGIN IMMEDIATE;");
-    try {
-      const appliedAt = now.toISOString();
-      for (const row of dueRows) {
-        updateFundStmt.run(
-          row.afterHoldingAmount,
-          row.afterHoldingProfitAmount,
-          appliedAt,
-          userId,
-          row.portfolioId,
-          row.fundCode
-        );
-        this.db
-          .prepare(
-            `
-              UPDATE user_portfolio_fund_operation
-              SET
-                status = 'APPLIED',
-                applied_at = ?
-              WHERE id = ?
-            `
-          )
-          .run(appliedAt, row.id);
-      }
-      this.db.exec("COMMIT;");
-    } catch (error) {
-      this.db.exec("ROLLBACK;");
-      throw error;
+    const appliedAt = now.toISOString();
+    for (const row of dueRows) {
+      updateFundStmt.run(
+        row.afterHoldingAmount,
+        row.afterHoldingProfitAmount,
+        appliedAt,
+        userId,
+        row.portfolioId,
+        row.fundCode
+      );
+      this.db
+        .prepare(
+          `
+            UPDATE user_portfolio_fund_operation
+            SET
+              status = 'APPLIED',
+              applied_at = ?
+            WHERE id = ?
+          `
+        )
+        .run(appliedAt, row.id);
     }
   }
 
@@ -2129,6 +2151,31 @@ export class SqliteWatchlistStore implements WatchlistStore {
     return roundCurrency(row?.totalHoldingAmount ?? 0);
   }
 
+  private ensurePortfolioAssetsCoverHoldings(userId: string, portfolioId: string): void {
+    const portfolio = this.db
+      .prepare("SELECT total_asset AS totalAsset FROM user_portfolio WHERE user_id = ? AND id = ?")
+      .get(userId, portfolioId) as { totalAsset: number } | undefined;
+    if (!portfolio || portfolio.totalAsset <= 0) {
+      return;
+    }
+
+    const settledHoldingAmount = this.getPortfolioHoldingAmountTotal(userId, portfolioId);
+    // 金额校验必须包含全部待结算操作，不能受操作历史的分页条数限制。
+    const pending = this.db
+      .prepare(
+        `
+          SELECT COALESCE(SUM(CASE WHEN operation_type = 'INCREASE' THEN amount ELSE -amount END), 0) AS amount
+          FROM user_portfolio_fund_operation
+          WHERE user_id = ? AND portfolio_id = ? AND status = 'PENDING' AND deleted_at IS NULL
+        `
+      )
+      .get(userId, portfolioId) as { amount: number };
+    const projectedHoldingAmount = roundCurrency(settledHoldingAmount + pending.amount);
+    if (portfolio.totalAsset + 0.000001 < Math.max(settledHoldingAmount, projectedHoldingAmount)) {
+      throw new AppError(ERROR_CODES.INVALID_PORTFOLIO, "totalAsset must be >= current holding amount", 400);
+    }
+  }
+
   async createPortfolio(userId: string, name: string, type: PortfolioType, totalAsset = 0): Promise<PortfolioItem> {
     const id = randomUUID();
     const shareCode = this.nextUniqueShareCodeSync();
@@ -2180,17 +2227,23 @@ export class SqliteWatchlistStore implements WatchlistStore {
       return false;
     }
 
-    const result = this.db
-      .prepare(
-        `
-          UPDATE user_portfolio
-          SET ${assignments.join(", ")}, updated_at = CURRENT_TIMESTAMP
-          WHERE user_id = ? AND id = ?
-        `
-      )
-      .run(...values, userId, portfolioId) as SqliteRunResult;
+    const update = () => {
+      const result = this.db
+        .prepare(
+          `
+            UPDATE user_portfolio
+            SET ${assignments.join(", ")}, updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = ? AND id = ?
+          `
+        )
+        .run(...values, userId, portfolioId) as SqliteRunResult;
+      if (typeof input.totalAsset === "number") {
+        this.ensurePortfolioAssetsCoverHoldings(userId, portfolioId);
+      }
+      return toChanges(result) > 0;
+    };
 
-    return toChanges(result) > 0;
+    return typeof input.totalAsset === "number" ? this.runPortfolioMutation(userId, portfolioId, update) : update();
   }
 
   async deletePortfolio(userId: string, portfolioId: string): Promise<boolean> {
@@ -2426,7 +2479,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
   }
 
   async getPortfolioFund(userId: string, portfolioId: string, fundCode: string): Promise<PortfolioFundItem | undefined> {
-    this.settleDuePositionOperations(userId, { portfolioId, fundCode });
+    // 写入前的存在性检查不能提前提交结算；结算由写事务或列表读取触发。
     const row = this.db
       .prepare(
         `
@@ -2459,7 +2512,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
     return this.toPortfolioFund(row);
   }
 
-  private async getNextDisplayOrder(userId: string, portfolioId: string): Promise<number> {
+  private getNextDisplayOrder(userId: string, portfolioId: string): number {
     const row = this.db
       .prepare(
         `
@@ -2474,50 +2527,51 @@ export class SqliteWatchlistStore implements WatchlistStore {
   }
 
   async upsertPortfolioFund(userId: string, input: UpsertPortfolioFundInput): Promise<void> {
-    await this.ensureFundState(userId, input.fundCode);
-    const nextDisplayOrder = await this.getNextDisplayOrder(userId, input.portfolioId);
-    const holdingProfitAmount = typeof input.holdingProfitAmount === "number" ? input.holdingProfitAmount : null;
-
-    this.db
-      .prepare(
-        `
-          INSERT INTO user_portfolio_fund (
-            user_id,
-            portfolio_id,
-            fund_code,
-            display_order,
-            holding_amount,
-            holding_profit_amount,
-            planned_ratio,
-            created_at,
-            updated_at
+    this.runPortfolioMutation(userId, input.portfolioId, () => {
+      this.ensureFundStateSync(userId, input.fundCode);
+      if (!this.updatePortfolioFundInTransaction(userId, input)) {
+        this.db
+          .prepare(
+            `
+              INSERT INTO user_portfolio_fund (
+                user_id,
+                portfolio_id,
+                fund_code,
+                display_order,
+                holding_amount,
+                holding_profit_amount,
+                planned_ratio,
+                created_at,
+                updated_at
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `
           )
-          VALUES (?, ?, ?, ?, ?, COALESCE(?, 0), ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          ON CONFLICT(user_id, portfolio_id, fund_code) DO UPDATE SET
-            holding_amount = excluded.holding_amount,
-            holding_profit_amount = CASE
-              WHEN ? IS NULL THEN user_portfolio_fund.holding_profit_amount
-              ELSE ?
-            END,
-            planned_ratio = excluded.planned_ratio,
-            updated_at = CURRENT_TIMESTAMP
-        `
-      )
-      .run(
-        userId,
-        input.portfolioId,
-        input.fundCode,
-        nextDisplayOrder,
-        input.holdingAmount,
-        holdingProfitAmount,
-        input.plannedRatio ?? null,
-        holdingProfitAmount,
-        holdingProfitAmount
-      );
+          .run(
+            userId,
+            input.portfolioId,
+            input.fundCode,
+            this.getNextDisplayOrder(userId, input.portfolioId),
+            input.holdingAmount,
+            input.holdingProfitAmount ?? 0,
+            input.plannedRatio ?? null
+          );
+      }
+      this.ensurePortfolioAssetsCoverHoldings(userId, input.portfolioId);
+    });
   }
 
   async updatePortfolioFund(userId: string, input: UpdatePortfolioFundInput): Promise<boolean> {
-    this.settleDuePositionOperations(userId, { portfolioId: input.portfolioId, fundCode: input.fundCode });
+    return this.runPortfolioMutation(userId, input.portfolioId, () => {
+      const updated = this.updatePortfolioFundInTransaction(userId, input);
+      if (updated) {
+        this.ensurePortfolioAssetsCoverHoldings(userId, input.portfolioId);
+      }
+      return updated;
+    });
+  }
+
+  private updatePortfolioFundInTransaction(userId: string, input: UpdatePortfolioFundInput): boolean {
     const current = this.getPortfolioFundStateSync(userId, input.portfolioId, input.fundCode);
     if (!current) {
       return false;
@@ -2528,49 +2582,39 @@ export class SqliteWatchlistStore implements WatchlistStore {
       typeof input.holdingProfitAmount === "number" ? input.holdingProfitAmount : current.holdingProfitAmount;
     const nextPlannedRatio = input.plannedRatio;
 
-    this.db.exec("BEGIN IMMEDIATE;");
-    try {
-      this.db
-        .prepare(
-          `
-            UPDATE user_portfolio_fund
-            SET
-              holding_amount = ?,
-              holding_profit_amount = ?,
-              planned_ratio = ?,
-              updated_at = CURRENT_TIMESTAMP
-            WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
-          `
-        )
-        .run(nextHoldingAmount, nextHoldingProfitAmount, nextPlannedRatio ?? null, userId, input.portfolioId, input.fundCode);
+    this.db
+      .prepare(
+        `
+          UPDATE user_portfolio_fund
+          SET
+            holding_amount = ?,
+            holding_profit_amount = ?,
+            planned_ratio = ?,
+            updated_at = CURRENT_TIMESTAMP
+          WHERE user_id = ? AND portfolio_id = ? AND fund_code = ?
+        `
+      )
+      .run(nextHoldingAmount, nextHoldingProfitAmount, nextPlannedRatio ?? null, userId, input.portfolioId, input.fundCode);
 
-      this.recomputePendingOperationsInTransaction(userId, input.portfolioId, input.fundCode, {
-        holdingAmount: nextHoldingAmount,
-        holdingProfitAmount: nextHoldingProfitAmount
-      });
+    this.recomputePendingOperationsInTransaction(userId, input.portfolioId, input.fundCode, {
+      holdingAmount: nextHoldingAmount,
+      holdingProfitAmount: nextHoldingProfitAmount
+    });
 
-      this.db.exec("COMMIT;");
-      return true;
-    } catch (error) {
-      this.db.exec("ROLLBACK;");
-      throw error;
-    }
+    return true;
   }
 
   async applyPositionOperation(userId: string, input: PositionOperationInput): Promise<PositionOperationItem | undefined> {
-    this.settleDuePositionOperations(userId, { portfolioId: input.portfolioId, fundCode: input.fundCode });
-    const current = this.getPortfolioFundStateSync(userId, input.portfolioId, input.fundCode);
-    if (!current) {
-      return undefined;
-    }
+    return this.runPortfolioMutation(userId, input.portfolioId, () => {
+      const current = this.getPortfolioFundStateSync(userId, input.portfolioId, input.fundCode);
+      if (!current) {
+        return undefined;
+      }
 
-    const amount = roundCurrency(input.amount);
-
-    const operationId = randomUUID();
-    const now = new Date().toISOString();
-    const effectiveAt = getNextWorkingDaySettlementTime(new Date()).toISOString();
-    this.db.exec("BEGIN IMMEDIATE;");
-    try {
+      const amount = roundCurrency(input.amount);
+      const operationId = randomUUID();
+      const now = new Date().toISOString();
+      const effectiveAt = getNextWorkingDaySettlementTime(new Date()).toISOString();
       const projectedState = this.recomputePendingOperationsInTransaction(userId, input.portfolioId, input.fundCode, {
         holdingAmount: current.holdingAmount,
         holdingProfitAmount: current.holdingProfitAmount
@@ -2639,7 +2683,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
           now
         );
 
-      this.db.exec("COMMIT;");
+      this.ensurePortfolioAssetsCoverHoldings(userId, input.portfolioId);
       return {
         id: operationId,
         portfolioId: input.portfolioId,
@@ -2654,10 +2698,7 @@ export class SqliteWatchlistStore implements WatchlistStore {
         effectiveAt,
         createdAt: now
       };
-    } catch (error) {
-      this.db.exec("ROLLBACK;");
-      throw error;
-    }
+    });
   }
 
   async deletePositionOperation(
@@ -2666,38 +2707,36 @@ export class SqliteWatchlistStore implements WatchlistStore {
     fundCode: string,
     operationId: string
   ): Promise<DeletePositionOperationResult | undefined> {
-    this.settleDuePositionOperations(userId, { portfolioId, fundCode });
-    const target = this.getPositionOperationRow(userId, portfolioId, fundCode, operationId);
-    if (!target || target.deletedAt) {
-      return undefined;
-    }
+    return this.runPortfolioMutation(userId, portfolioId, () => {
+      const target = this.getPositionOperationRow(userId, portfolioId, fundCode, operationId);
+      if (!target || target.deletedAt) {
+        return undefined;
+      }
 
-    const now = new Date().toISOString();
-    if (target.status === "APPLIED") {
-      this.db
-        .prepare(
-          `
-            UPDATE user_portfolio_fund_operation
-            SET manual_canceled_at = COALESCE(manual_canceled_at, ?)
-            WHERE id = ?
-          `
-        )
-        .run(now, operationId);
+      const now = new Date().toISOString();
+      if (target.status === "APPLIED") {
+        this.db
+          .prepare(
+            `
+              UPDATE user_portfolio_fund_operation
+              SET manual_canceled_at = COALESCE(manual_canceled_at, ?)
+              WHERE id = ?
+            `
+          )
+          .run(now, operationId);
 
-      const updated = this.getPositionOperationRow(userId, portfolioId, fundCode, operationId);
-      return {
-        effect: "MARKED_MANUAL_CANCEL",
-        ...(updated ? { operation: this.toPositionOperation(updated) } : {})
-      };
-    }
+        const updated = this.getPositionOperationRow(userId, portfolioId, fundCode, operationId);
+        return {
+          effect: "MARKED_MANUAL_CANCEL",
+          ...(updated ? { operation: this.toPositionOperation(updated) } : {})
+        };
+      }
 
-    const baseState = this.getPortfolioFundStateSync(userId, portfolioId, fundCode);
-    if (!baseState) {
-      return undefined;
-    }
+      const baseState = this.getPortfolioFundStateSync(userId, portfolioId, fundCode);
+      if (!baseState) {
+        return undefined;
+      }
 
-    this.db.exec("BEGIN IMMEDIATE;");
-    try {
       this.db
         .prepare(
           `
@@ -2709,14 +2748,11 @@ export class SqliteWatchlistStore implements WatchlistStore {
         .run(now, operationId);
 
       this.recomputePendingOperationsInTransaction(userId, portfolioId, fundCode, baseState);
-      this.db.exec("COMMIT;");
+      this.ensurePortfolioAssetsCoverHoldings(userId, portfolioId);
       return {
         effect: "REMOVED"
       };
-    } catch (error) {
-      this.db.exec("ROLLBACK;");
-      throw error;
-    }
+    });
   }
 
   async listPositionOperations(
@@ -3098,6 +3134,10 @@ export class SqliteWatchlistStore implements WatchlistStore {
   }
 
   async ensureFundState(userId: string, fundCode: string): Promise<void> {
+    this.ensureFundStateSync(userId, fundCode);
+  }
+
+  private ensureFundStateSync(userId: string, fundCode: string): void {
     this.db
       .prepare(
         `

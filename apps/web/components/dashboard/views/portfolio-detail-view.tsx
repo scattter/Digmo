@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
   DailyDecision,
   DecisionDocFormat,
@@ -83,14 +83,26 @@ export function PortfolioDetailView({
   const [decisionHistory, setDecisionHistory] = useState<DailyDecision[]>([]);
   const [isDecisionHistoryDialogOpen, setIsDecisionHistoryDialogOpen] = useState(false);
   const [isDecisionHistoryLoading, setIsDecisionHistoryLoading] = useState(false);
-  const [isDecisionLoading, setIsDecisionLoading] = useState(false);
+  const [isDecisionLoading, setIsDecisionLoading] = useState(true);
   const [isDecisionDocSubmitting, setIsDecisionDocSubmitting] = useState(false);
   const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
   const [isDecisionDrawerOpen, setIsDecisionDrawerOpen] = useState(false);
   const [isTotalAssetDialogOpen, setIsTotalAssetDialogOpen] = useState(false);
   const [totalAssetInput, setTotalAssetInput] = useState("");
   const isMobile = useIsMobile();
-  const isDecisionBusy = isBusy || isDecisionDocSubmitting || isGeneratingSuggestion;
+  const isDecisionBusy = isBusy || isDecisionLoading || isDecisionDocSubmitting || isGeneratingSuggestion;
+  const mounted = useRef(true);
+  const artifactsRequest = useRef({ sequence: 0, controller: undefined as AbortController | undefined });
+  const historyRequest = useRef({ sequence: 0, controller: undefined as AbortController | undefined });
+  const uploadSequence = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      artifactsRequest.current.controller?.abort();
+      historyRequest.current.controller?.abort();
+    };
+  }, []);
   const hasActiveDecisionDoc = typeof decisionDocVersion === "number";
   const displayTotalAsset = typeof portfolio.totalAsset === "number" ? portfolio.totalAsset : portfolio.totalAmount;
   const displayCashAmount =
@@ -105,28 +117,36 @@ export function PortfolioDetailView({
         : 0;
 
   const loadDecisionArtifacts = useCallback(async () => {
+    artifactsRequest.current.controller?.abort();
+    const controller = new AbortController();
+    const sequence = ++artifactsRequest.current.sequence;
+    artifactsRequest.current.controller = controller;
+    const isCurrent = () => mounted.current && !controller.signal.aborted &&
+      artifactsRequest.current.sequence === sequence;
     setIsDecisionLoading(true);
     try {
       const [doc, latest] = await Promise.all([
-        fetchDecisionDoc(portfolio.id),
-        fetchLatestDailyDecision(portfolio.id)
+        fetchDecisionDoc(portfolio.id, controller.signal),
+        fetchLatestDailyDecision(portfolio.id, controller.signal)
       ]);
+      if (!isCurrent()) return;
       setDecisionDocSourceFileName(doc?.sourceFileName);
       setDecisionDocContent(doc?.content ?? "");
       setDecisionDocFormat(doc?.format ?? "TEXT");
       setDecisionDocVersion(doc?.version);
       setLatestDecision(latest);
     } catch (error) {
+      if (!isCurrent()) return;
       const text = error instanceof Error ? error.message : "加载决策数据失败";
       message.error(text);
     } finally {
-      setIsDecisionLoading(false);
+      if (isCurrent()) setIsDecisionLoading(false);
     }
   }, [message, portfolio.id]);
 
   useEffect(() => {
     void loadDecisionArtifacts();
-    setDecisionHistory([]);
+    return () => artifactsRequest.current.controller?.abort();
   }, [loadDecisionArtifacts]);
 
   useEffect(() => {
@@ -134,7 +154,9 @@ export function PortfolioDetailView({
   }, [displayTotalAsset, portfolio.id]);
 
   async function onUploadDecisionDoc(file: File) {
+    const sequence = ++uploadSequence.current;
     const content = await file.text();
+    if (!mounted.current || sequence !== uploadSequence.current) return;
     const normalized = content.trim();
     if (!normalized) {
       message.error("上传文件内容为空");
@@ -163,16 +185,18 @@ export function PortfolioDetailView({
         format: decisionDocFormat,
         sourceFileName: decisionDocSourceFileName
       });
+      if (!mounted.current) return;
       setDecisionDocSourceFileName(doc.sourceFileName);
       setDecisionDocContent(doc.content);
       setDecisionDocFormat(doc.format);
       setDecisionDocVersion(doc.version);
       message.success("策略文档已保存");
     } catch (error) {
+      if (!mounted.current) return;
       const text = error instanceof Error ? error.message : "保存策略文档失败";
       message.error(text);
     } finally {
-      setIsDecisionDocSubmitting(false);
+      if (mounted.current) setIsDecisionDocSubmitting(false);
     }
   }
 
@@ -191,10 +215,15 @@ export function PortfolioDetailView({
     setIsGeneratingSuggestion(true);
     try {
       const decision = await generateDailyDecision(portfolio.id);
+      if (!mounted.current) return;
+      historyRequest.current.sequence += 1;
+      historyRequest.current.controller?.abort();
+      setIsDecisionHistoryLoading(false);
       setLatestDecision(decision);
       setDecisionHistory((prev) => [decision, ...prev.filter((item) => item.id !== decision.id)]);
       message.success("今日建议已生成");
     } catch (error) {
+      if (!mounted.current) return;
       if (error instanceof ApiResponseError && error.code === "DECISION_AI_CONFIG_REQUIRED") {
         message.warning("当前还未配置个人 AI 模型，请先完成配置");
         onOpenDecisionAiConfig();
@@ -203,20 +232,27 @@ export function PortfolioDetailView({
       const text = error instanceof Error ? error.message : "生成今日建议失败";
       message.error(text);
     } finally {
-      setIsGeneratingSuggestion(false);
+      if (mounted.current) setIsGeneratingSuggestion(false);
     }
   }
 
   async function loadDecisionHistory() {
+    historyRequest.current.controller?.abort();
+    const controller = new AbortController();
+    const sequence = ++historyRequest.current.sequence;
+    historyRequest.current.controller = controller;
+    const isCurrent = () => mounted.current && !controller.signal.aborted &&
+      historyRequest.current.sequence === sequence;
     setIsDecisionHistoryLoading(true);
     try {
-      const history = await fetchDailyDecisionHistory(portfolio.id, 100);
-      setDecisionHistory(history);
+      const history = await fetchDailyDecisionHistory(portfolio.id, 100, controller.signal);
+      if (isCurrent()) setDecisionHistory(history);
     } catch (error) {
+      if (!isCurrent()) return;
       const text = error instanceof Error ? error.message : "加载建议历史失败";
       message.error(text);
     } finally {
-      setIsDecisionHistoryLoading(false);
+      if (isCurrent()) setIsDecisionHistoryLoading(false);
     }
   }
 
@@ -227,7 +263,7 @@ export function PortfolioDetailView({
 
   async function onSubmitTotalAsset() {
     await onUpdatePortfolioTotalAsset(portfolio, totalAssetInput);
-    setIsTotalAssetDialogOpen(false);
+    if (mounted.current) setIsTotalAssetDialogOpen(false);
   }
 
   const ratioAnalysis: RatioAnalysisRow[] = useMemo(() => {
@@ -237,12 +273,10 @@ export function PortfolioDetailView({
         if (typeof fund.plannedRatio !== 'number' || typeof fund.actualRatio !== 'number') return null;
         
         const estimateChangePct =
-          typeof fund.estimateChangePct === 'number' ? fund.estimateChangePct : undefined;
+          typeof fund.dailyProfitPct === 'number' ? fund.dailyProfitPct : undefined;
         const intradayAmount = typeof fund.intradayAmount === 'number' 
            ? fund.intradayAmount 
-           : typeof estimateChangePct === 'number'
-             ? Number((fund.holdingAmount * estimateChangePct).toFixed(2))
-             : undefined;
+           : undefined;
            
         const row: RatioAnalysisRow = {
            fundCode: fund.fundCode,

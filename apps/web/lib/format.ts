@@ -57,6 +57,16 @@ export function formatBeijingTime(input: string): string {
   return new Date(input).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" });
 }
 
+export function formatEstimateTime(input: string | undefined, now = new Date()): string {
+  if (!input || !Number.isFinite(new Date(input).getTime())) {
+    return "";
+  }
+  const dateOptions: Intl.DateTimeFormatOptions = { timeZone: "Asia/Shanghai" };
+  const isToday = new Date(input).toLocaleDateString("zh-CN", dateOptions) ===
+    now.toLocaleDateString("zh-CN", dateOptions);
+  return `${isToday ? "行情时间" : "最近行情"} ${formatBeijingTime(input)}`;
+}
+
 export function parseNonNegativeNumber(raw: string): number | undefined {
   const normalized = raw.trim().replace(/,/g, "");
   if (!normalized) {

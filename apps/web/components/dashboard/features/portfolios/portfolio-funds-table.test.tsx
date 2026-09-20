@@ -7,6 +7,7 @@ import { PortfolioFundsTable } from "./portfolio-funds-table";
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
 function buildFund(overrides: Partial<PortfolioFundItem>): PortfolioFundItem {
@@ -109,9 +110,8 @@ describe("PortfolioFundsTable", () => {
       ],
     });
 
-    expect(screen.getByText("已配置 70.00% · 现金/待配置 30.00%")).toBeInTheDocument();
+    expect(screen.getByText("· 现金 30.00%")).toBeInTheDocument();
     expect(screen.getByText("现金 / 待配置")).toBeInTheDocument();
-    expect(screen.getByText("按比例组合剩余仓位")).toBeInTheDocument();
 
     const cashRow = screen.getByText("现金 / 待配置").closest("tr");
     expect(cashRow).not.toBeNull();
@@ -129,7 +129,7 @@ describe("PortfolioFundsTable", () => {
       ],
     });
 
-    expect(screen.getByText("已配置 100.00% · 已满配")).toBeInTheDocument();
+    expect(screen.getByText("· 已满配")).toBeInTheDocument();
     expect(screen.queryByText("现金 / 待配置")).not.toBeInTheDocument();
   });
 
@@ -150,4 +150,31 @@ describe("PortfolioFundsTable", () => {
     expect(screen.queryByText(/现金\/待配置/)).not.toBeInTheDocument();
     expect(screen.queryByText(/已配置/)).not.toBeInTheDocument();
   });
+  it("keeps an old quote visible without calculating today's profit from it", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-03-18T02:00:00Z"));
+    renderTable({
+      portfolioType: "FREE",
+      funds: [buildFund({
+        portfolioType: "FREE",
+        holdingAmount: 10000,
+        dailyProfitAmount: undefined,
+        dailyProfitPct: undefined,
+        intradayAmount: undefined,
+        estimateTime: "2026-03-17T07:00:00Z",
+      })],
+    });
+    expect(screen.getByText(/最近行情/)).toHaveTextContent("+1.00%");
+    expect(screen.queryByText("+¥100.00")).not.toBeInTheDocument();
+  });
+
+  it("uses the server daily amount without recalculating it from the estimate", () => {
+    renderTable({
+      portfolioType: "FREE",
+      funds: [buildFund({ portfolioType: "FREE", holdingAmount: 10000, dailyProfitAmount: 100 })],
+    });
+    expect(screen.getByText("+¥100.00")).toBeInTheDocument();
+    expect(screen.queryByText("+¥99.01")).not.toBeInTheDocument();
+  });
+
 });

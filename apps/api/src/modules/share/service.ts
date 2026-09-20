@@ -66,6 +66,7 @@ function toSummary(portfolio: PortfolioItem, fundCount: number): PortfolioSummar
     totalProfitAmount: 0,
     totalProfitPct: 0,
     totalProfitDisplay: "0.00 / 0.00%",
+    dailyProfitAmount: 0,
     dailyProfitPct: 0,
     allFundsDailyUpdated: false,
     intradayEstimatePct: 0,
