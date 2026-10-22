@@ -1,0 +1,21 @@
+[    1295ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://www.kujiale.com/minicommon/api/get/one/solution?solutionId=5:0
+[    1295ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://www.kujiale.com/minicommon/api/platform/user/check?solutionId=5:0
+[    1509ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:42:52.339] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(488)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:0
+[    1512ms] [WARNING] The key "user-scale" is not recognized and ignored. @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:5
+[    1610ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:0
+[    1611ms] [LOG] cookie:     {} qhdi=8a55b41137d511f1848ff9340cac7a19; Hm_lvt_bd8fd4c378d7721976f466053bd4a855=1776152572; Hm_lpvt_bd8fd4c378d7721976f466053bd4a855=1776152572; HMACCOUNT=B87838EA551926CC; _ga=GA1.2.1365866692.1776152572; _gid=GA1.2.1241603543.1776152572; _gat=1 @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:58
+[    1662ms] [LOG] auto login fail @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:94
+[   79840ms] [WARNING] The key "user-scale" is not recognized and ignored. @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:5
+[   79901ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:0
+[   79902ms] [LOG] cookie:     {} qhdi=8a55b41137d511f1848ff9340cac7a19; Hm_lvt_bd8fd4c378d7721976f466053bd4a855=1776152572; Hm_lpvt_bd8fd4c378d7721976f466053bd4a855=1776152572; HMACCOUNT=B87838EA551926CC; _ga=GA1.2.1365866692.1776152572; _gid=GA1.2.1241603543.1776152572 @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:58
+[   79952ms] [LOG] auto login fail @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:94

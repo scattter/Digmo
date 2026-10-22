@@ -1,0 +1,465 @@
+"use client";
+
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import {
+  DailyDecision,
+  DecisionDocFormat,
+  PortfolioSummary,
+  PortfolioFundItem,
+  PositionOperationType
+} from "@/shared";
+import {
+  fetchDailyDecisionHistory,
+  fetchDecisionDoc,
+  fetchLatestDailyDecision,
+  generateDailyDecision,
+  upsertDecisionDoc,
+  ApiResponseError
+} from "@/lib/api";
+import { PlanCompletionCard } from "../cards/plan-completion-card";
+import { PortfolioFundsTable } from "../features/portfolios/portfolio-funds-table";
+import { DailyDecisionPanel } from "../features/decision/daily-decision-panel";
+import { DecisionHistoryDialog } from "../dialogs/decision-history-dialog";
+import { Card, Typography, Button, Modal, App, Spin, Input } from "antd";
+import { FundEditState } from "@/lib/format";
+import { DragEndEvent } from "@dnd-kit/core";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { formatCurrency } from "@/lib/format";
+
+const { Title, Text } = Typography;
+
+interface RatioAnalysisRow {
+  fundCode: string;
+  fundName: string;
+  plannedRatio: number;
+  actualRatio: number;
+  estimateChangePct?: number;
+  intradayAmount?: number;
+}
+
+interface PortfolioDetailViewProps {
+  portfolio: PortfolioSummary;
+  funds: PortfolioFundItem[];
+  editStateMap: Map<string, FundEditState>;
+  onEditFieldChange: (fundCode: string, key: keyof FundEditState, value: string) => void;
+  onUpdateFund: (item: PortfolioFundItem) => Promise<void>;
+  onOperateFund: (item: PortfolioFundItem, input: { operationType: PositionOperationType; amountRaw: string }) => Promise<void>;
+  onDeleteFund: (item: PortfolioFundItem) => void;
+  onDragEnd: (event: DragEndEvent) => void;
+  onOpenAddFundDialog: () => void;
+  onOpenShareDialog: () => void;
+  onDeletePortfolio: () => void;
+  onUpdatePortfolioTotalAsset: (portfolio: PortfolioSummary, totalAssetRaw: string) => Promise<void>;
+  onOpenDecisionAiConfig: () => void;
+  isBusy: boolean;
+  isLoading: boolean;
+  decisionAiConfigured: boolean;
+}
+
+export function PortfolioDetailView({
+  portfolio,
+  funds,
+  editStateMap,
+  onEditFieldChange,
+  onUpdateFund,
+  onOperateFund,
+  onDeleteFund,
+  onDragEnd,
+  onOpenAddFundDialog,
+  onOpenShareDialog,
+  onDeletePortfolio,
+  onUpdatePortfolioTotalAsset,
+  onOpenDecisionAiConfig,
+  isBusy,
+  isLoading,
+  decisionAiConfigured,
+}: PortfolioDetailViewProps) {
+  const { message } = App.useApp();
+  const [decisionDocSourceFileName, setDecisionDocSourceFileName] = useState<string | undefined>(undefined);
+  const [decisionDocContent, setDecisionDocContent] = useState("");
+  const [decisionDocFormat, setDecisionDocFormat] = useState<DecisionDocFormat>("TEXT");
+  const [decisionDocVersion, setDecisionDocVersion] = useState<number | undefined>(undefined);
+  const [latestDecision, setLatestDecision] = useState<DailyDecision | null>(null);
+  const [decisionHistory, setDecisionHistory] = useState<DailyDecision[]>([]);
+  const [isDecisionHistoryDialogOpen, setIsDecisionHistoryDialogOpen] = useState(false);
+  const [isDecisionHistoryLoading, setIsDecisionHistoryLoading] = useState(false);
+  const [isDecisionLoading, setIsDecisionLoading] = useState(true);
+  const [isDecisionDocSubmitting, setIsDecisionDocSubmitting] = useState(false);
+  const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
+  const [isDecisionDrawerOpen, setIsDecisionDrawerOpen] = useState(false);
+  const [isTotalAssetDialogOpen, setIsTotalAssetDialogOpen] = useState(false);
+  const [totalAssetInput, setTotalAssetInput] = useState("");
+  const isMobile = useIsMobile();
+  const isDecisionBusy = isBusy || isDecisionLoading || isDecisionDocSubmitting || isGeneratingSuggestion;
+  const mounted = useRef(true);
+  const artifactsRequest = useRef({ sequence: 0, controller: undefined as AbortController | undefined });
+  const historyRequest = useRef({ sequence: 0, controller: undefined as AbortController | undefined });
+  const uploadSequence = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      artifactsRequest.current.controller?.abort();
+      historyRequest.current.controller?.abort();
+    };
+  }, []);
+  const hasActiveDecisionDoc = typeof decisionDocVersion === "number";
+  const displayTotalAsset = typeof portfolio.totalAsset === "number" ? portfolio.totalAsset : portfolio.totalAmount;
+  const displayCashAmount =
+    typeof portfolio.cashAmount === "number"
+      ? portfolio.cashAmount
+      : Math.max(0, Number((displayTotalAsset - portfolio.totalAmount).toFixed(2)));
+  const displayCashRatio =
+    typeof portfolio.cashRatio === "number"
+      ? portfolio.cashRatio
+      : displayTotalAsset > 0
+        ? Number((displayCashAmount / displayTotalAsset).toFixed(6))
+        : 0;
+
+  const loadDecisionArtifacts = useCallback(async () => {
+    artifactsRequest.current.controller?.abort();
+    const controller = new AbortController();
+    const sequence = ++artifactsRequest.current.sequence;
+    artifactsRequest.current.controller = controller;
+    const isCurrent = () => mounted.current && !controller.signal.aborted &&
+      artifactsRequest.current.sequence === sequence;
+    setIsDecisionLoading(true);
+    try {
+      const [doc, latest] = await Promise.all([
+        fetchDecisionDoc(portfolio.id, controller.signal),
+        fetchLatestDailyDecision(portfolio.id, controller.signal)
+      ]);
+      if (!isCurrent()) return;
+      setDecisionDocSourceFileName(doc?.sourceFileName);
+      setDecisionDocContent(doc?.content ?? "");
+      setDecisionDocFormat(doc?.format ?? "TEXT");
+      setDecisionDocVersion(doc?.version);
+      setLatestDecision(latest);
+    } catch (error) {
+      if (!isCurrent()) return;
+      const text = error instanceof Error ? error.message : "加载决策数据失败";
+      message.error(text);
+    } finally {
+      if (isCurrent()) setIsDecisionLoading(false);
+    }
+  }, [message, portfolio.id]);
+
+  useEffect(() => {
+    void loadDecisionArtifacts();
+    return () => artifactsRequest.current.controller?.abort();
+  }, [loadDecisionArtifacts]);
+
+  useEffect(() => {
+    setTotalAssetInput(String(displayTotalAsset));
+  }, [displayTotalAsset, portfolio.id]);
+
+  async function onUploadDecisionDoc(file: File) {
+    const sequence = ++uploadSequence.current;
+    const content = await file.text();
+    if (!mounted.current || sequence !== uploadSequence.current) return;
+    const normalized = content.trim();
+    if (!normalized) {
+      message.error("上传文件内容为空");
+      return;
+    }
+
+    setDecisionDocContent(normalized);
+    setDecisionDocSourceFileName(file.name);
+    const lower = file.name.toLowerCase();
+    setDecisionDocFormat(
+      lower.endsWith(".md") || lower.endsWith(".markdown") ? "MARKDOWN" : "TEXT"
+    );
+  }
+
+  async function onSaveDecisionDoc() {
+    if (!decisionDocContent.trim()) {
+      message.error("请先上传或填写策略文档");
+      return;
+    }
+
+    setIsDecisionDocSubmitting(true);
+    try {
+      const doc = await upsertDecisionDoc({
+        portfolioId: portfolio.id,
+        content: decisionDocContent.trim(),
+        format: decisionDocFormat,
+        sourceFileName: decisionDocSourceFileName
+      });
+      if (!mounted.current) return;
+      setDecisionDocSourceFileName(doc.sourceFileName);
+      setDecisionDocContent(doc.content);
+      setDecisionDocFormat(doc.format);
+      setDecisionDocVersion(doc.version);
+      message.success("策略文档已保存");
+    } catch (error) {
+      if (!mounted.current) return;
+      const text = error instanceof Error ? error.message : "保存策略文档失败";
+      message.error(text);
+    } finally {
+      if (mounted.current) setIsDecisionDocSubmitting(false);
+    }
+  }
+
+  async function onGenerateDecision() {
+    if (!decisionAiConfigured) {
+      message.warning("请先完成 AI 模型配置后再更新建议");
+      onOpenDecisionAiConfig();
+      return;
+    }
+
+    if (!decisionDocContent.trim()) {
+      message.error("请先保存策略文档");
+      return;
+    }
+
+    setIsGeneratingSuggestion(true);
+    try {
+      const decision = await generateDailyDecision(portfolio.id);
+      if (!mounted.current) return;
+      historyRequest.current.sequence += 1;
+      historyRequest.current.controller?.abort();
+      setIsDecisionHistoryLoading(false);
+      setLatestDecision(decision);
+      setDecisionHistory((prev) => [decision, ...prev.filter((item) => item.id !== decision.id)]);
+      message.success("今日建议已生成");
+    } catch (error) {
+      if (!mounted.current) return;
+      if (error instanceof ApiResponseError && error.code === "DECISION_AI_CONFIG_REQUIRED") {
+        message.warning("当前还未配置个人 AI 模型，请先完成配置");
+        onOpenDecisionAiConfig();
+        return;
+      }
+      const text = error instanceof Error ? error.message : "生成今日建议失败";
+      message.error(text);
+    } finally {
+      if (mounted.current) setIsGeneratingSuggestion(false);
+    }
+  }
+
+  async function loadDecisionHistory() {
+    historyRequest.current.controller?.abort();
+    const controller = new AbortController();
+    const sequence = ++historyRequest.current.sequence;
+    historyRequest.current.controller = controller;
+    const isCurrent = () => mounted.current && !controller.signal.aborted &&
+      historyRequest.current.sequence === sequence;
+    setIsDecisionHistoryLoading(true);
+    try {
+      const history = await fetchDailyDecisionHistory(portfolio.id, 100, controller.signal);
+      if (isCurrent()) setDecisionHistory(history);
+    } catch (error) {
+      if (!isCurrent()) return;
+      const text = error instanceof Error ? error.message : "加载建议历史失败";
+      message.error(text);
+    } finally {
+      if (isCurrent()) setIsDecisionHistoryLoading(false);
+    }
+  }
+
+  async function onOpenDecisionHistoryDialog() {
+    setIsDecisionHistoryDialogOpen(true);
+    await loadDecisionHistory();
+  }
+
+  async function onSubmitTotalAsset() {
+    await onUpdatePortfolioTotalAsset(portfolio, totalAssetInput);
+    if (mounted.current) setIsTotalAssetDialogOpen(false);
+  }
+
+  const ratioAnalysis: RatioAnalysisRow[] = useMemo(() => {
+     if (portfolio.type !== 'RATIO') return [];
+     
+     return funds.map(fund => {
+        if (typeof fund.plannedRatio !== 'number' || typeof fund.actualRatio !== 'number') return null;
+        
+        const estimateChangePct =
+          typeof fund.dailyProfitPct === 'number' ? fund.dailyProfitPct : undefined;
+        const intradayAmount = typeof fund.intradayAmount === 'number' 
+           ? fund.intradayAmount 
+           : undefined;
+           
+        const row: RatioAnalysisRow = {
+           fundCode: fund.fundCode,
+           fundName: fund.fundName ?? `基金 ${fund.fundCode}`,
+           plannedRatio: fund.plannedRatio,
+           actualRatio: fund.actualRatio,
+           ...(typeof estimateChangePct === "number" ? { estimateChangePct } : {}),
+           ...(typeof intradayAmount === "number" ? { intradayAmount } : {})
+        };
+        return row;
+     }).filter((item): item is RatioAnalysisRow => item !== null);
+  }, [funds, portfolio.type]);
+
+  return (
+    <div className="space-y-6 p-4">
+      {/* 1. Portfolio Header Info */}
+      {/*<div className="flex items-center justify-between">*/}
+      {/*   <div>*/}
+      {/*      <Title level={5} style={{ margin: 0 }}>{portfolio.name}</Title>*/}
+      {/*      <Text type="secondary">{portfolio.type === 'RATIO' ? '按比例组合' : '自由组合'}</Text>*/}
+      {/*   </div>*/}
+      {/*   <Button icon={<ReloadOutlined />} onClick={() => void onRefresh()} loading={isBusy}>刷新数据</Button>*/}
+      {/*</div>*/}
+
+      {/* 2. Decision Summary */}
+      <Card title="决策与操作" size="small" styles={{
+        body: {paddingTop: 12, paddingBottom: 12, overflow: "hidden"}
+      }}>
+         <div style={{ height: 200, minHeight: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ minHeight: 0, flex: 1, overflow: "hidden" }}>
+               <Spin
+                 spinning={isDecisionLoading || isGeneratingSuggestion}
+                 description="正在更新建议..."
+                 wrapperClassName="decision-summary-spin-wrapper"
+                 style={{ display: "block", height: "100%" }}
+               >
+                  <div style={{ height: "100%", overflowY: "auto", paddingRight: 4, overscrollBehavior: "contain" }}>
+                     <Text type="secondary" style={{ whiteSpace: "pre-line", display: "block" }}>
+                        {latestDecision ? latestDecision.summary : "暂无今日建议，可在此更新建议并管理策略文档"}
+                     </Text>
+                     {!decisionAiConfigured ? (
+                        <div style={{ marginTop: 12 }}>
+                           <Text type="secondary" style={{ fontSize: 12, display: "block" }}>
+                              当前还没有配置个人 AI 模型，暂时无法更新建议。请先完成配置。
+                           </Text>
+                           <Button
+                              type="link"
+                              size="small"
+                              style={{ paddingInline: 0, marginTop: 4 }}
+                              onClick={onOpenDecisionAiConfig}
+                           >
+                              去配置 AI 模型
+                           </Button>
+                        </div>
+                     ) : null}
+                     {!hasActiveDecisionDoc ? (
+                        <Text type="secondary" style={{ fontSize: 12, display: "block", marginTop: 12 }}>
+                           当前组合还没有策略文档，请先点击“管理文档”保存后再更新建议。
+                        </Text>
+                     ) : null}
+                  </div>
+               </Spin>
+            </div>
+            <div className="flex flex-wrap gap-2" style={{ flexShrink: 0 }}>
+               <Button
+                  size="small"
+                  onClick={() => void onGenerateDecision()}
+                  disabled={isDecisionBusy || !hasActiveDecisionDoc || !decisionAiConfigured}
+               >
+                  更新建议
+               </Button>
+               <Button
+                  size="small"
+                  onClick={() => setIsDecisionDrawerOpen(true)}
+                  disabled={isDecisionBusy}
+               >
+                  管理文档
+               </Button>
+               <Button size="small" onClick={() => void onOpenDecisionHistoryDialog()} disabled={isDecisionBusy}>
+                  历史
+               </Button>
+            </div>
+         </div>
+      </Card>
+
+      {/* 3. Plan Completion Cards (Only for Ratio portfolios) */}
+      {portfolio.type === 'RATIO' && !isMobile && (
+         <Card title="计划达成情况" size="small">
+            {ratioAnalysis.length === 0 ? (
+               <Text type="secondary">暂无计划数据</Text>
+            ) : (
+               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {ratioAnalysis.map(row => (
+                     <PlanCompletionCard
+                        key={row.fundCode}
+                        {...row}
+                     />
+                  ))}
+               </div>
+            )}
+         </Card>
+      )}
+
+      {/* 4. Fund List */}
+      <PortfolioFundsTable
+         portfolioName={portfolio.name}
+         portfolioType={portfolio.type}
+         portfolioTotalAsset={displayTotalAsset}
+         portfolioCashAmount={displayCashAmount}
+         portfolioCashRatio={displayCashRatio}
+         funds={funds}
+         editStateMap={editStateMap}
+         isBusy={isBusy}
+         isLoading={isLoading}
+         onEditFieldChange={onEditFieldChange}
+         onUpdateFund={onUpdateFund}
+         onOperateFund={onOperateFund}
+         onDeleteFund={onDeleteFund}
+         onDragEnd={onDragEnd}
+         onOpenAddFundDialog={onOpenAddFundDialog}
+         onOpenShareDialog={onOpenShareDialog}
+         onOpenUpdateTotalAssetDialog={() => setIsTotalAssetDialogOpen(true)}
+         onDeletePortfolio={onDeletePortfolio}
+      />
+
+      <Modal
+         title="更新组合总资产"
+         open={isTotalAssetDialogOpen}
+         onCancel={() => {
+           setIsTotalAssetDialogOpen(false);
+           setTotalAssetInput(String(displayTotalAsset));
+         }}
+         onOk={() => void onSubmitTotalAsset()}
+         okText="保存"
+         cancelText="取消"
+         confirmLoading={isBusy}
+         centered
+      >
+         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Text type="secondary">
+              真实现金会按“总资产 - 已生效基金持仓金额合计”自动计算。
+            </Text>
+            <Input
+              value={totalAssetInput}
+              onChange={(event) => setTotalAssetInput(event.target.value)}
+              placeholder="请输入组合总资产"
+              disabled={isBusy}
+            />
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              当前基金持仓合计 ¥{formatCurrency(portfolio.totalAmount)}，当前真实现金 ¥{formatCurrency(displayCashAmount)}。
+            </Text>
+         </div>
+      </Modal>
+
+      <Modal
+         title="决策与操作"
+         open={isDecisionDrawerOpen}
+         onCancel={() => setIsDecisionDrawerOpen(false)}
+         footer={null}
+         width={900}
+         centered
+      >
+         <DailyDecisionPanel
+            isBusy={isDecisionBusy}
+            isLoading={isDecisionLoading}
+            isGeneratingSuggestion={isGeneratingSuggestion}
+            docContent={decisionDocContent}
+            docFormat={decisionDocFormat}
+            docVersion={decisionDocVersion}
+            docFileName={decisionDocSourceFileName}
+            onDocContentChange={setDecisionDocContent}
+            onDocUpload={onUploadDecisionDoc}
+            onSaveDoc={onSaveDecisionDoc}
+         />
+      </Modal>
+
+      <DecisionHistoryDialog
+         open={isDecisionHistoryDialogOpen}
+         onOpenChange={setIsDecisionHistoryDialogOpen}
+         isBusy={isDecisionBusy}
+         isLoading={isDecisionHistoryLoading}
+         items={decisionHistory}
+      />
+    </div>
+  );
+}

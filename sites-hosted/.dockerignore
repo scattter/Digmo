@@ -1,0 +1,10 @@
+
+# Never package local credentials, runtime data or browser sessions.
+.env*
+*.sqlite*
+*.db*
+**/data/
+.playwright-cli/
+.wrangler/
+.sites-runtime/
+*.tsbuildinfo

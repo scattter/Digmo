@@ -1,0 +1,16 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e7]:
+        - img [ref=e9]
+        - textbox "请输入用户名" [ref=e11]
+      - generic [ref=e14]:
+        - img [ref=e16]
+        - textbox "请输入密码" [ref=e18]
+        - img [ref=e20] [cursor=pointer]
+      - link "遇到问题？" [ref=e23] [cursor=pointer]:
+        - /url: /help
+      - button "登录" [ref=e26] [cursor=pointer]
+    - heading "Kujiale 统一登录中心" [level=2] [ref=e28]
+  - generic "企信扫码登录":
+    - img [ref=e29]

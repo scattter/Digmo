@@ -1,0 +1,563 @@
+"use client";
+
+import {
+  AuthUser,
+  DecisionAiMode,
+  PortfolioSummary,
+  PortfolioType,
+  PortfolioFundItem,
+  UserDecisionAiConfigSummary
+} from "@/shared";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { z } from "zod";
+import { Alert, App, Spin } from "antd";
+import { DragEndEvent } from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
+
+import { TopNavLayout } from "@/components/dashboard/layout/top-nav-layout";
+import { AccountSummaryView } from "@/components/dashboard/views/account-summary-view";
+import { PortfolioDetailView } from "@/components/dashboard/views/portfolio-detail-view";
+
+import { CreatePortfolioDialog } from "@/components/dashboard/dialogs/create-portfolio-dialog";
+import { DecisionAiConfigDialog } from "@/components/dashboard/dialogs/decision-ai-config-dialog";
+import { FlatAddFundDialog } from "@/components/dashboard/dialogs/flat-add-fund-dialog";
+import { ImportPortfolioDialog } from "@/components/dashboard/dialogs/import-portfolio-dialog";
+import { SharePortfolioDialog } from "@/components/dashboard/dialogs/share-portfolio-dialog";
+
+import { FlatFundsTable } from "@/components/dashboard/features/funds/flat-funds-table";
+
+import { useDashboardData } from "@/hooks/use-dashboard-data";
+import { FundEditState } from "@/lib/format";
+import { useFundReorder } from "@/hooks/use-fund-reorder";
+import { usePortfolioActions } from "@/hooks/use-portfolio-actions";
+import {
+  fetchDecisionAiConfig,
+  fetchMe,
+  fetchPortfolioTabLayout,
+  getAuthRequiredEventName,
+  reorderPortfolios,
+  updateDecisionAiConfig,
+  updatePortfolioTabLayout
+} from "@/lib/api";
+import { clearAccessToken, getAccessToken } from "@/lib/auth-session";
+import { TabItem } from "@/components/dashboard/navigation/draggable-tab-list";
+
+const renameSchema = z
+  .string()
+  .min(1, "请输入新的组合名称")
+  .max(32, "组合名称长度不能超过 32");
+const GLOBAL_LOADING_TEXT_COLOR = "#1677ff";
+
+export default function FundDashboard() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [isInitialDashboardLoading, setIsInitialDashboardLoading] = useState(true);
+  const authRequiredEventName = getAuthRequiredEventName();
+  const { modal, message } = App.useApp();
+
+  const [activeTabId, setActiveTabId] = useState("summary");
+  const selectedPortfolioId = activeTabId === "summary" || activeTabId === "funds" ? "all" : activeTabId;
+  const dashboard = useDashboardData({ enabled: Boolean(currentUser), selectedPortfolioId });
+  const tabReorderPending = useRef(false);
+  const tabLayoutVersion = useRef(0);
+  
+  // Dialog states
+  const [isCreatePortfolioDialogOpen, setIsCreatePortfolioDialogOpen] = useState(false);
+  const [isFlatAddFundDialogOpen, setIsFlatAddFundDialogOpen] = useState(false);
+  const [isImportPortfolioDialogOpen, setIsImportPortfolioDialogOpen] = useState(false);
+  const [isSharePortfolioDialogOpen, setIsSharePortfolioDialogOpen] = useState(false);
+  const [isDecisionAiConfigDialogOpen, setIsDecisionAiConfigDialogOpen] = useState(false);
+  const [isDecisionAiConfigSaving, setIsDecisionAiConfigSaving] = useState(false);
+  const [decisionAiConfig, setDecisionAiConfig] = useState<UserDecisionAiConfigSummary | null>(null);
+
+  const accountSummaryBar = useMemo(() => {
+    const totalAmount = dashboard.portfolios.reduce(
+      (sum, portfolio) => sum + (portfolio.totalAsset ?? portfolio.totalAmount),
+      0,
+    );
+    const hasCompleteDailyProfit =
+      dashboard.portfolios.length > 0 &&
+      dashboard.portfolios.every((portfolio) => typeof portfolio.dailyProfitAmount === "number");
+
+    if (!hasCompleteDailyProfit) {
+      return { totalAmount, intradayProfitAmount: undefined };
+    }
+
+    return {
+      totalAmount,
+      intradayProfitAmount: dashboard.portfolios.reduce((sum, portfolio) => {
+        return sum + (portfolio.dailyProfitAmount ?? 0);
+      }, 0)
+    };
+  }, [dashboard.portfolios]);
+
+  const activeSummaryBar = useMemo<{
+    totalAmount: number;
+    intradayProfitAmount?: number;
+  }>(() => {
+    if (activeTabId === "summary" || activeTabId === "funds") {
+      return accountSummaryBar;
+    }
+    const portfolio = dashboard.portfolios.find((item) => item.id === activeTabId);
+    if (!portfolio) {
+      return accountSummaryBar;
+    }
+    return {
+      totalAmount: portfolio.totalAsset ?? portfolio.totalAmount,
+      intradayProfitAmount: portfolio.dailyProfitAmount
+    };
+  }, [activeTabId, accountSummaryBar, dashboard.portfolios]);
+
+  // Auth Check
+  useEffect(() => {
+    let active = true;
+    const jumpToLogin = () => {
+      clearAccessToken();
+      if (!active) return;
+      setIsAuthChecking(false);
+      router.replace("/login");
+    };
+
+    const onAuthRequired = () => jumpToLogin();
+    window.addEventListener(authRequiredEventName, onAuthRequired);
+
+    const token = getAccessToken();
+    if (!token) {
+      jumpToLogin();
+      return () => {
+        active = false;
+        window.removeEventListener(authRequiredEventName, onAuthRequired);
+      };
+    }
+
+    void fetchMe()
+      .then(({ user }) => {
+        if (!active) return;
+        setCurrentUser(user);
+        setIsAuthChecking(false);
+      })
+      .catch(() => jumpToLogin());
+
+    return () => {
+      active = false;
+      window.removeEventListener(authRequiredEventName, onAuthRequired);
+    };
+  }, [authRequiredEventName, router]);
+
+  // Actions
+  const actions = usePortfolioActions({
+    refreshData: dashboard.refreshData,
+    selectedPortfolioId: dashboard.selectedPortfolioId,
+    setSelectedPortfolioId: (id) => setActiveTabId((current) =>
+      current === selectedPortfolioId ? (id === "all" ? "summary" : id) : current),
+    setIsLoading: dashboard.setIsLoading,
+    setErrorText: (msg) => {
+      const text = msg.trim();
+      if (!text) {
+        return;
+      }
+      message.error(text);
+    },
+    setStatusText: (msg) => {
+      const text = msg.trim();
+      if (!text) {
+        return;
+      }
+      message.success(text);
+    },
+  });
+
+  const fundReorder = useFundReorder({
+    selectedPortfolioId,
+    portfolioFunds: dashboard.portfolioFunds,
+    setPortfolioFunds: dashboard.setPortfolioFunds,
+    setIsReordering: dashboard.setIsReordering,
+    setErrorText: (text) => { if (text) message.error(text); },
+    setStatusText: (text) => { if (text) message.success(text); }
+  });
+
+  const [fundsTabIndex, setFundsTabIndex] = useState(0);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    let active = true;
+    const layoutVersion = tabLayoutVersion.current;
+    void Promise.allSettled([fetchPortfolioTabLayout(), fetchDecisionAiConfig()])
+      .then(([layoutResult, decisionAiConfigResult]) => {
+        if (!active) {
+          return;
+        }
+        if (layoutResult.status === "fulfilled" && layoutVersion === tabLayoutVersion.current) {
+          const nextIndex = Math.max(0, Math.floor(layoutResult.value.fundsTabIndex));
+          setFundsTabIndex(nextIndex);
+        }
+        if (decisionAiConfigResult.status === "fulfilled") {
+          setDecisionAiConfig(decisionAiConfigResult.value);
+        }
+      })
+      .catch(() => {
+        // Keep existing defaults when preference requests fail.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    if (
+      !dashboard.isLoadingPortfolios &&
+      !dashboard.isLoadingFlatFunds &&
+      !dashboard.isLoadingPortfolioFunds
+    ) {
+      setIsInitialDashboardLoading(false);
+    }
+  }, [
+    currentUser,
+    dashboard.isLoadingPortfolios,
+    dashboard.isLoadingFlatFunds,
+    dashboard.isLoadingPortfolioFunds
+  ]);
+
+  const tabs: TabItem[] = useMemo(() => {
+    const summaryTab: TabItem = { id: "summary", label: "账户汇总", canDrag: false };
+    const fundsTab: TabItem = { id: "funds", label: "全部基金", canDrag: true };
+    
+    const portfolioTabs: TabItem[] = dashboard.portfolios.map(p => ({
+       id: p.id,
+       label: p.name,
+       canDrag: true
+    }));
+
+    const draggable = [...portfolioTabs];
+    const insertIndex = Math.max(0, Math.min(fundsTabIndex, portfolioTabs.length));
+    draggable.splice(insertIndex, 0, fundsTab);
+
+    return [summaryTab, ...draggable];
+  }, [dashboard.portfolios, fundsTabIndex]);
+
+  const activePortfolio = useMemo(
+    () => dashboard.portfolios.find((item) => item.id === activeTabId),
+    [dashboard.portfolios, activeTabId]
+  );
+
+  function handleTabDragEnd(event: DragEndEvent) {
+    if (tabReorderPending.current || dashboard.isBusy) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const draggableIds = tabs.filter((t) => t.canDrag).map((t) => t.id);
+    const oldIndex = draggableIds.indexOf(active.id as string);
+    const newIndex = draggableIds.indexOf(over.id as string);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newOrderIds = arrayMove(draggableIds, oldIndex, newIndex);
+    const newFundsIndex = newOrderIds.indexOf("funds");
+    if (newFundsIndex < 0) {
+      return;
+    }
+    const previousFundsTabIndex = fundsTabIndex;
+    const isFundsTabIndexChanged = newFundsIndex !== previousFundsTabIndex;
+
+    const oldPortfolioIds = dashboard.portfolios.map((p) => p.id);
+    const newPortfolioIds = newOrderIds.filter((id) => id !== "funds");
+    const isPortfolioOrderChanged = JSON.stringify(oldPortfolioIds) !== JSON.stringify(newPortfolioIds);
+
+    if (!isFundsTabIndexChanged && !isPortfolioOrderChanged) {
+      return;
+    }
+
+    tabLayoutVersion.current += 1;
+    if (isFundsTabIndexChanged) {
+      setFundsTabIndex(newFundsIndex);
+    }
+
+    const portfolioMap = new Map(dashboard.portfolios.map((portfolio) => [portfolio.id, portfolio]));
+    const nextPortfolios = newPortfolioIds
+      .map((id) => portfolioMap.get(id))
+      .filter((item): item is PortfolioSummary => Boolean(item));
+    const previousPortfolios = dashboard.portfolios;
+    if (isPortfolioOrderChanged) {
+      if (nextPortfolios.length !== newPortfolioIds.length) {
+        return;
+      }
+      dashboard.setPortfolios(nextPortfolios);
+    }
+
+    tabReorderPending.current = true;
+    dashboard.setIsReordering(true);
+    void (async () => {
+      const [layoutResult, reorderResult] = await Promise.allSettled([
+        isFundsTabIndexChanged ? updatePortfolioTabLayout(newFundsIndex) : Promise.resolve(),
+        isPortfolioOrderChanged ? reorderPortfolios(newPortfolioIds) : Promise.resolve()
+      ]);
+
+      if (layoutResult.status === "rejected") {
+        setFundsTabIndex((current) => current === newFundsIndex ? previousFundsTabIndex : current);
+      }
+
+      if (reorderResult.status === "rejected") {
+        dashboard.setPortfolios((current) => current === nextPortfolios ? previousPortfolios : current);
+      }
+
+      if (layoutResult.status === "rejected" || reorderResult.status === "rejected") {
+        const reason =
+          layoutResult.status === "rejected"
+            ? layoutResult.reason
+            : reorderResult.status === "rejected"
+              ? reorderResult.reason
+              : undefined;
+        const errorText = reason instanceof Error ? reason.message : "排序失败";
+        message.error(errorText);
+      }
+
+      tabReorderPending.current = false;
+      dashboard.setIsReordering(false);
+    })();
+  }
+
+  function handleEditFieldChange(fundCode: string, key: keyof FundEditState, value: string) {
+    dashboard.setEditStateMap((prev) => {
+      const next = new Map(prev);
+      const current = next.get(fundCode) || { holdingAmount: "", plannedRatio: "", holdingProfitAmount: "" };
+      next.set(fundCode, { ...current, [key]: value });
+      return next;
+    });
+  }
+
+  async function handleUpdateFund(item: PortfolioFundItem) {
+    const editState = dashboard.editStateMap.get(item.fundCode);
+    if (!editState) return;
+    await actions.updateFundAction(
+      item,
+      editState.holdingAmount,
+      editState.plannedRatio,
+      editState.holdingProfitAmount
+    );
+  }
+
+  // Logout
+  function handleLogout() {
+    clearAccessToken();
+    router.replace("/login");
+  }
+
+  async function handleSaveDecisionAiConfig(values: {
+    baseUrl: string;
+    model: string;
+    mode: DecisionAiMode;
+    apiKey?: string;
+  }) {
+    setIsDecisionAiConfigSaving(true);
+    try {
+      const nextConfig = await updateDecisionAiConfig(values);
+      setDecisionAiConfig(nextConfig);
+      setIsDecisionAiConfigDialogOpen(false);
+      message.success("AI 模型配置已保存");
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "保存 AI 模型配置失败";
+      message.error(text);
+    } finally {
+      setIsDecisionAiConfigSaving(false);
+    }
+  }
+
+  // Delete Portfolio Wrapper
+  function handleDeletePortfolio(portfolio: PortfolioSummary) {
+    modal.confirm({
+      title: "确认删除组合？",
+      content: `删除后将无法恢复：${portfolio.name}`,
+      okText: "确认删除",
+      okType: "danger",
+      cancelText: "取消",
+      centered: true,
+      onOk: async () => {
+        await actions.deletePortfolioAction(portfolio);
+      }
+    });
+  }
+
+  async function handleTopNavRefresh() {
+    await actions.manualRefreshAction(dashboard.markManualRefresh);
+  }
+
+  if (isAuthChecking) {
+    return (
+      <main className="flex min-h-screen items-center justify-center">
+        <Spin
+          description="正在校验登录状态..."
+          styles={{ description: { color: GLOBAL_LOADING_TEXT_COLOR, fontWeight: 500 } }}
+        />
+      </main>
+    );
+  }
+
+  if (!currentUser) {
+    return null;
+  }
+
+  // Determine Content
+  let content = null;
+  if (activeTabId === "summary") {
+     content = (
+        <AccountSummaryView 
+          portfolios={dashboard.portfolios} 
+          onSelectPortfolio={setActiveTabId} 
+        />
+     );
+  } else if (activeTabId === "funds") {
+     content = (
+        <div className="p-4">
+           <FlatFundsTable
+              data={dashboard.flatFunds}
+              expand={dashboard.flatExpand}
+              onExpandChange={dashboard.setFlatExpand}
+              isLoading={dashboard.isLoadingFlatFunds}
+              isBusy={dashboard.isBusy}
+              onRefresh={dashboard.refreshData}
+           />
+        </div>
+     );
+  } else {
+     // Portfolio View
+     const portfolio = dashboard.portfolios.find(p => p.id === activeTabId);
+     if (portfolio) {
+        content = (
+           <PortfolioDetailView
+              key={portfolio.id}
+              portfolio={portfolio}
+              funds={dashboard.portfolioFunds}
+              editStateMap={dashboard.editStateMap}
+              onEditFieldChange={handleEditFieldChange}
+              onUpdateFund={handleUpdateFund}
+              onOperateFund={(item, input) => actions.operatePositionAction(item, input.operationType, input.amountRaw)}
+              onDeleteFund={actions.deleteFundAction}
+              onDragEnd={(event) => fundReorder.onPortfolioFundsDragEnd(event, dashboard.isBusy)}
+              onOpenAddFundDialog={() => setIsFlatAddFundDialogOpen(true)}
+              onOpenShareDialog={() => setIsSharePortfolioDialogOpen(true)}
+              onDeletePortfolio={() => handleDeletePortfolio(portfolio)}
+              onUpdatePortfolioTotalAsset={actions.updatePortfolioTotalAssetAction}
+              onOpenDecisionAiConfig={() => setIsDecisionAiConfigDialogOpen(true)}
+              isBusy={dashboard.isBusy}
+              isLoading={dashboard.isLoadingPortfolioFunds}
+              decisionAiConfigured={Boolean(decisionAiConfig?.hasApiKey)}
+           />
+        );
+     } else {
+        content = <div className="p-4">组合不存在或已删除</div>;
+     }
+  }
+
+  return (
+    <>
+      <Spin
+        spinning={isInitialDashboardLoading}
+        fullscreen
+        description="正在加载数据..."
+        styles={{
+          root: { backgroundColor: "rgba(247, 248, 250, 0.6)" },
+          section: { color: GLOBAL_LOADING_TEXT_COLOR },
+          description: { color: GLOBAL_LOADING_TEXT_COLOR, fontWeight: 500, textShadow: "none" }
+        }}
+      />
+      <TopNavLayout
+        username={currentUser.username}
+        onOpenDecisionAiConfig={() => setIsDecisionAiConfigDialogOpen(true)}
+        onLogout={handleLogout}
+        onRefresh={handleTopNavRefresh}
+        isRefreshing={dashboard.isLoading}
+        isRefreshDisabled={dashboard.isBusy}
+        onCreatePortfolio={() => setIsCreatePortfolioDialogOpen(true)}
+        onImportPortfolio={() => setIsImportPortfolioDialogOpen(true)}
+        summaryBar={activeSummaryBar}
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onTabChange={setActiveTabId}
+        onTabDragEnd={handleTabDragEnd}
+      >
+        {dashboard.errorText && <Alert type="error" showIcon title={dashboard.errorText} className="m-4" />}
+        {content}
+        
+        <CreatePortfolioDialog
+          open={isCreatePortfolioDialogOpen}
+          onOpenChange={setIsCreatePortfolioDialogOpen}
+          onSubmit={async (values) => {
+            await actions.createPortfolioAction(
+              values.name,
+              values.type as PortfolioType,
+              values.totalAsset,
+            );
+            setIsCreatePortfolioDialogOpen(false);
+          }}
+          isBusy={dashboard.isBusy}
+        />
+
+        <ImportPortfolioDialog
+          open={isImportPortfolioDialogOpen}
+          onOpenChange={setIsImportPortfolioDialogOpen}
+          isBusy={dashboard.isBusy}
+          onSubmit={async (values) => {
+            const result = await actions.importPortfolioByShareCodeAction(values);
+            setIsImportPortfolioDialogOpen(false);
+            setActiveTabId(result.portfolio.id);
+          }}
+        />
+
+        <SharePortfolioDialog
+          open={isSharePortfolioDialogOpen}
+          onOpenChange={setIsSharePortfolioDialogOpen}
+          portfolioId={activePortfolio?.id}
+          portfolioName={activePortfolio?.name}
+          isBusy={dashboard.isBusy}
+          onSubmit={(values) => actions.sharePortfolioAction(values)}
+        />
+
+        <DecisionAiConfigDialog
+          open={isDecisionAiConfigDialogOpen}
+          onOpenChange={setIsDecisionAiConfigDialogOpen}
+          onSubmit={handleSaveDecisionAiConfig}
+          config={decisionAiConfig}
+          isBusy={isDecisionAiConfigSaving}
+        />
+
+        <FlatAddFundDialog
+          open={isFlatAddFundDialogOpen}
+          onOpenChange={setIsFlatAddFundDialogOpen}
+          onSubmit={async (values) => {
+             // If we are in portfolio view, maybe we want to force add to that portfolio?
+             // The dialog allows selecting portfolio.
+             // `values.portfolioId` comes from dialog.
+            const targetPortfolio = dashboard.portfolios.find(
+              (portfolio) => portfolio.id === values.portfolioId
+            );
+            if (!targetPortfolio) return;
+
+            await actions.addFundAction({
+              portfolioId: targetPortfolio.id,
+              portfolioType: targetPortfolio.type,
+              fundCode: values.fundCode,
+              holdingAmount: values.holdingAmount,
+              holdingProfitAmount: values.holdingProfitAmount,
+              plannedRatio: values.plannedRatio ?? ""
+            });
+            setIsFlatAddFundDialogOpen(false);
+          }}
+          portfolios={dashboard.portfolios}
+          isBusy={dashboard.isBusy}
+          initialPortfolioId={activeTabId !== "summary" && activeTabId !== "funds" ? activeTabId : undefined}
+        />
+      </TopNavLayout>
+    </>
+  );
+}

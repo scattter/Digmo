@@ -1,0 +1,178 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius: 0.5rem;
+
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --surface: 0 0% 100%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 240 5.9% 10%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 240 5.9% 10%;
+
+  /* Business semantic tones (kept as extensions on top of official tokens). */
+  --success: 152 76% 30%;
+  --warning: 32 95% 44%;
+  --danger: 0 72% 43%;
+}
+
+:root[data-ui-mode="professional"] {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --surface: 0 0% 100%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 240 5.9% 10%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 5.9% 10%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --ring: 240 5.9% 10%;
+  --success: 152 76% 30%;
+  --warning: 32 95% 44%;
+  --danger: 0 72% 43%;
+}
+
+:root[data-ui-mode="minimal"] {
+  --background: 42 20% 97%;
+  --foreground: 210 15% 16%;
+  --surface: 0 0% 100%;
+  --muted: 42 16% 93%;
+  --muted-foreground: 218 9% 38%;
+  --primary: 214 62% 40%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 42 16% 93%;
+  --secondary-foreground: 210 15% 16%;
+  --accent: 42 16% 93%;
+  --accent-foreground: 210 15% 16%;
+  --destructive: 0 63% 41%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 40 8% 83%;
+  --input: 40 8% 83%;
+  --ring: 214 62% 40%;
+  --success: 152 60% 30%;
+  --warning: 35 84% 42%;
+  --danger: 0 63% 41%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 210 15% 16%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 210 15% 16%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    @apply min-h-full;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: "Noto Sans SC", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    line-height: 1.5;
+    font-kerning: normal;
+    /* Keep slash-delimited labels (e.g. a/b) visually compact. */
+    word-spacing: -0.04em;
+  }
+
+  a {
+    @apply text-primary underline-offset-4 hover:underline;
+  }
+
+  input,
+  textarea,
+  code,
+  pre,
+  kbd,
+  samp {
+    word-spacing: normal;
+  }
+}
+
+.skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  transform: translateY(-200%);
+  z-index: 60;
+  border-radius: 0.5rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--surface));
+  color: hsl(var(--foreground));
+  padding: 0.625rem 0.875rem;
+  transition: transform 0.2s ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th,
+.ant-table-wrapper .ant-table-tbody > tr > td,
+.ant-table-wrapper .ant-table-expanded-row > td {
+  text-align: center !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th .ant-table-column-sorters,
+.ant-table-wrapper .ant-table-thead > tr > th .ant-table-filter-column {
+  justify-content: center;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.decision-summary-spin-wrapper.ant-spin-nested-loading {
+  height: 100%;
+}
+
+.decision-summary-spin-wrapper .ant-spin-container {
+  height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

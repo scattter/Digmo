@@ -1,0 +1,1015 @@
+[    1441ms] [LOG] %c15:45:27: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[    1442ms] [LOG] %c15:45:27: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[    1442ms] [LOG] %c15:45:27: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[    2453ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://www.kujiale.com/minicommon/api/get/one/solution?solutionId=5:0
+[    2460ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://www.kujiale.com/minicommon/api/platform/user/check?solutionId=5:0
+[    2874ms] [WARNING] The key "user-scale" is not recognized and ignored. @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:5
+[    3044ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:0
+[    3047ms] [LOG] cookie:     {} qhdi=e720481137d511f1905a4537a74ca92a; Hm_lvt_bd8fd4c378d7721976f466053bd4a855=1776152728; Hm_lpvt_bd8fd4c378d7721976f466053bd4a855=1776152728; HMACCOUNT=DE78BE1CE0E4DA90; _ga=GA1.2.1766564427.1776152728; _gid=GA1.2.915972903.1776152728; _gat=1 @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:58
+[    3112ms] [LOG] auto login fail @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:94
+[    7272ms] [LOG] 抓取到的host www.kujiale.com @ https://kuauth.kujiale.com/loginpage?backurl=https://www.kujiale.com/minicommon/api/login&nexturl=https%3A%2F%2Fwww.kujiale.com%2Fpub%2Foperation%2Fmini-program%2Fsolution%3Fid%3D5%23%2Fapp:420
+[    8145ms] [LOG] %c15:45:34: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[    8146ms] [LOG] %c15:45:34: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[    8146ms] [LOG] %c15:45:34: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[   26213ms] [LOG] %c15:45:52: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[   26213ms] [LOG] %c15:45:52: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[   26213ms] [LOG] %c15:45:52: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[   26252ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=436:0
+[   26252ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[   28310ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=436#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKyib0eqV5Jy0D1hSzAxP6tpvpdiahaR71VsvbuiaL6QxZWINJpf7GWMtwVhLYxvY7wf6rYx56dZj5d2RpuTYK2tjFibh2Ytl2x4aIQl5BnMibSLGJSVPyo5DhzMO/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=436#/information:0
+[   68255ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:46:34.449] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(427)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[   68310ms] [LOG] %c15:46:34: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[   68310ms] [LOG] %c15:46:34: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[   68310ms] [LOG] %c15:46:34: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[   69428ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5#/app:0
+[   69428ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  107638ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:47:13.833] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(638)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  107716ms] [LOG] %c15:47:13: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  107716ms] [LOG] %c15:47:13: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  107716ms] [LOG] %c15:47:13: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  107799ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=436:135
+[  107799ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  108854ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=436#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKyib0eqV5Jy0D1hSzAxP6tpvpdiahaR71VsvbuiaL6QxZWINJpf7GWMtwVhLYxvY7wf6rYx56dZj5d2RpuTYK2tjFibh2Ytl2x4aIQl5BnMibSLGJSVPyo5DhzMO/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=436#/information:0
+[  110494ms] [LOG] %c15:47:16: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  110494ms] [LOG] %c15:47:16: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  110494ms] [LOG] %c15:47:16: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  110535ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  110535ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  112882ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:47:19.77] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(695)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  112948ms] [LOG] %c15:47:19: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  112948ms] [LOG] %c15:47:19: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  112948ms] [LOG] %c15:47:19: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  112992ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=430:0
+[  112992ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  114106ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=430#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/1MLz0YkS76FvhibomFKmXLicvZj7rBW4bUia8kFEicS0WW5icqRWpA7FWfYSmGfbohBXnbl2lEAt9I1fXC5pJe73Op3AM47N1AGuXxm2T6lvv0CMZ9G4fKhfibeEgrRcDEYZeK/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=430#/information:0
+[  116011ms] [LOG] %c15:47:22: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  116012ms] [LOG] %c15:47:22: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  116012ms] [LOG] %c15:47:22: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  116054ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  116054ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  118086ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:47:24.280] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(700)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  118182ms] [LOG] %c15:47:24: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  118183ms] [LOG] %c15:47:24: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  118183ms] [LOG] %c15:47:24: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  118227ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=426:0
+[  118227ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  119411ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=426#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKxE8Ye6lsB5Tl6tALtTYOIsGfJDZmNDia1pVJOlEDczg0YSD7InVv8BZbDxYiaVVTaicgZ1k5CPSF63Sak4dJy9jjDYmia7YkEgmXvdKeTfZXSyNosol6gpcIVS/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=426#/information:0
+[  121080ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:47:27.274] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(643)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  121138ms] [LOG] %c15:47:27: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  121138ms] [LOG] %c15:47:27: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  121138ms] [LOG] %c15:47:27: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  121185ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  121186ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  123763ms] [LOG] %c15:47:29: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  123764ms] [LOG] %c15:47:29: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  123764ms] [LOG] %c15:47:29: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  123824ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=422:0
+[  123824ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  125244ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=422#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKzEGXuhAl61MT8zA9YsH5vzg9CMAZmn4dx4hhRiaib01iaenslFH9xfokJFk85QZ8ic1HiatPwEibHr7vs2PZiaxIPdjH9/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=422#/information:0
+[  126877ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:47:33.71] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(646)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  126928ms] [LOG] %c15:47:33: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  126929ms] [LOG] %c15:47:33: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  126929ms] [LOG] %c15:47:33: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  126973ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  126973ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  129371ms] [LOG] %c15:47:35: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  129372ms] [LOG] %c15:47:35: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  129372ms] [LOG] %c15:47:35: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  129419ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=418:0
+[  129419ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  130518ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=418#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/NDw5dEALnVbuvrJvfdWxlpq1J9U9TaFDHEUr0zjsUntOHebLlWyofLlDeVZezGyUxzSdugHqH9Lu7lks33kKI73y7fIa95hhOo4riaicj0JxqZXwU0lXnZCcqLfKJ44A3ib/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=418#/information:0
+[  132326ms] [LOG] %c15:47:38: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  132326ms] [LOG] %c15:47:38: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  132326ms] [LOG] %c15:47:38: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  132514ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5#/app:0
+[  132514ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  134713ms] [LOG] %c15:47:40: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  134713ms] [LOG] %c15:47:40: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  134713ms] [LOG] %c15:47:40: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  134760ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=417:0
+[  134761ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  135951ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=417#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/PiajxSqBRaEJiaU66BAc6epFHFNHrxpT4qsvUlDibBGQDurBtxLG9UibwFWfbN5eZ1tKSmdyr4FflIbRtn4oOfeliaibDhxxEOwnkqQLusdiawZue6dzWVVuwNAd9JdYbelj4Qe/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=417#/information:0
+[  137817ms] [LOG] %c15:47:44: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  137817ms] [LOG] %c15:47:44: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  137817ms] [LOG] %c15:47:44: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  137860ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  137860ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  140250ms] [LOG] %c15:47:46: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  140251ms] [LOG] %c15:47:46: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  140251ms] [LOG] %c15:47:46: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  140296ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=416:0
+[  140296ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  141426ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=416#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/PiajxSqBRaEINwgOEIhko0at5ibRpJfTFpAIMmO7dhKluqxOjC24vSrYYYSGNcQz0I8t1gCJjjl0XK9WCVrqGDUjMRxhhVZwVM1a1yOSD5OnZibwibDAeURQkkxs9sic4tbpy/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=416#/information:0
+[  143469ms] [LOG] %c15:47:49: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  143469ms] [LOG] %c15:47:49: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  143469ms] [LOG] %c15:47:49: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  143529ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  143529ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  145549ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:47:51.743] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(697)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  145589ms] [LOG] %c15:47:51: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  145589ms] [LOG] %c15:47:51: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  145589ms] [LOG] %c15:47:51: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  145631ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=415:0
+[  145631ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  146832ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=415#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/PiajxSqBRaEJlqkgPqKW4U2CLs9J0WwibjJxG3yrHy3Xs9K7qqJgpl4BmibHvCiapmbWjrxdYM2bVfMN6GQsiaQ1SkD7NO07daKIYVDRbEkdPr0y1fDWiaIc7DpIehbDreN5qn/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=415#/information:0
+[  148639ms] [LOG] %c15:47:54: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  148640ms] [LOG] %c15:47:54: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  148640ms] [LOG] %c15:47:54: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  148687ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  148687ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  150962ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:47:57.156] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(701)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  151002ms] [LOG] %c15:47:57: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  151002ms] [LOG] %c15:47:57: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  151002ms] [LOG] %c15:47:57: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  151044ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=414:0
+[  151044ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  152227ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=414#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/ajNVdqHZLLBRLBWnQ6rrabHLmxWickyP4icia08CiabiatBKHuWmh4bfV4zxdiaxhA8G8lUIXyA96C3jMBOqBqBVp6WRZTbIfgONAXsU0MOGDboFEPzT7B0CaLibBd58ZykvjHF/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=414#/information:0
+[  153853ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:48:00.48] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(643)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  153899ms] [LOG] %c15:48:00: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  153899ms] [LOG] %c15:48:00: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  153899ms] [LOG] %c15:48:00: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  153940ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  153940ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  157053ms] [LOG] %c15:48:03: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  157053ms] [LOG] %c15:48:03: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  157053ms] [LOG] %c15:48:03: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  157096ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=413:135
+[  157096ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  158567ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=413#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKzEGXuhAl61Mbiaoibhicxu7FvnTS8aXsZicvwSn0bhzABOUiaR6GCr8eFIewY9NiaSjAxiamI7iaYJ286ZU8UczJiakicGsa/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=413#/information:0
+[  162503ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:48:08.697] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(646)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  162541ms] [LOG] %c15:48:08: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  162542ms] [LOG] %c15:48:08: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  162542ms] [LOG] %c15:48:08: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  162584ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  162584ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  165009ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:48:11.204] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(699)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  165073ms] [LOG] %c15:48:11: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  165073ms] [LOG] %c15:48:11: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  165073ms] [LOG] %c15:48:11: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  165115ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=411:0
+[  165115ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  165769ms] [ERROR] err TypeError: Cannot read properties of undefined (reading 'filter')
+    at Ie.<anonymous> (https://qhstaticssl.kujiale.com/__p/static/-mina-base-weplatform/pages/app/entry.e61c02e37b794967dfad.js?pn=kujiale-operation-mini-program-app&ps=1562446:476:6778)
+    at g (https://qhstaticssl.kujiale.com/__p/static/-mina-base-weplatform/pages/app/entry.e61c02e37b794967dfad.js?pn=kujiale-operation-mini-program-app&ps=1562446:1143:1857)
+    at Generator._invoke (https://qhstaticssl.kujiale.com/__p/static/-mina-base-weplatform/pages/app/entry.e61c02e37b794967dfad.js?pn=kujiale-operation-mini-program-app&ps=1562446:1143:3803)
+    at j.<computed> [as next] (https://qhstaticssl.kujiale.com/__p/static/-mina-base-weplatform/pages/app/entry.e61c02e37b794967dfad.js?pn=kujiale-operation-mini-program-app&ps=1562446:1143:2353)
+    at ve (https://qhstaticssl.kujiale.com/__p/static/-mina-base-weplatform/pages/app/entry.e61c02e37b794967dfad.js?pn=kujiale-operation-mini-program-app&ps=1562446:476:4446) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  167536ms] [LOG] %c15:48:13: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  167536ms] [LOG] %c15:48:13: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  167537ms] [LOG] %c15:48:13: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  167581ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  167581ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  169872ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:48:16.67] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(695)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  169928ms] [LOG] %c15:48:16: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  169928ms] [LOG] %c15:48:16: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  169929ms] [LOG] %c15:48:16: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  169972ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=410:0
+[  169972ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  171224ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=410#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/NDw5dEALnVZ2Mvfk0CFgfLCY8cDWgicV0ibx45pOvYeyae2e1cL2X752tbO8yqh1lt7yIdWg7CuDTBnDfTtZvb8J6B6mjxvFyIlhEselsSNVmTg8GP99Eria0KVAmFbuuSR/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=410#/information:0
+[  173610ms] [LOG] %c15:48:19: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  173610ms] [LOG] %c15:48:19: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  173610ms] [LOG] %c15:48:19: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  173672ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  173672ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  178439ms] [LOG] %c15:48:24: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  178439ms] [LOG] %c15:48:24: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  178439ms] [LOG] %c15:48:24: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  178492ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=409:0
+[  178492ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  179710ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=409#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/NDw5dEALnVba5GCexflHV5gGmSg18H9nOIRDaxiaLibycoZAKzAFjXOMQibWeN9vcMOrSO1ic4hlibmVyC5dbOjRibeKRjaPErG4cdpia0HT2q2YyTe0bpzXP8R3ibHhibibibbgOPj/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=409#/information:0
+[  181389ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:48:27.583] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(644)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  181480ms] [LOG] %c15:48:27: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  181481ms] [LOG] %c15:48:27: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  181481ms] [LOG] %c15:48:27: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  181527ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  181527ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  184807ms] [LOG] %c15:48:31: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  184807ms] [LOG] %c15:48:31: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  184807ms] [LOG] %c15:48:31: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  184853ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=407:0
+[  184853ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  185935ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=407#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/1MLz0YkS76FHtAobW3bw1xbYo5lzarrRTTky87Qdp5AKeOSVvwxuTxWYDT7qZH0vugib0JB3TFhj027op9aFdaW6icAJKuhL3sMicJGzqicrsXwicHs2WL0S4pF0plK4e8OibQ/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=407#/information:0
+[  187656ms] [LOG] %c15:48:33: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  187657ms] [LOG] %c15:48:33: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  187657ms] [LOG] %c15:48:33: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  187698ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  187699ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  189952ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:48:36.146] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(698)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  190009ms] [LOG] %c15:48:36: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  190009ms] [LOG] %c15:48:36: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  190009ms] [LOG] %c15:48:36: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  190048ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=406:0
+[  190048ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  191472ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=406#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKxjQEWyPdwM8nBxPe8GZ8wqZPfLQI4rEL2ia5kPz1rlhzf7j7t7Uib5z5FeN5U5zVwCFSP0DyCcCPqA7mY9uewmtiaPzhzYx8M49VqUHwiaFSgHfFyib6kUx3FIG/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=406#/information:0
+[  195885ms] [LOG] %c15:48:42: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  195886ms] [LOG] %c15:48:42: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  195886ms] [LOG] %c15:48:42: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  195933ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  195933ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  198431ms] [LOG] %c15:48:44: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  198431ms] [LOG] %c15:48:44: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  198431ms] [LOG] %c15:48:44: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  198474ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=400:0
+[  198474ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  199548ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=400#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/ajNVdqHZLLDvr2tpjzRN0EM0lXsZVJ4Rs0lAvMFpNd43danRPNt6Jvpfzq3a3EGfH03RYic4BnFKRerWPMVW2FwxJiccaSSbQKDibanVuHHOxibX33M61v9oYc1lGKNv4gnQ/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=400#/information:0
+[  201327ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:48:47.522] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(647)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  201382ms] [LOG] %c15:48:47: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  201382ms] [LOG] %c15:48:47: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  201382ms] [LOG] %c15:48:47: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  201428ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  201428ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  203708ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:48:49.903] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(693)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  203806ms] [LOG] %c15:48:50: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  203806ms] [LOG] %c15:48:50: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  203806ms] [LOG] %c15:48:50: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  203849ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=389:0
+[  203849ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  205081ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=389#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/NDw5dEALnVYibuaewG43BCVxOb8Czmda0PTlibF2tkzJE5Onwodn4jW5d5YyibCu4DSAZicnwicxdIFgDtBsx698mvP1N1pZBR7KWYn7VzGiaO72QibW8icicbibXXpqvp9uyzgx2A/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=389#/information:0
+[  206775ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:48:52.970] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(644)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  206856ms] [LOG] %c15:48:53: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  206856ms] [LOG] %c15:48:53: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  206856ms] [LOG] %c15:48:53: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  206900ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  206901ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  208896ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:48:55.91] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(696)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  208959ms] [LOG] %c15:48:55: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  208959ms] [LOG] %c15:48:55: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  208959ms] [LOG] %c15:48:55: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  209001ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=387:0
+[  209001ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  210216ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=387#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKxsMPneSpeO7fXNvBphav6lzqueRIeUhsIZcOTFbPaYjbw3f4FV2ns8dSia80syJ4Kq5rEK5jYQVj0icotR0Hiaf20UDribHv1hq0Gusn6E74DmE5yTGFic8Sia3q/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=387#/information:0
+[  211826ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:48:58.20] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(643)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  211868ms] [LOG] %c15:48:58: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  211868ms] [LOG] %c15:48:58: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  211868ms] [LOG] %c15:48:58: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  211911ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  211912ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  214506ms] [LOG] %c15:49:00: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  214506ms] [LOG] %c15:49:00: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  214506ms] [LOG] %c15:49:00: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  214549ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=384:0
+[  214549ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  215997ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=384#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/NDw5dEALnVaCRXtnbRFSMgcJXQ7Gx4x2g4qSmHnLUvGssHgbkibsnKgY35bnPAmpBibk2icg3cnRtUY7tLedK9LcJ3zs1Fnek7ly1cMlEN5Xc9Iz12stHAiaicLKXgnouFlLic/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=384#/information:0
+[  217699ms] [LOG] %c15:49:03: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  217700ms] [LOG] %c15:49:03: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  217700ms] [LOG] %c15:49:03: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  217742ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  217743ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  219968ms] [LOG] %c15:49:06: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  219968ms] [LOG] %c15:49:06: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  219968ms] [LOG] %c15:49:06: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  220010ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=367:0
+[  220011ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  221302ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=367#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/8HC7icRpl4NNguRWCHHvWialW8pZAbfXQxsTJZP60cUshhNfZtFo0llYqJ2LVibrIlNnAe55c5vPrADfwVc2U8WPf0fDoicodSib4/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=367#/information:0
+[  222969ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:49:09.164] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(644)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  223021ms] [LOG] %c15:49:09: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  223021ms] [LOG] %c15:49:09: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  223021ms] [LOG] %c15:49:09: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  223064ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  223064ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  226600ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:49:12.794] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(776)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  226654ms] [LOG] %c15:49:12: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  226654ms] [LOG] %c15:49:12: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  226654ms] [LOG] %c15:49:12: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  226694ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=356:0
+[  226694ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  228003ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=356#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/wBtbKfXwYF1xqmelHYE6qAg35VPLFzMoqEtkLQJxk7kZ6n0mj4QUU6zLfR3rJdQxwu5873MefdG1bIeictN91u99icuYXjW6Y3/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=356#/information:0
+[  229640ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:49:15.834] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(645)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  229680ms] [LOG] %c15:49:15: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  229680ms] [LOG] %c15:49:15: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  229680ms] [LOG] %c15:49:15: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  229722ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:132
+[  229722ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  233529ms] [LOG] %c15:49:19: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  233529ms] [LOG] %c15:49:19: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  233529ms] [LOG] %c15:49:19: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  233601ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=430:0
+[  233601ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  234635ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=430#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/1MLz0YkS76FvhibomFKmXLicvZj7rBW4bUia8kFEicS0WW5icqRWpA7FWfYSmGfbohBXnbl2lEAt9I1fXC5pJe73Op3AM47N1AGuXxm2T6lvv0CMZ9G4fKhfibeEgrRcDEYZeK/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=430#/information:0
+[  236275ms] [LOG] %c15:49:22: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  236276ms] [LOG] %c15:49:22: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  236276ms] [LOG] %c15:49:22: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  236319ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  236319ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  238786ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:49:24.980] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(694)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  238835ms] [LOG] %c15:49:25: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  238835ms] [LOG] %c15:49:25: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  238835ms] [LOG] %c15:49:25: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  238882ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=426:0
+[  238882ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  240066ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=426#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKxE8Ye6lsB5Tl6tALtTYOIsGfJDZmNDia1pVJOlEDczg0YSD7InVv8BZbDxYiaVVTaicgZ1k5CPSF63Sak4dJy9jjDYmia7YkEgmXvdKeTfZXSyNosol6gpcIVS/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=426#/information:0
+[  242135ms] [LOG] %c15:49:28: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  242135ms] [LOG] %c15:49:28: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  242135ms] [LOG] %c15:49:28: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  242183ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  242183ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  245531ms] [LOG] %c15:49:31: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  245532ms] [LOG] %c15:49:31: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  245532ms] [LOG] %c15:49:31: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  245588ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=422:0
+[  245588ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  246627ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=422#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKzEGXuhAl61MT8zA9YsH5vzg9CMAZmn4dx4hhRiaib01iaenslFH9xfokJFk85QZ8ic1HiatPwEibHr7vs2PZiaxIPdjH9/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=422#/information:0
+[  248423ms] [LOG] %c15:49:34: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  248424ms] [LOG] %c15:49:34: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  248424ms] [LOG] %c15:49:34: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  248471ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  248471ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  256220ms] [LOG] %c15:49:42: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  256220ms] [LOG] %c15:49:42: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  256220ms] [LOG] %c15:49:42: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  256361ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=418:0
+[  256361ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  257577ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=418#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/NDw5dEALnVbuvrJvfdWxlpq1J9U9TaFDHEUr0zjsUntOHebLlWyofLlDeVZezGyUxzSdugHqH9Lu7lks33kKI73y7fIa95hhOo4riaicj0JxqZXwU0lXnZCcqLfKJ44A3ib/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=418#/information:0
+[  264404ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:49:50.598] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(588)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  264471ms] [LOG] %c15:49:50: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  264472ms] [LOG] %c15:49:50: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  264472ms] [LOG] %c15:49:50: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  264531ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  264532ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  272447ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:49:58.642] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(646)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  272591ms] [LOG] %c15:49:58: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  272591ms] [LOG] %c15:49:58: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  272591ms] [LOG] %c15:49:58: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  272632ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=417:0
+[  272632ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  274118ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=417#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/PiajxSqBRaEJiaU66BAc6epFHFNHrxpT4qsvUlDibBGQDurBtxLG9UibwFWfbN5eZ1tKSmdyr4FflIbRtn4oOfeliaibDhxxEOwnkqQLusdiawZue6dzWVVuwNAd9JdYbelj4Qe/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=417#/information:0
+[  283542ms] [LOG] %c15:50:09: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  283542ms] [LOG] %c15:50:09: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  283542ms] [LOG] %c15:50:09: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  283593ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  283593ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  286125ms] [LOG] %c15:50:12: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  286126ms] [LOG] %c15:50:12: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  286126ms] [LOG] %c15:50:12: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  286169ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=416:0
+[  286169ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  287611ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=416#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/PiajxSqBRaEINwgOEIhko0at5ibRpJfTFpAIMmO7dhKluqxOjC24vSrYYYSGNcQz0I8t1gCJjjl0XK9WCVrqGDUjMRxhhVZwVM1a1yOSD5OnZibwibDAeURQkkxs9sic4tbpy/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=416#/information:0
+[  289237ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:50:15.432] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(644)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  289279ms] [LOG] %c15:50:15: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  289279ms] [LOG] %c15:50:15: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  289279ms] [LOG] %c15:50:15: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  289321ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  289321ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  291454ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:50:17.649] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(701)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  291553ms] [LOG] %c15:50:17: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  291553ms] [LOG] %c15:50:17: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  291553ms] [LOG] %c15:50:17: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  291596ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=415:0
+[  291596ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  293106ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=415#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/PiajxSqBRaEJlqkgPqKW4U2CLs9J0WwibjJxG3yrHy3Xs9K7qqJgpl4BmibHvCiapmbWjrxdYM2bVfMN6GQsiaQ1SkD7NO07daKIYVDRbEkdPr0y1fDWiaIc7DpIehbDreN5qn/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=415#/information:0
+[  296095ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:50:22.290] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(645)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  296161ms] [LOG] %c15:50:22: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  296162ms] [LOG] %c15:50:22: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  296162ms] [LOG] %c15:50:22: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  296205ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  296205ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  298177ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:50:24.371] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(695)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  298234ms] [LOG] %c15:50:24: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  298234ms] [LOG] %c15:50:24: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  298234ms] [LOG] %c15:50:24: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  298276ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=414:0
+[  298277ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  299257ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=414#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/ajNVdqHZLLBRLBWnQ6rrabHLmxWickyP4icia08CiabiatBKHuWmh4bfV4zxdiaxhA8G8lUIXyA96C3jMBOqBqBVp6WRZTbIfgONAXsU0MOGDboFEPzT7B0CaLibBd58ZykvjHF/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=414#/information:0
+[  305109ms] [LOG] %c15:50:31: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  305109ms] [LOG] %c15:50:31: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  305110ms] [LOG] %c15:50:31: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  305149ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  305150ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  307407ms] [LOG] %c15:50:33: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  307407ms] [LOG] %c15:50:33: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  307407ms] [LOG] %c15:50:33: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  307448ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=413:0
+[  307449ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  308505ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=413#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKzEGXuhAl61Mbiaoibhicxu7FvnTS8aXsZicvwSn0bhzABOUiaR6GCr8eFIewY9NiaSjAxiamI7iaYJ286ZU8UczJiakicGsa/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=413#/information:0
+[  310179ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:50:36.373] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(645)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  310236ms] [LOG] %c15:50:36: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  310236ms] [LOG] %c15:50:36: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  310236ms] [LOG] %c15:50:36: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  310277ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  310277ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  312299ms] [LOG] %c15:50:38: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  312299ms] [LOG] %c15:50:38: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  312299ms] [LOG] %c15:50:38: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  312340ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=411:0
+[  312340ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  313036ms] [ERROR] err TypeError: Cannot read properties of undefined (reading 'filter')
+    at Ie.<anonymous> (https://qhstaticssl.kujiale.com/__p/static/-mina-base-weplatform/pages/app/entry.e61c02e37b794967dfad.js?pn=kujiale-operation-mini-program-app&ps=1562446:476:6778)
+    at g (https://qhstaticssl.kujiale.com/__p/static/-mina-base-weplatform/pages/app/entry.e61c02e37b794967dfad.js?pn=kujiale-operation-mini-program-app&ps=1562446:1143:1857)
+    at Generator._invoke (https://qhstaticssl.kujiale.com/__p/static/-mina-base-weplatform/pages/app/entry.e61c02e37b794967dfad.js?pn=kujiale-operation-mini-program-app&ps=1562446:1143:3803)
+    at j.<computed> [as next] (https://qhstaticssl.kujiale.com/__p/static/-mina-base-weplatform/pages/app/entry.e61c02e37b794967dfad.js?pn=kujiale-operation-mini-program-app&ps=1562446:1143:2353)
+    at ve (https://qhstaticssl.kujiale.com/__p/static/-mina-base-weplatform/pages/app/entry.e61c02e37b794967dfad.js?pn=kujiale-operation-mini-program-app&ps=1562446:476:4446) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  314736ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:50:40.931] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(644)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  314808ms] [LOG] %c15:50:41: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  314808ms] [LOG] %c15:50:41: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  314808ms] [LOG] %c15:50:41: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  314849ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  314850ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  319250ms] [LOG] %c15:50:45: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  319250ms] [LOG] %c15:50:45: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  319251ms] [LOG] %c15:50:45: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  319332ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=410:0
+[  319332ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  320435ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=410#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/NDw5dEALnVZ2Mvfk0CFgfLCY8cDWgicV0ibx45pOvYeyae2e1cL2X752tbO8yqh1lt7yIdWg7CuDTBnDfTtZvb8J6B6mjxvFyIlhEselsSNVmTg8GP99Eria0KVAmFbuuSR/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=410#/information:0
+[  322139ms] [LOG] %c15:50:48: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  322139ms] [LOG] %c15:50:48: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  322139ms] [LOG] %c15:50:48: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  322180ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  322180ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  324703ms] [LOG] %c15:50:50: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  324703ms] [LOG] %c15:50:50: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  324704ms] [LOG] %c15:50:50: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  324746ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=409:0
+[  324747ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  326026ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=409#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/NDw5dEALnVba5GCexflHV5gGmSg18H9nOIRDaxiaLibycoZAKzAFjXOMQibWeN9vcMOrSO1ic4hlibmVyC5dbOjRibeKRjaPErG4cdpia0HT2q2YyTe0bpzXP8R3ibHhibibibbgOPj/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=409#/information:0
+[  327706ms] [LOG] %c15:50:53: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  327706ms] [LOG] %c15:50:53: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  327706ms] [LOG] %c15:50:53: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  327748ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  327748ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  332259ms] [LOG] %c15:50:58: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  332259ms] [LOG] %c15:50:58: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  332259ms] [LOG] %c15:50:58: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  332299ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=407:0
+[  332299ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  333702ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=407#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/1MLz0YkS76FHtAobW3bw1xbYo5lzarrRTTky87Qdp5AKeOSVvwxuTxWYDT7qZH0vugib0JB3TFhj027op9aFdaW6icAJKuhL3sMicJGzqicrsXwicHs2WL0S4pF0plK4e8OibQ/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=407#/information:0
+[  335504ms] [LOG] %c15:51:01: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  335504ms] [LOG] %c15:51:01: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  335504ms] [LOG] %c15:51:01: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  335546ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  335546ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  337896ms] [LOG] %c15:51:04: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  337897ms] [LOG] %c15:51:04: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  337897ms] [LOG] %c15:51:04: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  337940ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=406:0
+[  337940ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  339133ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=406#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKxjQEWyPdwM8nBxPe8GZ8wqZPfLQI4rEL2ia5kPz1rlhzf7j7t7Uib5z5FeN5U5zVwCFSP0DyCcCPqA7mY9uewmtiaPzhzYx8M49VqUHwiaFSgHfFyib6kUx3FIG/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=406#/information:0
+[  340848ms] [LOG] %c15:51:07: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  340848ms] [LOG] %c15:51:07: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  340848ms] [LOG] %c15:51:07: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  340889ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  340890ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  343194ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:51:09.389] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(696)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  343251ms] [LOG] %c15:51:09: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  343252ms] [LOG] %c15:51:09: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  343252ms] [LOG] %c15:51:09: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  343292ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=400:0
+[  343292ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  344327ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=400#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/ajNVdqHZLLDvr2tpjzRN0EM0lXsZVJ4Rs0lAvMFpNd43danRPNt6Jvpfzq3a3EGfH03RYic4BnFKRerWPMVW2FwxJiccaSSbQKDibanVuHHOxibX33M61v9oYc1lGKNv4gnQ/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=400#/information:0
+[  346046ms] [LOG] %c15:51:12: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  346046ms] [LOG] %c15:51:12: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  346046ms] [LOG] %c15:51:12: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  346090ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  346090ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  348394ms] [LOG] %c15:51:14: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  348394ms] [LOG] %c15:51:14: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  348394ms] [LOG] %c15:51:14: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  348443ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=389:0
+[  348443ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  349577ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=389#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/NDw5dEALnVYibuaewG43BCVxOb8Czmda0PTlibF2tkzJE5Onwodn4jW5d5YyibCu4DSAZicnwicxdIFgDtBsx698mvP1N1pZBR7KWYn7VzGiaO72QibW8icicbibXXpqvp9uyzgx2A/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=389#/information:0
+[  351309ms] [LOG] %c15:51:17: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  351309ms] [LOG] %c15:51:17: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  351309ms] [LOG] %c15:51:17: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  351350ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  351351ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  353718ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:51:19.913] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(705)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  353786ms] [LOG] %c15:51:19: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  353786ms] [LOG] %c15:51:19: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  353786ms] [LOG] %c15:51:19: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  353828ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=387:0
+[  353828ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  355153ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=387#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKxsMPneSpeO7fXNvBphav6lzqueRIeUhsIZcOTFbPaYjbw3f4FV2ns8dSia80syJ4Kq5rEK5jYQVj0icotR0Hiaf20UDribHv1hq0Gusn6E74DmE5yTGFic8Sia3q/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=387#/information:0
+[  356878ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:51:23.72] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(646)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  356942ms] [LOG] %c15:51:23: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  356942ms] [LOG] %c15:51:23: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  356943ms] [LOG] %c15:51:23: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  356990ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  356990ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  359572ms] [LOG] %c15:51:25: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  359573ms] [LOG] %c15:51:25: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  359573ms] [LOG] %c15:51:25: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  359617ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=384:0
+[  359617ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  360770ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=384#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/NDw5dEALnVaCRXtnbRFSMgcJXQ7Gx4x2g4qSmHnLUvGssHgbkibsnKgY35bnPAmpBibk2icg3cnRtUY7tLedK9LcJ3zs1Fnek7ly1cMlEN5Xc9Iz12stHAiaicLKXgnouFlLic/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=384#/information:0
+[  362430ms] [LOG] %c15:51:28: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  362430ms] [LOG] %c15:51:28: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  362430ms] [LOG] %c15:51:28: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  362472ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  362472ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  364836ms] [LOG] %c15:51:31: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  364836ms] [LOG] %c15:51:31: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  364836ms] [LOG] %c15:51:31: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  364882ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=367:0
+[  364882ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  366276ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=367#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/8HC7icRpl4NNguRWCHHvWialW8pZAbfXQxsTJZP60cUshhNfZtFo0llYqJ2LVibrIlNnAe55c5vPrADfwVc2U8WPf0fDoicodSib4/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=367#/information:0
+[  367889ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:51:34.83] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(643)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  367987ms] [LOG] %c15:51:34: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  367987ms] [LOG] %c15:51:34: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  367987ms] [LOG] %c15:51:34: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  368035ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  368036ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  371484ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:51:37.679] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(764)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  371538ms] [LOG] %c15:51:37: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  371538ms] [LOG] %c15:51:37: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  371538ms] [LOG] %c15:51:37: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  371584ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=135:0
+[  371584ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  372801ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=135#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKzEGXuhAl61MYLicXnjpwEHibmAtLrmS8dP4yYvFBHJOT7Ulq2pMyPOlqvk1uaFFGkRfSa06IJpdVxjVvFrIhylyM/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=135#/information:0
+[  374587ms] [LOG] %c15:51:40: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  374587ms] [LOG] %c15:51:40: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  374588ms] [LOG] %c15:51:40: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  374629ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  374629ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  376938ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:51:43.133] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(687)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  376990ms] [LOG] %c15:51:43: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  376990ms] [LOG] %c15:51:43: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  376990ms] [LOG] %c15:51:43: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  377034ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=430:135
+[  377034ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  378257ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=430#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/1MLz0YkS76FvhibomFKmXLicvZj7rBW4bUia8kFEicS0WW5icqRWpA7FWfYSmGfbohBXnbl2lEAt9I1fXC5pJe73Op3AM47N1AGuXxm2T6lvv0CMZ9G4fKhfibeEgrRcDEYZeK/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=430#/information:0
+[  380038ms] [LOG] %c15:51:46: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  380038ms] [LOG] %c15:51:46: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  380038ms] [LOG] %c15:51:46: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  380211ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5#/app:0
+[  380211ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  382519ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:51:48.713] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(706)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  382578ms] [LOG] %c15:51:48: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  382579ms] [LOG] %c15:51:48: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  382579ms] [LOG] %c15:51:48: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  382630ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=426:0
+[  382631ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  383795ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=426#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKxE8Ye6lsB5Tl6tALtTYOIsGfJDZmNDia1pVJOlEDczg0YSD7InVv8BZbDxYiaVVTaicgZ1k5CPSF63Sak4dJy9jjDYmia7YkEgmXvdKeTfZXSyNosol6gpcIVS/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=426#/information:0
+[  385385ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:51:51.580] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(644)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  385435ms] [LOG] %c15:51:51: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  385435ms] [LOG] %c15:51:51: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  385435ms] [LOG] %c15:51:51: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  385478ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  385479ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  387768ms] [LOG] %c15:51:53: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  387769ms] [LOG] %c15:51:53: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  387769ms] [LOG] %c15:51:53: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  387810ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=422:137
+[  387810ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  389045ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=422#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/yb6aicQDXdKzEGXuhAl61MT8zA9YsH5vzg9CMAZmn4dx4hhRiaib01iaenslFH9xfokJFk85QZ8ic1HiatPwEibHr7vs2PZiaxIPdjH9/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=422#/information:0
+[  390679ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:51:56.874] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(645)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  390768ms] [LOG] %c15:51:56: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  390768ms] [LOG] %c15:51:56: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  390768ms] [LOG] %c15:51:56: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  390813ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  390813ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  393228ms] [LOG] %c15:51:59: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  393228ms] [LOG] %c15:51:59: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  393228ms] [LOG] %c15:51:59: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  393275ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=418:0
+[  393275ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  394430ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=418#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/NDw5dEALnVbuvrJvfdWxlpq1J9U9TaFDHEUr0zjsUntOHebLlWyofLlDeVZezGyUxzSdugHqH9Lu7lks33kKI73y7fIa95hhOo4riaicj0JxqZXwU0lXnZCcqLfKJ44A3ib/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=418#/information:0
+[  396256ms] [LOG] %c15:52:02: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  396256ms] [LOG] %c15:52:02: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  396256ms] [LOG] %c15:52:02: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  396307ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  396307ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  398586ms] [ERROR] %c%s %c[⛳️ KIO]%c%s %c(%s): color: #999; [15:52:04.780] font-weight: bold; background: rgb(82, 59, 175); color: #ddd; margin-right: 1ch; color: #d32f2f; FATAL color: #bbb; batch-delivery Cannot submit batch. It may be relevant to the network. {endpoint: https://actionstat.kujiale.com/v2/api/eventtrack/autotrack?kio_version=3.16.0, data: ArrayBuffer(691)} TypeError: Failed to fetch
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8656
+    at Generator.next (<anonymous>)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:315
+    at new Promise (<anonymous>)
+    at e (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:60)
+    at Y (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:8449)
+    at ee (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:9393)
+    at https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30811
+    at Ye.dispatcher (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:30989)
+    at Ye.flushQueue (https://qhstaticssl.kujiale.com/text/javascript/1742890681722/kio.3.16.0.prod.js:1:23081) @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:2
+[  398648ms] [LOG] %c15:52:04: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  398648ms] [LOG] %c15:52:04: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  398648ms] [LOG] %c15:52:04: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  398697ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=417:0
+[  398697ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  399828ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=417#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/PiajxSqBRaEJiaU66BAc6epFHFNHrxpT4qsvUlDibBGQDurBtxLG9UibwFWfbN5eZ1tKSmdyr4FflIbRtn4oOfeliaibDhxxEOwnkqQLusdiawZue6dzWVVuwNAd9JdYbelj4Qe/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=417#/information:0
+[  401513ms] [LOG] %c15:52:07: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  401513ms] [LOG] %c15:52:07: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  401513ms] [LOG] %c15:52:07: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  401554ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  401554ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  403905ms] [LOG] %c15:52:10: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  403905ms] [LOG] %c15:52:10: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  403905ms] [LOG] %c15:52:10: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  403952ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=416:0
+[  403952ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  405165ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=416#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/PiajxSqBRaEINwgOEIhko0at5ibRpJfTFpAIMmO7dhKluqxOjC24vSrYYYSGNcQz0I8t1gCJjjl0XK9WCVrqGDUjMRxhhVZwVM1a1yOSD5OnZibwibDAeURQkkxs9sic4tbpy/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=416#/information:0
+[  406895ms] [LOG] %c15:52:13: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  406895ms] [LOG] %c15:52:13: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  406895ms] [LOG] %c15:52:13: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  406937ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  406938ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  409693ms] [LOG] %c15:52:15: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  409693ms] [LOG] %c15:52:15: %c Ktracker  color:#999 background:#909399;color:#fff [Performance Sample]: The current visit is not in the sampling range! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  409693ms] [LOG] %c15:52:15: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  409740ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/app?id=415:0
+[  409740ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  410819ms] [WARNING] Mixed Content: The page at 'https://www.kujiale.com/pub/operation/mini-program/app?id=415#/information' was loaded over HTTPS, but requested an insecure element 'http://wx.qlogo.cn/mmopen/PiajxSqBRaEJlqkgPqKW4U2CLs9J0WwibjJxG3yrHy3Xs9K7qqJgpl4BmibHvCiapmbWjrxdYM2bVfMN6GQsiaQ1SkD7NO07daKIYVDRbEkdPr0y1fDWiaIc7DpIehbDreN5qn/0'. This request was automatically upgraded to HTTPS, For more information see https://blog.chromium.org/2019/10/no-more-mixed-messages-about-https.html @ https://www.kujiale.com/pub/operation/mini-program/app?id=415#/information:0
+[  412490ms] [LOG] %c15:52:18: %c Ktracker  color:#999 background:#67C23A;color:#fff exception collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  412491ms] [LOG] %c15:52:18: %c Ktracker  color:#999 background:#67C23A;color:#fff performance collector loaded! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  412491ms] [LOG] %c15:52:18: %c Ktracker  color:#999 background:#1a7afb;color:#fff Ktracker mounted! @ https://qhstaticssl.kujiale.com/mc/2.10.1/ktracker.min.js:0
+[  412532ms] [ERROR] Access to XMLHttpRequest at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5:0
+[  412533ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
+[  472626ms] [ERROR] Access to fetch at 'https://mc.kujiale.com:8880/api/v3/rum/performance' from origin 'https://www.kujiale.com' has been blocked by CORS policy: Permission was denied for this request to access the `local` address space. @ https://www.kujiale.com/pub/operation/mini-program/solution?id=5#/app:0
+[  472627ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://mc.kujiale.com:8880/api/v3/rum/performance:0
