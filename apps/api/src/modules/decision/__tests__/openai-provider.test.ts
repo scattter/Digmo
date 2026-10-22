@@ -115,6 +115,7 @@ describe("OpenAIDecisionProvider", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -136,6 +137,7 @@ describe("OpenAIDecisionProvider", () => {
       baseURL: "https://api.openai.com/v1",
       maxRetries: 0,
       timeout: 5000,
+      fetchOptions: { redirect: "error" },
     });
     expect(responsesCreateSpy).toHaveBeenCalledTimes(1);
     expect(responsesCreateSpy).toHaveBeenCalledWith({
@@ -168,6 +170,7 @@ describe("OpenAIDecisionProvider", () => {
       baseURL: "https://api.openai.com/v1",
       maxRetries: 0,
       timeout: 5000,
+      fetchOptions: { redirect: "error" },
     });
     expect(chatCompletionCreateSpy).toHaveBeenCalledTimes(1);
     expect(chatCompletionCreateSpy).toHaveBeenCalledWith({
@@ -288,6 +291,16 @@ describe("OpenAIDecisionProvider", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       "https://api.xairouter.com/v1/chat/completions",
     );
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ redirect: "error" });
+  });
+
+  test("rejects an old saved AI URL outside the production allowlist before sending credentials", () => {
+    expect(() => buildProvider({
+      baseUrl: "http://127.0.0.1:8080/v1",
+      allowedOrigins: ["https://api.openai.com"],
+    })).toThrow("DECISION_AI_ALLOWED_ORIGINS");
+    expect(openAIConstructorSpy).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   test("clamps compat chat completions max_tokens to provider-safe latency budget", async () => {
@@ -560,6 +573,27 @@ describe("OpenAIDecisionProvider", () => {
     expect(rejection).toBeInstanceOf(Error);
     expect((rejection as Error).message).toBe("Request timed out.");
     vi.useRealTimers();
+  });
+
+  test.each([200, 503])("times out a stalled compat response body with status %s", async (status) => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("{"));
+          init?.signal?.addEventListener("abort", () => {
+            controller.error(new DOMException("aborted", "AbortError"));
+          }, { once: true });
+        },
+      });
+      return Promise.resolve(new Response(body, { status }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = buildProvider({ baseUrl: "https://compat.example.com/v1", timeoutMs: 20_000 });
+    const pending = expect(provider.generateDailyDecision(createInput())).rejects.toThrow("Request timed out.");
+    await vi.advanceTimersByTimeAsync(150_000);
+    await pending;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   test("keeps system prompt and serializes trimmed decision payload into user message", async () => {

@@ -27,6 +27,9 @@ import { createRequireAuth } from "./routes/middleware/require-auth.js";
 import { createShareCache } from "./modules/share/cache.js";
 import { ShareService } from "./modules/share/service.js";
 import { createLoggerOptions } from "./infra/logging/logger.js";
+import { createRateLimit } from "./routes/middleware/rate-limit.js";
+import { ensureProductionPasswords } from "./modules/auth/production-auth.js";
+import { verifyAccessToken } from "./modules/auth/token.js";
 
 export interface AppContext {
   app: FastifyInstance;
@@ -71,9 +74,36 @@ export async function buildApp(): Promise<AppContext> {
   const config = getConfig();
   const app = Fastify({
     logger: createLoggerOptions(),
+    bodyLimit: 1024 * 1024,
+  });
+  app.addHook("onRequest", createRateLimit({
+    max: 300,
+    skip: (request) =>
+      (["GET", "HEAD"].includes(request.method) && request.routeOptions.url === "/v1/health") ||
+      (request.method === "POST" && ["/v1/auth/login", "/v1/auth/register"].includes(request.routeOptions.url ?? "")),
+    key: (request) => {
+      const [scheme, token] = (request.headers.authorization ?? "").split(" ");
+      if (scheme.toLowerCase() === "bearer" && token) {
+        try {
+          // 代理连接 IP 会共享；这里只隔离限流额度，私有路由仍独立查库鉴权。
+          return `user:${verifyAccessToken(token, config.auth.jwtSecret).sub}`;
+        } catch {
+          // 无效或过期令牌不能获得独立额度。
+        }
+      }
+      return `ip:${request.ip}`;
+    },
+  }));
+  app.addHook("onRequest", createRateLimit({
+    max: 60,
+    skip: (request) => request.method !== "POST" || request.routeOptions.url !== "/v1/auth/login",
+  }));
+  app.addHook("onSend", async (_request, reply) => {
+    reply.header("Cache-Control", "no-store");
+    reply.header("X-Content-Type-Options", "nosniff");
   });
   await app.register(cors, {
-    origin: true,
+    origin: config.corsOrigins.length > 0 ? config.corsOrigins : !config.production,
     methods: [...CORS_METHODS],
   });
 
@@ -83,6 +113,7 @@ export async function buildApp(): Promise<AppContext> {
     bootstrapAdminUsername: config.auth.bootstrapAdminUsername,
     bootstrapAdminPassword: config.auth.bootstrapAdminPassword,
   });
+  if (config.production) await ensureProductionPasswords(watchlistStore);
   const decisionStore = new SqliteDecisionStore(config.watchlist.dbPath);
   const shareCache = await createShareCache(config.redis, app.log);
   const shareService = new ShareService({
@@ -133,6 +164,7 @@ export async function buildApp(): Promise<AppContext> {
       maxOutputTokens: config.decisionAi.openaiMaxTokens,
       systemPrompt,
       docMaxChars: config.decisionAi.docMaxChars,
+      allowedOrigins: config.decisionAi.allowedOrigins,
     });
 
   registerHealthRoutes(app);
@@ -147,6 +179,7 @@ export async function buildApp(): Promise<AppContext> {
   registerSettingsRoutes(app, {
     store: watchlistStore,
     requireAuth,
+    allowedOrigins: config.decisionAi.allowedOrigins,
   });
   registerWatchlistRoutes(app, {
     store: watchlistStore,
@@ -171,6 +204,16 @@ export async function buildApp(): Promise<AppContext> {
         message: error.message,
         requestId: request.id,
         details: error.details,
+      });
+      return;
+    }
+
+    if (error instanceof Error && "statusCode" in error &&
+      typeof error.statusCode === "number" && error.statusCode >= 400 && error.statusCode < 500) {
+      reply.status(error.statusCode).send({
+        code: "code" in error && typeof error.code === "string" ? error.code : "BAD_REQUEST",
+        message: error.message,
+        requestId: request.id,
       });
       return;
     }

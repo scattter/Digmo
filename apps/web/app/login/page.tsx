@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Card, Form, Input, Typography, App } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
@@ -12,8 +13,6 @@ const { Title, Text } = Typography;
 export default function LoginPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // Use App context for message if inside App, but Login might be root.
-  // We added AntdConfigProvider in layout, so App is available.
   const { message } = App.useApp();
 
   useEffect(() => {
@@ -51,7 +50,7 @@ export default function LoginPage() {
       <Card className="w-full">
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
            <Title level={3}>登录 Digmo</Title>
-           <Text type="secondary">请输入管理员创建的用户名与密码</Text>
+           <Text type="secondary">请输入用户名与密码，新用户可先注册</Text>
         </div>
         
         <Form
@@ -62,16 +61,18 @@ export default function LoginPage() {
         >
            <Form.Item
               name="username"
+              label="用户名"
               rules={[{ required: true, message: '请输入用户名' }]}
            >
-              <Input prefix={<UserOutlined />} placeholder="用户名" disabled={isSubmitting} />
+              <Input prefix={<UserOutlined />} placeholder="用户名" autoComplete="username" disabled={isSubmitting} />
            </Form.Item>
 
            <Form.Item
               name="password"
+              label="密码"
               rules={[{ required: true, message: '请输入密码' }]}
            >
-              <Input.Password prefix={<LockOutlined />} placeholder="密码" disabled={isSubmitting} />
+              <Input.Password prefix={<LockOutlined />} placeholder="密码" autoComplete="current-password" disabled={isSubmitting} />
            </Form.Item>
 
            <Form.Item>
@@ -80,6 +81,9 @@ export default function LoginPage() {
               </Button>
            </Form.Item>
         </Form>
+        <div style={{ textAlign: 'center' }}>
+          <Text type="secondary">还没有账号？</Text> <Link href="/register">立即注册</Link>
+        </div>
       </Card>
     </main>
   );

@@ -331,7 +331,7 @@ describe("watchlist routes", () => {
     await app.close();
   });
 
-  test("accepts token when subject is missing but username maps to existing user", async () => {
+  test("rejects token with an unknown subject even when username maps to an existing user", async () => {
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);
     const app = await createRouteApp(
@@ -363,7 +363,7 @@ describe("watchlist routes", () => {
       }
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode).toBe(401);
     await app.close();
   });
 

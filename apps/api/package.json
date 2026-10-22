@@ -11,6 +11,7 @@
     "test": "vitest run",
     "cli": "tsx src/cli.ts",
     "user:create": "tsx src/cli.ts user:create",
+    "user:password": "tsx src/cli.ts user:password",
     "data:export": "tsx src/cli.ts data:export",
     "data:import": "tsx src/cli.ts data:import",
     "demo:realtime-provider-poc": "tsx src/demo/realtime-provider-poc/run.ts"

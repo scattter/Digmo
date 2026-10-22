@@ -2,10 +2,12 @@ import { DecisionAiMode, ERROR_CODES, UserDecisionAiConfigSummary } from "@digmo
 import { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
 import { WatchlistStore } from "../infra/watchlist/sqlite-watchlist-store.js";
 import { AppError } from "../utils/app-error.js";
+import { validateDecisionBaseUrl } from "../modules/decision/base-url.js";
 
 interface RegisterSettingsRoutesDeps {
   store: WatchlistStore;
   requireAuth: preHandlerHookHandler;
+  allowedOrigins?: string[];
 }
 
 function requireUserId(request: FastifyRequest): string {
@@ -92,7 +94,7 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: RegisterSetti
         mode?: unknown;
         apiKey?: unknown;
       };
-      const baseUrl = parseRequiredString(body?.baseUrl, "baseUrl", 500);
+      const baseUrl = validateDecisionBaseUrl(parseRequiredString(body?.baseUrl, "baseUrl", 500), deps.allowedOrigins);
       const model = parseRequiredString(body?.model, "model", 200);
       const mode = parseDecisionAiMode(body?.mode);
       const apiKey = parseOptionalApiKey(body?.apiKey);

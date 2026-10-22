@@ -141,6 +141,19 @@ export async function login(username: string, password: string): Promise<LoginRe
   return response.json() as Promise<LoginResponse>;
 }
 
+export async function register(username: string, password: string): Promise<{ user: AuthUser }> {
+  const response = await apiRequest("/v1/auth/register", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({ username, password })
+  });
+
+  await ensureOk(response, "注册失败");
+  return response.json() as Promise<{ user: AuthUser }>;
+}
+
 export async function fetchMe(): Promise<{ user: AuthUser }> {
   const response = await apiRequest("/v1/auth/me", {
     auth: true

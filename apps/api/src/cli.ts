@@ -1,8 +1,10 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { UserRole, UserStatus } from "@digmo/shared";
 import { getConfig } from "./config.js";
 import { ExportDataPayload, SqliteWatchlistStore } from "./infra/watchlist/sqlite-watchlist-store.js";
+import { hashPassword } from "./modules/auth/password.js";
 
 interface ArgMap {
   [key: string]: string | boolean;
@@ -59,6 +61,24 @@ function parseStatus(value: string | boolean | undefined): UserStatus {
 
 async function main(): Promise<void> {
   const { command, args } = parseArgs(process.argv.slice(2));
+  if (command === "user:password") {
+    const username = ensureStringArg(args, "username");
+    const password = typeof args.password === "string" ? args.password.trim() : process.env.USER_PASSWORD?.trim();
+    if (!password || password.length < 12) throw new Error("密码至少 12 字符，请设置 USER_PASSWORD 或 --password");
+    const dbPath = process.env.WATCHLIST_DB_PATH ?? "./data/watchlist.sqlite";
+    if (!existsSync(dbPath)) throw new Error(`数据库不存在: ${dbPath}`);
+    // 密码恢复必须绕过生产启动校验，且不能额外创建初始管理员。
+    const db = new DatabaseSync(dbPath);
+    try {
+      const result = db.prepare("UPDATE app_user SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ? COLLATE NOCASE")
+        .run(hashPassword(password), username);
+      if (result.changes !== 1) throw new Error(`user ${username} not found`);
+    } finally {
+      db.close();
+    }
+    console.log(JSON.stringify({ ok: true, username }));
+    return;
+  }
   const config = getConfig();
   const store = new SqliteWatchlistStore(config.watchlist.dbPath, {
     bootstrapAdminUsername: config.auth.bootstrapAdminUsername,
@@ -66,12 +86,14 @@ async function main(): Promise<void> {
   });
 
   if (!command) {
-    throw new Error("missing command. supported: user:create, data:export, data:import");
+    throw new Error("missing command. supported: user:create, user:password, data:export, data:import");
   }
 
   if (command === "user:create") {
     const username = ensureStringArg(args, "username");
-    const password = ensureStringArg(args, "password");
+    const password = typeof args.password === "string" ? args.password.trim() : process.env.USER_PASSWORD?.trim();
+    if (!password) throw new Error("请通过 USER_PASSWORD 或 --password 设置密码");
+    if (config.production && password.length < 12) throw new Error("生产账号密码至少 12 字符");
     const role = parseRole(args.role);
     const status = parseStatus(args.status);
 

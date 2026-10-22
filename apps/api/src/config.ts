@@ -4,10 +4,12 @@ import { loadEnvFile } from "node:process";
 import { ASIA_SHANGHAI_TIMEZONE } from "@digmo/shared";
 
 export interface AppConfig {
+  production: boolean;
   host: string;
   port: number;
   timezone: string;
   targetFunds: string[];
+  corsOrigins: string[];
   watchlist: {
     dbPath: string;
   };
@@ -27,6 +29,7 @@ export interface AppConfig {
     openaiMaxTokens: number;
     systemPromptFile?: string;
     docMaxChars: number;
+    allowedOrigins?: string[];
   };
   auth: {
     jwtSecret: string;
@@ -50,6 +53,17 @@ function toPositiveInt(raw: string | undefined, defaultValue: number): number {
   return Math.floor(parsed);
 }
 
+function parseOrigins(raw: string, httpsOnly: boolean): string[] {
+  return [...new Set(raw.split(",").map((value) => value.trim()).filter(Boolean).map((value) => {
+    const url = new URL(value);
+    if ((httpsOnly ? url.protocol !== "https:" : !["http:", "https:"].includes(url.protocol)) ||
+      url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+      throw new Error(`来源配置必须是${httpsOnly ? " HTTPS" : " HTTP(S)"} origin，不能包含路径、凭据或查询参数: ${value}`);
+    }
+    return url.origin;
+  }))];
+}
+
 export function loadEnvFromDotEnvIfPresent(filePath = ".env"): void {
   const resolvedPath = resolve(filePath);
   if (!existsSync(resolvedPath)) {
@@ -61,6 +75,21 @@ export function loadEnvFromDotEnvIfPresent(filePath = ".env"): void {
 loadEnvFromDotEnvIfPresent();
 
 export function getConfig(): AppConfig {
+  const production = process.env.NODE_ENV === "production";
+  const jwtSecret = process.env.AUTH_JWT_SECRET ?? "digmo-dev-change-this-secret";
+  const bootstrapAdminPassword = process.env.AUTH_BOOTSTRAP_ADMIN_PASSWORD ?? "admin123456";
+  if (production) {
+    if (jwtSecret.trim().length < 32 || /^(digmo-dev-change-this-secret|change-this-in-production|change-me)$/i.test(jwtSecret.trim())) {
+      throw new Error("生产环境必须设置至少 32 字符的随机 AUTH_JWT_SECRET");
+    }
+    if (bootstrapAdminPassword.trim().length < 12 || /^(admin123456|change-this-in-production|change-me)$/i.test(bootstrapAdminPassword.trim())) {
+      throw new Error("生产环境必须设置至少 12 字符的 AUTH_BOOTSTRAP_ADMIN_PASSWORD，不能使用默认密码");
+    }
+  }
+  const corsOrigins = parseOrigins(process.env.CORS_ORIGINS ?? "", false);
+  const allowedOrigins = production
+    ? parseOrigins(process.env.DECISION_AI_ALLOWED_ORIGINS ?? "https://api.openai.com", true)
+    : undefined;
   const host = process.env.HOST ?? "0.0.0.0";
   const port = Number(process.env.PORT ?? 3001);
   const timezone = process.env.TZ ?? ASIA_SHANGHAI_TIMEZONE;
@@ -87,10 +116,12 @@ export function getConfig(): AppConfig {
     decisionProviderRaw === "openai" ? "openai" : "openai";
 
   return {
+    production,
     host,
     port,
     timezone,
     targetFunds,
+    corsOrigins,
     watchlist: {
       dbPath: watchlistDbPath,
     },
@@ -113,16 +144,16 @@ export function getConfig(): AppConfig {
       openaiMaxTokens: Number(process.env.OPENAI_MAX_TOKENS ?? 1600),
       systemPromptFile: process.env.DECISION_AI_SYSTEM_PROMPT_FILE,
       docMaxChars: toPositiveInt(process.env.DECISION_AI_DOC_MAX_CHARS, 12_000),
+      allowedOrigins,
     },
     auth: {
-      jwtSecret: process.env.AUTH_JWT_SECRET ?? "digmo-dev-change-this-secret",
+      jwtSecret,
       accessTokenExpiresInSec: Number(
         process.env.AUTH_ACCESS_TOKEN_EXPIRES_IN_SEC ?? 43200,
       ),
       bootstrapAdminUsername:
         process.env.AUTH_BOOTSTRAP_ADMIN_USERNAME ?? "admin",
-      bootstrapAdminPassword:
-        process.env.AUTH_BOOTSTRAP_ADMIN_PASSWORD ?? "admin123456",
+      bootstrapAdminPassword,
     },
     redis: {
       enabled: redisEnabled,

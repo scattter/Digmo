@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - ".github/workflows/api-image.yml"
+      - ".dockerignore"
       - "apps/api/**"
       - "apps/web/**"
       - "packages/shared/**"

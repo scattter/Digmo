@@ -1,6 +1,6 @@
 export type ConfidenceLevel = "HIGH" | "MEDIUM" | "LOW";
 
-export type ValuationMethod = "FUND_GZ_DIRECT";
+export type ValuationMethod = "FUND_GZ_DIRECT" | "SINA_DIRECT";
 
 export interface FundEstimateSnapshot {
   fundCode: string;

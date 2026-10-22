@@ -9,6 +9,8 @@ coverage
 !.env.example
 apps/api/.env
 apps/api/data/*.sqlite
+apps/api/data/*.sqlite-*
+apps/api/data/backups/
 .DS_Store
 .vercel
 .env*.local

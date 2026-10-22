@@ -9,6 +9,17 @@ import {
 import { randomUUID } from "node:crypto";
 import { Repository, StoredEstimate } from "./repository.js";
 
+const MAX_ENTRIES = 2000;
+const MAX_HISTORY_RECORDS = 256;
+
+function setBounded<T>(map: Map<string, T>, key: string, value: T): void {
+  map.delete(key);
+  map.set(key, value);
+  if (map.size > MAX_ENTRIES) {
+    map.delete(map.keys().next().value!);
+  }
+}
+
 function round(value: number): number {
   return Math.round(value * 10000) / 10000;
 }
@@ -27,7 +38,7 @@ export class InMemoryRepository implements Repository {
   private readonly jobLogs: JobRunLog[] = [];
 
   async saveFundProfile(profile: FundProfile): Promise<void> {
-    this.profiles.set(profile.fundCode, profile);
+    setBounded(this.profiles, profile.fundCode, profile);
   }
 
   async getFundProfile(fundCode: string): Promise<FundProfile | undefined> {
@@ -43,7 +54,7 @@ export class InMemoryRepository implements Repository {
     const merged = [...existing.filter((item) => item.navDate !== record.navDate), record].sort((a, b) =>
       a.navDate.localeCompare(b.navDate)
     );
-    this.navRecords.set(record.fundCode, merged);
+    setBounded(this.navRecords, record.fundCode, merged.slice(-MAX_HISTORY_RECORDS));
   }
 
   async saveNavRecords(records: NavRecord[]): Promise<void> {
@@ -61,7 +72,7 @@ export class InMemoryRepository implements Repository {
   }
 
   async saveHoldingSnapshot(snapshot: HoldingSnapshot): Promise<void> {
-    this.holdings.set(snapshot.fundCode, snapshot);
+    setBounded(this.holdings, snapshot.fundCode, snapshot);
   }
 
   async getLatestHoldingSnapshot(fundCode: string): Promise<HoldingSnapshot | undefined> {
@@ -70,7 +81,7 @@ export class InMemoryRepository implements Repository {
 
   async saveQuotes(quotes: MarketQuote[]): Promise<void> {
     for (const quote of quotes) {
-      this.quotes.set(quote.code, quote);
+      setBounded(this.quotes, quote.code, quote);
     }
   }
 
@@ -93,7 +104,7 @@ export class InMemoryRepository implements Repository {
       estimateChangePct: round(snapshot.estimateChangePct)
     });
     filtered.sort((a, b) => a.estimateTime.localeCompare(b.estimateTime));
-    this.estimates.set(snapshot.fundCode, filtered);
+    setBounded(this.estimates, snapshot.fundCode, filtered.slice(-MAX_HISTORY_RECORDS));
   }
 
   async getLatestEstimate(fundCode: string): Promise<StoredEstimate | undefined> {

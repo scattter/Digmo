@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { DecisionAiMode } from "@digmo/shared";
+import { validateDecisionBaseUrl } from "./base-url.js";
 import {
   DecisionAIProvider,
   DecisionGenerationInput,
@@ -16,6 +17,7 @@ interface OpenAIDecisionProviderOptions {
   baseUrl?: string;
   systemPrompt?: string;
   docMaxChars?: number;
+  allowedOrigins?: string[];
 }
 
 interface OpenAIChatUsage {
@@ -123,14 +125,20 @@ function isOfficialOpenAIBaseUrl(baseUrl: string): boolean {
   );
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<OpenAIChatPayload> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(url, {
+    const response = await fetch(url, {
       ...init,
       signal: controller.signal,
+      redirect: "error",
     });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`openai request failed: ${response.status} ${detail}`);
+    }
+    return (await response.json()) as OpenAIChatPayload;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
       throw new Error("Request timed out.");
@@ -285,7 +293,8 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
     this.maxOutputTokens = options.maxOutputTokens;
     this.compatMaxOutputTokens = normalizeCompatMaxTokens(options.maxOutputTokens);
     this.compatTimeoutMs = normalizeCompatTimeoutMs(options.timeoutMs);
-    this.baseUrl = normalizeBaseUrl(options.baseUrl);
+    // 旧版保存的配置也必须通过当前白名单校验。
+    this.baseUrl = validateDecisionBaseUrl(normalizeBaseUrl(options.baseUrl), options.allowedOrigins);
     this.systemPrompt = options.systemPrompt?.trim()
       ? options.systemPrompt.trim()
       : DEFAULT_SYSTEM_PROMPT;
@@ -301,12 +310,13 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
         baseURL: this.baseUrl,
         timeout: this.timeoutMs,
         maxRetries: 0,
+        fetchOptions: { redirect: "error" },
       });
     }
   }
 
   private async requestCompatChatCompletions(inputText: string): Promise<OpenAIChatPayload> {
-    const response = await fetchWithTimeout(
+    return fetchJsonWithTimeout(
       buildApiEndpoint(this.baseUrl, "chat/completions"),
       {
         method: "POST",
@@ -331,13 +341,6 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
       },
       this.compatTimeoutMs,
     );
-
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`openai request failed: ${response.status} ${detail}`);
-    }
-
-    return (await response.json()) as OpenAIChatPayload;
   }
 
   private async requestResponsesPayload(inputText: string): Promise<OpenAIResponsesPayload> {

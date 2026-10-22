@@ -22,4 +22,13 @@ coverage
 **/.env
 **/.env.*
 
+# Local accounts, positions, API keys, and exports must never enter an image.
+apps/api/data
+**/*.sqlite
+**/*.sqlite-*
+**/*.db
+**/*.db-*
+**/*-export.json
+.DS_Store
+
 *.log
