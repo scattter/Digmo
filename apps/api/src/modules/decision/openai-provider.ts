@@ -23,11 +23,13 @@ interface OpenAIDecisionProviderOptions {
 interface OpenAIChatUsage {
   prompt_tokens?: number;
   completion_tokens?: number;
+  completion_tokens_details?: { reasoning_tokens?: number } | null;
   total_tokens?: number;
 }
 
 interface OpenAIChatPayload {
   choices?: Array<{
+    finish_reason?: string | null;
     message?: {
       content?:
         | string
@@ -43,16 +45,18 @@ interface OpenAIChatPayload {
 interface OpenAIResponsesUsage {
   input_tokens?: number;
   output_tokens?: number;
+  output_tokens_details?: { reasoning_tokens?: number } | null;
   total_tokens?: number;
 }
 
 interface OpenAIResponsesPayload {
+  status?: string;
+  incomplete_details?: { reason?: string } | null;
   output_text?: string;
   usage?: OpenAIResponsesUsage;
 }
 
 const DEFAULT_DOC_MAX_CHARS = 12_000;
-const MAX_COMPAT_CHAT_COMPLETION_TOKENS = 1_024;
 const MIN_COMPAT_CHAT_COMPLETION_TIMEOUT_MS = 75_000;
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const MAX_GENERATION_ATTEMPTS = 2;
@@ -82,14 +86,6 @@ function normalizeDocMaxChars(docMaxChars?: number): number {
     return DEFAULT_DOC_MAX_CHARS;
   }
   return Math.floor(docMaxChars);
-}
-
-function normalizeCompatMaxTokens(maxOutputTokens: number): number {
-  if (!Number.isFinite(maxOutputTokens) || maxOutputTokens <= 0) {
-    return Math.min(1600, MAX_COMPAT_CHAT_COMPLETION_TOKENS);
-  }
-
-  return Math.min(Math.floor(maxOutputTokens), MAX_COMPAT_CHAT_COMPLETION_TOKENS);
 }
 
 function normalizeCompatTimeoutMs(timeoutMs: number): number {
@@ -231,6 +227,17 @@ function extractChatOutputText(payload: OpenAIChatPayload): string | undefined {
   return undefined;
 }
 
+function createTokenLimitError(
+  maxOutputTokens: number,
+  outputTokens?: number,
+  reasoningTokens?: number,
+): Error {
+  const details = [`OPENAI_MAX_TOKENS=${maxOutputTokens}`];
+  if (typeof outputTokens === "number") details.push(`output_tokens=${outputTokens}`);
+  if (typeof reasoningTokens === "number") details.push(`reasoning_tokens=${reasoningTokens}`);
+  return new Error(`AI 输出 token 已达上限（${details.join("，")}）。额度包含推理和正文，请调高 OPENAI_MAX_TOKENS 后重试。`);
+}
+
 function isRetriableHttpStatus(status: number): boolean {
   return status === 408 || status === 409 || status === 425 || status === 429 || status >= 500;
 }
@@ -282,7 +289,6 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
   private readonly docMaxChars: number;
   private readonly useCompatChatCompletionsTransport: boolean;
   private readonly client?: OpenAI;
-  private readonly compatMaxOutputTokens: number;
   private readonly compatTimeoutMs: number;
 
   constructor(options: OpenAIDecisionProviderOptions) {
@@ -291,7 +297,6 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
     this.mode = options.mode;
     this.timeoutMs = options.timeoutMs;
     this.maxOutputTokens = options.maxOutputTokens;
-    this.compatMaxOutputTokens = normalizeCompatMaxTokens(options.maxOutputTokens);
     this.compatTimeoutMs = normalizeCompatTimeoutMs(options.timeoutMs);
     // 旧版保存的配置也必须通过当前白名单校验。
     this.baseUrl = validateDecisionBaseUrl(normalizeBaseUrl(options.baseUrl), options.allowedOrigins);
@@ -336,7 +341,7 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
               content: inputText,
             },
           ],
-          max_tokens: this.compatMaxOutputTokens,
+          max_tokens: this.maxOutputTokens,
         }),
       },
       this.compatTimeoutMs,
@@ -359,6 +364,7 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
 
     return (await this.client?.chat.completions.create({
       model: this.model,
+      max_completion_tokens: this.maxOutputTokens,
       messages: [
         {
           role: "system",
@@ -392,6 +398,18 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
             throw new Error("openai client is not initialized");
           }
 
+          // 截断正文不能作为完整建议保存；额度不足时使用相同参数重试也无法恢复。
+          if (payload.status === "incomplete") {
+            if (payload.incomplete_details?.reason === "max_output_tokens") {
+              throw createTokenLimitError(
+                this.maxOutputTokens,
+                payload.usage?.output_tokens,
+                payload.usage?.output_tokens_details?.reasoning_tokens,
+              );
+            }
+            throw new Error(`AI 响应未完成（${payload.incomplete_details?.reason ?? "unknown"}）`);
+          }
+
           const outputText = payload.output_text?.trim();
           if (!outputText) {
             throw new Error("openai response has no output text");
@@ -414,6 +432,14 @@ export class OpenAIDecisionProvider implements DecisionAIProvider {
 
         if (!payload) {
           throw new Error("openai client is not initialized");
+        }
+
+        if (payload.choices?.[0]?.finish_reason === "length") {
+          throw createTokenLimitError(
+            this.maxOutputTokens,
+            payload.usage?.completion_tokens,
+            payload.usage?.completion_tokens_details?.reasoning_tokens,
+          );
         }
 
         const outputText = extractChatOutputText(payload);

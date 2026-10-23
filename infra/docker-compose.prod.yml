@@ -31,6 +31,8 @@ services:
       AUTH_BOOTSTRAP_ADMIN_PASSWORD: ${AUTH_BOOTSTRAP_ADMIN_PASSWORD:?Set a strong initial admin password}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
       DECISION_AI_ALLOWED_ORIGINS: ${DECISION_AI_ALLOWED_ORIGINS:-https://api.openai.com}
+      OPENAI_TIMEOUT_MS: ${OPENAI_TIMEOUT_MS:-120000}
+      OPENAI_MAX_TOKENS: ${OPENAI_MAX_TOKENS:-16384}
     volumes:
       - api_data:/app/apps/api/data
     healthcheck:

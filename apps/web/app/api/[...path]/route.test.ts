@@ -6,11 +6,43 @@ import { GET, POST } from "./route";
 const context = { params: Promise.resolve({ path: ["v1", "funds", "000001", "estimate"] }) };
 
 afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
 
 describe("API proxy", () => {
+  it.each([
+    { method: "POST", path: ["v1", "portfolios", "p1", "daily-decision:generate"], delayMs: 75000, status: 200 },
+    { method: "POST", path: ["v1", "portfolios", "p1", "daily-decision:generate"], delayMs: 310000, status: 504 },
+    { method: "GET", path: ["v1", "portfolios", "p1", "daily-decision", "latest"], delayMs: 75000, status: 504 },
+    { method: "POST", path: ["v1", "auth", "login"], delayMs: 75000, status: 504 },
+  ])("handles $method $path with an upstream delay of $delayMs ms", async ({ method, path, delayMs, status }) => {
+    vi.useFakeTimers();
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((timeoutMs) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException("timeout", "TimeoutError")), timeoutMs);
+      return controller.signal;
+    });
+    const fetchMock = vi.fn((_url: unknown, init: RequestInit) => new Promise<Response>((resolve, reject) => {
+      const timer = setTimeout(() => resolve(new Response("{}")), delayMs);
+      init.signal?.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(init.signal?.reason);
+      }, { once: true });
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const request = new NextRequest(`https://digmo.example/api/${path.join("/")}`, { method });
+    const handler = method === "POST" ? POST : GET;
+    const pending = handler(request, { params: Promise.resolve({ path }) });
+
+    await vi.advanceTimersByTimeAsync(Math.min(delayMs, 300000));
+
+    expect((await pending).status).toBe(status);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("preserves auth and queries without forwarding cookies or spoofed proxy headers", async () => {
     vi.stubEnv("API_UPSTREAM", "http://api:3001");
     const fetchMock = vi.fn().mockResolvedValue(new Response('{"ok":true}', {

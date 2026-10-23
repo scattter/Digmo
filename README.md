@@ -78,6 +78,8 @@ AUTH_JWT_SECRET=替换为至少32字符的独立随机密钥
 AUTH_BOOTSTRAP_ADMIN_USERNAME=admin
 AUTH_BOOTSTRAP_ADMIN_PASSWORD=替换为至少12字符的独立强密码
 DECISION_AI_ALLOWED_ORIGINS=https://api.openai.com
+OPENAI_TIMEOUT_MS=120000
+OPENAI_MAX_TOKENS=16384
 ```
 
 可用 `openssl rand -hex 32` 生成密钥、`openssl rand -hex 16` 生成初始密码，分别保存到对应项。不要使用示例文字或把 `.env` 提交到版本库。
@@ -105,6 +107,17 @@ location / {
     client_body_timeout 15s;
     proxy_connect_timeout 5s;
     proxy_read_timeout 65s;
+}
+
+# 组合分析包含模型推理及最多一次重试，等待时间需覆盖 Web 的 300 秒上限。
+location ~ ^/api/v1/portfolios/[^/]+/daily-decision:generate$ {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    client_max_body_size 1m;
+    client_body_timeout 15s;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 310s;
 }
 ```
 

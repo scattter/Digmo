@@ -175,6 +175,7 @@ describe("OpenAIDecisionProvider", () => {
     expect(chatCompletionCreateSpy).toHaveBeenCalledTimes(1);
     expect(chatCompletionCreateSpy).toHaveBeenCalledWith({
       model: "gpt-4o-mini",
+      max_completion_tokens: 1200,
       messages: [
         {
           role: "system",
@@ -234,7 +235,7 @@ describe("OpenAIDecisionProvider", () => {
     };
 
     expect(body.model).toBe("gpt-4o-mini");
-    expect(body.max_tokens).toBe(1024);
+    expect(body.max_tokens).toBe(1800);
     expect(body.messages[0]).toEqual({
       role: "system",
       content: expect.any(String),
@@ -303,7 +304,7 @@ describe("OpenAIDecisionProvider", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  test("clamps compat chat completions max_tokens to provider-safe latency budget", async () => {
+  test("preserves the configured reasoning budget for compat chat completions", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -324,7 +325,7 @@ describe("OpenAIDecisionProvider", () => {
       mode: "chat_completions",
       model: "MiniMax-M2.5",
       baseUrl: "https://api.xairouter.com/v1",
-      maxOutputTokens: 128000,
+      maxOutputTokens: 16384,
     });
 
     await provider.generateDailyDecision(createInput());
@@ -334,7 +335,84 @@ describe("OpenAIDecisionProvider", () => {
       max_tokens: number;
     };
 
-    expect(body.max_tokens).toBe(1024);
+    expect(body.max_tokens).toBe(16384);
+  });
+
+  test.each(["", "具体操作：减仓"])("rejects token-limited responses without retrying, including partial text %j", async (outputText) => {
+    responsesCreateSpy.mockResolvedValue({
+      status: "incomplete",
+      incomplete_details: { reason: "max_output_tokens" },
+      output_text: outputText,
+      usage: {
+        output_tokens: 1600,
+        output_tokens_details: { reasoning_tokens: outputText ? 1590 : 1600 },
+      },
+    });
+    const provider = buildProvider({ mode: "responses", model: "deepseek-flash", maxOutputTokens: 1600 });
+
+    await expect(provider.generateDailyDecision(createInput())).rejects.toThrow(
+      `AI 输出 token 已达上限（OPENAI_MAX_TOKENS=1600，output_tokens=1600，reasoning_tokens=${outputText ? 1590 : 1600}）`,
+    );
+    expect(responsesCreateSpy).toHaveBeenCalledTimes(1);
+    expect(chatCompletionCreateSpy).not.toHaveBeenCalled();
+  });
+
+  test("reports token exhaustion when upstream omits usage", async () => {
+    responsesCreateSpy.mockResolvedValue({
+      status: "incomplete",
+      incomplete_details: { reason: "max_output_tokens" },
+    });
+    const provider = buildProvider({ mode: "responses", maxOutputTokens: 16384 });
+
+    await expect(provider.generateDailyDecision(createInput())).rejects.toThrow(
+      "AI 输出 token 已达上限（OPENAI_MAX_TOKENS=16384）",
+    );
+    expect(responsesCreateSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("rejects other incomplete responses without saving partial text or retrying", async () => {
+    responsesCreateSpy.mockResolvedValue({
+      status: "incomplete",
+      incomplete_details: { reason: "content_filter" },
+      output_text: "具体操作：减仓",
+    });
+    const provider = buildProvider({ mode: "responses" });
+
+    await expect(provider.generateDailyDecision(createInput())).rejects.toThrow("AI 响应未完成（content_filter）");
+    expect(responsesCreateSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("still retries an empty responses payload without a token limit reason", async () => {
+    responsesCreateSpy
+      .mockResolvedValueOnce({ output_text: "" })
+      .mockResolvedValueOnce({ status: "completed", output_text: buildValidDecisionText() });
+    const provider = buildProvider({ mode: "responses" });
+
+    await expect(provider.generateDailyDecision(createInput())).resolves.toMatchObject({
+      summary: buildValidDecisionText(),
+    });
+    expect(responsesCreateSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test.each([
+    ["https://api.openai.com/v1", ""],
+    ["https://api.openai.com/v1", "具体操作：减仓"],
+    ["https://compat.example.com/v1", ""],
+    ["https://compat.example.com/v1", "具体操作：减仓"],
+  ])("rejects truncated chat output from %s without retrying, including partial text %j", async (baseUrl, content) => {
+    const payload = {
+      choices: [{ finish_reason: "length", message: { content, reasoning_content: "思考过程" } }],
+      usage: { completion_tokens: 1600, completion_tokens_details: { reasoning_tokens: 1500 } },
+    };
+    chatCompletionCreateSpy.mockResolvedValue(payload);
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(payload)));
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = buildProvider({ baseUrl, maxOutputTokens: 1600 });
+
+    await expect(provider.generateDailyDecision(createInput())).rejects.toThrow(
+      "AI 输出 token 已达上限（OPENAI_MAX_TOKENS=1600，output_tokens=1600，reasoning_tokens=1500）",
+    );
+    expect(fetchMock.mock.calls.length + chatCompletionCreateSpy.mock.calls.length).toBe(1);
   });
 
   test("retries compat chat completions when upstream returns 5xx once", async () => {

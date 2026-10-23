@@ -76,11 +76,16 @@ Web 从同源 `/api/v1/*` 调用，由 Next.js 服务端转发到 API 的 `/v1/*
 | `AUTH_ACCESS_TOKEN_EXPIRES_IN_SEC` | 登录 token 有效期，默认 43200 秒 |
 | `CORS_ORIGINS` | 逗号分隔 HTTP(S) origin；生产默认不允许跨域，同源 Web 不需要填写 |
 | `DECISION_AI_ALLOWED_ORIGINS` | 页面尚未保存白名单时使用的生产 AI 服务 HTTPS origin 名单，默认 `https://api.openai.com`，不填写 `/v1` 等路径；页面保存后以数据库为准 |
-| `OPENAI_TIMEOUT_MS` / `OPENAI_MAX_TOKENS` | AI 请求超时和输出长度限制 |
+| `OPENAI_TIMEOUT_MS` | 单次 AI 请求超时，默认 120000 毫秒；兼容 Chat Completions 保留至少 75000 毫秒的等待时间 |
+| `OPENAI_MAX_TOKENS` | AI 输出额度，默认 16384，包含推理和正文 token；Responses、官方及兼容 Chat Completions 均使用该配置 |
 | `DECISION_AI_SYSTEM_PROMPT_FILE` | 可选的系统提示词文件路径，容器内需可读 |
 | `REDIS_ENABLED` / `REDIS_URL` | 分享缓存配置，生产 Compose 已启用内网 Redis |
 | `VALUATION_TARGET_FUNDS` | 定时估值的基金代码，逗号分隔；默认按需查询 |
 | `EASTMONEY_*` | 基金资料与持仓行情兼容配置，不代表盘中估值仍使用旧 fundgz |
+
+推理模型可能在生成正文前耗尽输出额度。Responses 返回 `incomplete/max_output_tokens` 或 Chat Completions 返回 `finish_reason=length` 时，本次分析记为失败，记录配置额度和上游返回的输出、推理 token 用量，不保存截断正文，也不使用相同额度重试。其他可重试错误仍最多请求两次。已有环境变量会覆盖默认值，升级时需同步调整旧配置并重启 API；生产 Compose 已透传这两项配置。
+
+Web 的生成分析接口等待上限为 300 秒，其他接口仍为 60 秒。外层反向代理也需为生成分析接口预留至少 310 秒，见根目录 Nginx 示例；如果将单次模型超时设为超过 120 秒，需同步调整 Web 和外层代理的等待上限。
 
 生产默认防护：业务请求按已验证且未过期的登录令牌用户 ID 每分钟 300 次；无令牌或无效令牌按实际连接 IP 每分钟 300 次，不信任客户端转发的 IP。登录使用独立连接 IP 额度（每分钟 60 次），同时按用户名（不区分大小写）每分钟 10 次。注册使用另一个独立连接 IP 额度，每分钟最多 5 次尝试，超限返回 `429` 和 `Retry-After` 响应头。匿名查询不会占用登录或注册额度；`GET/HEAD /v1/health` 不参与业务限流。请求体最大 1 MiB。限流使用单实例内存，重启后重置；经 Web 代理的访客仍会共享连接 IP 及注册额度，公网入口仍应配置流量限制。
 

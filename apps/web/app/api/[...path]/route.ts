@@ -4,6 +4,8 @@ const DEFAULT_API_UPSTREAM = "http://127.0.0.1:3001";
 const METHODS_WITHOUT_BODY = new Set(["GET", "HEAD"]);
 const MAX_BODY_BYTES = 1024 * 1024;
 const UPSTREAM_TIMEOUT_MS = 60_000;
+// 覆盖模型最多两次 120 秒请求，并为估值查询和结果落库留出时间。
+const DECISION_UPSTREAM_TIMEOUT_MS = 300_000;
 const REQUEST_HEADERS = ["accept", "accept-language", "authorization", "content-type", "origin", "user-agent"];
 const HOP_BY_HOP_HEADERS = ["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"];
 
@@ -76,7 +78,10 @@ async function readBody(request: NextRequest, signal: AbortSignal): Promise<Uint
 async function proxy(request: NextRequest, path: string[]): Promise<NextResponse> {
   try {
     const method = request.method.toUpperCase();
-    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(UPSTREAM_TIMEOUT_MS)]);
+    const isDecisionGeneration = method === "POST" && path.length === 4 &&
+      path[0] === "v1" && path[1] === "portfolios" && path[3] === "daily-decision:generate";
+    const timeoutMs = isDecisionGeneration ? DECISION_UPSTREAM_TIMEOUT_MS : UPSTREAM_TIMEOUT_MS;
+    const signal = AbortSignal.any([request.signal, AbortSignal.timeout(timeoutMs)]);
     const init: RequestInit = {
       method,
       headers: copyRequestHeaders(request.headers),
