@@ -2,7 +2,7 @@ import { DecisionAiMode, ERROR_CODES, UserDecisionAiConfigSummary } from "@digmo
 import { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
 import { WatchlistStore } from "../infra/watchlist/sqlite-watchlist-store.js";
 import { AppError } from "../utils/app-error.js";
-import { validateDecisionBaseUrl } from "../modules/decision/base-url.js";
+import { parseDecisionAllowedOrigins, validateDecisionBaseUrl } from "../modules/decision/base-url.js";
 
 interface RegisterSettingsRoutesDeps {
   store: WatchlistStore;
@@ -16,6 +16,12 @@ function requireUserId(request: FastifyRequest): string {
     throw new AppError(ERROR_CODES.AUTH_REQUIRED, "authentication is required", 401);
   }
   return userId;
+}
+
+function requireAdmin(request: FastifyRequest): void {
+  if (request.authUser?.role !== "admin") {
+    throw new AppError(ERROR_CODES.INVALID_DECISION_AI_CONFIG, "仅管理员可以管理 AI 服务白名单", 403);
+  }
 }
 
 function parseRequiredString(raw: unknown, fieldName: string, maxLength: number): string {
@@ -78,6 +84,22 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: RegisterSetti
   app.register(async (protectedApp) => {
     protectedApp.addHook("preHandler", deps.requireAuth);
 
+    protectedApp.get("/v1/settings/decision-ai/allowed-origins", async (request) => {
+      requireAdmin(request);
+      return {
+        allowedOrigins: deps.store.getDecisionAiAllowedOrigins() ?? deps.allowedOrigins ?? ["https://api.openai.com"],
+        enforced: deps.allowedOrigins !== undefined,
+      };
+    });
+
+    protectedApp.put("/v1/settings/decision-ai/allowed-origins", async (request) => {
+      requireAdmin(request);
+      const body = request.body as { allowedOrigins?: unknown } | undefined;
+      const allowedOrigins = parseDecisionAllowedOrigins(body?.allowedOrigins);
+      deps.store.setDecisionAiAllowedOrigins(allowedOrigins);
+      return { allowedOrigins, enforced: deps.allowedOrigins !== undefined };
+    });
+
     protectedApp.get("/v1/settings/decision-ai", async (request) => {
       const userId = requireUserId(request);
       const config = await deps.store.getDecisionAiConfig(userId);
@@ -94,7 +116,10 @@ export function registerSettingsRoutes(app: FastifyInstance, deps: RegisterSetti
         mode?: unknown;
         apiKey?: unknown;
       };
-      const baseUrl = validateDecisionBaseUrl(parseRequiredString(body?.baseUrl, "baseUrl", 500), deps.allowedOrigins);
+      const allowedOrigins = deps.allowedOrigins === undefined
+        ? undefined
+        : deps.store.getDecisionAiAllowedOrigins() ?? deps.allowedOrigins;
+      const baseUrl = validateDecisionBaseUrl(parseRequiredString(body?.baseUrl, "baseUrl", 500), allowedOrigins);
       const model = parseRequiredString(body?.model, "model", 200);
       const mode = parseDecisionAiMode(body?.mode);
       const apiKey = parseOptionalApiKey(body?.apiKey);

@@ -164,7 +164,9 @@ export async function buildApp(): Promise<AppContext> {
       maxOutputTokens: config.decisionAi.openaiMaxTokens,
       systemPrompt,
       docMaxChars: config.decisionAi.docMaxChars,
-      allowedOrigins: config.decisionAi.allowedOrigins,
+      allowedOrigins: config.production
+        ? watchlistStore.getDecisionAiAllowedOrigins() ?? config.decisionAi.allowedOrigins
+        : undefined,
     });
 
   registerHealthRoutes(app);

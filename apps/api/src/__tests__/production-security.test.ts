@@ -6,9 +6,11 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { getConfig } from "../config.js";
 import { SqliteWatchlistStore } from "../infra/watchlist/sqlite-watchlist-store.js";
+import { SqliteDecisionStore } from "../infra/decision/sqlite-decision-store.js";
 import { ensureProductionPasswords } from "../modules/auth/production-auth.js";
 import { verifyPassword } from "../modules/auth/password.js";
 import { validateDecisionBaseUrl } from "../modules/decision/base-url.js";
+import { OpenAIDecisionProvider } from "../modules/decision/openai-provider.js";
 import { buildApp } from "../app.js";
 
 const roots: string[] = [];
@@ -20,6 +22,7 @@ function makeStore(password?: string) {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllEnvs();
   while (roots.length) rmSync(roots.pop()!, { recursive: true, force: true });
 });
@@ -128,6 +131,73 @@ describe("production security", () => {
       expect(limited.headers["retry-after"]).toBeDefined();
     } finally {
       await app.close();
+    }
+  });
+
+  test("production AI calls use the latest saved allowlist and keep it across app restarts", async () => {
+    const password = "a-secure-admin-password";
+    const { path, store } = makeStore(password);
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("AUTH_JWT_SECRET", "secure-random-signing-key-with-32-characters");
+    vi.stubEnv("AUTH_BOOTSTRAP_ADMIN_USERNAME", "admin");
+    vi.stubEnv("AUTH_BOOTSTRAP_ADMIN_PASSWORD", password);
+    vi.stubEnv("WATCHLIST_DB_PATH", path);
+    vi.stubEnv("REDIS_ENABLED", "false");
+    vi.stubEnv("CORS_ORIGINS", "");
+    vi.stubEnv("DECISION_AI_ALLOWED_ORIGINS", "https://api.openai.com");
+    const admin = (await store.getUserByUsername("admin"))!;
+    const portfolio = await store.createPortfolio(admin.id, "测试组合", "FREE");
+    await store.upsertPortfolioFund(admin.id, { portfolioId: portfolio.id, fundCode: "000001", holdingAmount: 100 });
+    await store.upsertDecisionAiConfig(admin.id, {
+      baseUrl: "https://compat.example.com/v1", model: "test", mode: "chat_completions", apiKey: "test-key",
+    });
+    await new SqliteDecisionStore(path).upsertDecisionDoc(admin.id, portfolio.id, { format: "TEXT", content: "测试分析" });
+    const generate = vi.spyOn(OpenAIDecisionProvider.prototype, "generateDailyDecision").mockResolvedValue({ summary: "测试建议" });
+    const { app, service } = await buildApp();
+    app.log.level = "silent";
+    vi.spyOn(service, "getBatchEstimates").mockResolvedValue({
+      data: [{
+        fundCode: "000001", officialNav: 1, estimateNav: 1, estimateChangePct: 0,
+        baseNavDate: "2026-01-01", estimateTime: new Date().toISOString(),
+        confidenceLevel: "HIGH", confidenceScore: 100, method: "FUND_GZ_DIRECT",
+        inputsStalenessSec: 0, topHoldings: [], disclaimer: "test",
+      }],
+      partialFailed: [],
+    });
+    let authorization: string;
+    try {
+      const login = await app.inject({ method: "POST", url: "/v1/auth/login", payload: { username: "admin", password } });
+      authorization = `Bearer ${login.json().accessToken}`;
+      const requestDecision = () => app.inject({
+        method: "POST", url: `/v1/portfolios/${portfolio.id}/daily-decision:generate`, headers: { authorization },
+      });
+      expect((await requestDecision()).json().code).toBe("INVALID_DECISION_AI_CONFIG");
+      expect(generate).not.toHaveBeenCalled();
+      const saved = await app.inject({
+        method: "PUT", url: "/v1/settings/decision-ai/allowed-origins", headers: { authorization },
+        payload: { allowedOrigins: ["https://compat.example.com"] },
+      });
+      expect(saved.statusCode).toBe(200);
+      expect((await requestDecision()).statusCode).toBe(200);
+      expect(generate).toHaveBeenCalledTimes(1);
+      const cleared = await app.inject({
+        method: "PUT", url: "/v1/settings/decision-ai/allowed-origins", headers: { authorization }, payload: { allowedOrigins: [] },
+      });
+      expect(cleared.statusCode).toBe(200);
+      const rejected = await requestDecision();
+      expect(rejected.statusCode).toBe(400);
+      expect(rejected.json().code).toBe("INVALID_DECISION_AI_CONFIG");
+      expect(generate).toHaveBeenCalledTimes(1);
+    } finally {
+      await app.close();
+    }
+    const { app: restarted } = await buildApp();
+    restarted.log.level = "silent";
+    try {
+      const response = await restarted.inject({ url: "/v1/settings/decision-ai/allowed-origins", headers: { authorization } });
+      expect(response.json()).toEqual({ allowedOrigins: [], enforced: true });
+    } finally {
+      await restarted.close();
     }
   });
 

@@ -197,6 +197,8 @@ export interface WatchlistStore {
   getPortfolioTabLayoutPreference(userId: string): Promise<PortfolioTabLayoutPreference>;
   setPortfolioTabLayoutPreference(userId: string, preference: PortfolioTabLayoutPreference): Promise<void>;
   getDecisionAiConfig(userId: string): Promise<UserDecisionAiConfigItem | undefined>;
+  getDecisionAiAllowedOrigins(): string[] | undefined;
+  setDecisionAiAllowedOrigins(origins: string[]): void;
   upsertDecisionAiConfig(
     userId: string,
     input: { baseUrl: string; model: string; mode: DecisionAiMode; apiKey: string }
@@ -2354,6 +2356,15 @@ export class SqliteWatchlistStore implements WatchlistStore {
         `
       )
       .run(userId, fundsTabIndex);
+  }
+
+  getDecisionAiAllowedOrigins(): string[] | undefined {
+    const value = this.getMetaValue("decision_ai_allowed_origins");
+    return value === undefined ? undefined : JSON.parse(value) as string[];
+  }
+
+  setDecisionAiAllowedOrigins(origins: string[]): void {
+    this.setMetaValue("decision_ai_allowed_origins", JSON.stringify(origins));
   }
 
   async getDecisionAiConfig(userId: string): Promise<UserDecisionAiConfigItem | undefined> {

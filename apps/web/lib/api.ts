@@ -286,6 +286,28 @@ export async function fetchDecisionAiConfig(): Promise<UserDecisionAiConfigSumma
   return data.config ?? null;
 }
 
+export interface DecisionAiOriginsConfig {
+  allowedOrigins: string[];
+  enforced: boolean;
+}
+
+export async function fetchDecisionAiOrigins(): Promise<DecisionAiOriginsConfig> {
+  const response = await apiRequest("/v1/settings/decision-ai/allowed-origins", { auth: true });
+  await ensureOk(response, "读取 AI 服务白名单失败");
+  return response.json() as Promise<DecisionAiOriginsConfig>;
+}
+
+export async function updateDecisionAiOrigins(allowedOrigins: string[]): Promise<DecisionAiOriginsConfig> {
+  const response = await apiRequest("/v1/settings/decision-ai/allowed-origins", {
+    method: "PUT",
+    auth: true,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ allowedOrigins }),
+  });
+  await ensureOk(response, "保存 AI 服务白名单失败");
+  return response.json() as Promise<DecisionAiOriginsConfig>;
+}
+
 export async function updateDecisionAiConfig(params: {
   baseUrl: string;
   model: string;

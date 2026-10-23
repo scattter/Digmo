@@ -298,7 +298,7 @@ describe("OpenAIDecisionProvider", () => {
     expect(() => buildProvider({
       baseUrl: "http://127.0.0.1:8080/v1",
       allowedOrigins: ["https://api.openai.com"],
-    })).toThrow("DECISION_AI_ALLOWED_ORIGINS");
+    })).toThrow("AI 服务白名单");
     expect(openAIConstructorSpy).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
   });

@@ -27,6 +27,7 @@ interface TopNavLayoutProps {
   children: React.ReactNode;
   username?: string;
   onOpenDecisionAiConfig?: () => void;
+  onOpenDecisionAiOrigins?: () => void;
   onLogout?: () => void;
   onRefresh: () => void | Promise<void>;
   isRefreshing?: boolean;
@@ -44,6 +45,7 @@ export function TopNavLayout({
   children,
   username,
   onOpenDecisionAiConfig,
+  onOpenDecisionAiOrigins,
   onLogout,
   onRefresh,
   isRefreshing = false,
@@ -122,6 +124,12 @@ export function TopNavLayout({
         label: "AI 模型配置",
         onClick: onOpenDecisionAiConfig,
       },
+      ...(onOpenDecisionAiOrigins ? [{
+        key: "decision-ai-origins",
+        icon: <SettingOutlined />,
+        label: "AI 服务白名单",
+        onClick: onOpenDecisionAiOrigins,
+      }] : []),
       {
         key: "logout",
         icon: <LogoutOutlined />,

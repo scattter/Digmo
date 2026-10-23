@@ -150,7 +150,8 @@ docker compose -f docker-compose.prod.yml start api web
 ### 5. 配置与运行边界
 
 - 同源 Web 不需要 CORS 配置；需要跨域时，在 `CORS_ORIGINS` 中填写逗号分隔的完整 origin。
-- 使用自建或兼容 AI 服务时，将其 HTTPS origin 加入 `DECISION_AI_ALLOWED_ORIGINS`，例如 `https://api.openai.com,https://ai.example.com`；页面中的服务地址仍可包含 `/v1` 等路径。
+- 管理员可从右上角头像菜单进入「AI 服务白名单」，每行填写一个 HTTPS origin（例如 `https://ai.example.com`，可包含端口，不含 `/v1` 等路径）。保存到 SQLite 后立即用于生产环境的配置保存和 AI 调用，无需重启；普通用户无法查看或修改管理接口。清空名单会禁止所有 AI 服务调用，删除地址也会阻止已有配置的后续调用。
+- 页面保存的白名单优先于 `DECISION_AI_ALLOWED_ORIGINS`；未保存时沿用该环境变量，默认 `https://api.openai.com`。保存后重启不会被环境变量覆盖。开发环境仍不强制校验白名单；用户个人 AI 调用地址仍可包含 `/v1` 等路径。
 - API 和 Web 代理限制请求体为 1 MiB，Web 上游请求最多等待 60 秒；API 内存限流仅覆盖单实例，不能替代反向代理的并发与流量控制。
 - 已登录业务请求按验证后的用户 ID 独立限流；匿名流量、登录流量、注册流量分别按连接 IP 限流，注册最多每分钟 5 次尝试，健康检查不受业务额度影响。Web 代理后的访客仍共享连接 IP 和注册额度，不信任访客自报的转发 IP。
 - `/v1/health` 成功仅说明 API 进程可响应，不证明所有基金数据源正常。部署后还要实际登录、查询目标基金、保存持仓并重启容器检查持久化。

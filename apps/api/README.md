@@ -58,6 +58,11 @@ pnpm --filter @digmo/api dev
 
 Web 从同源 `/api/v1/*` 调用，由 Next.js 服务端转发到 API 的 `/v1/*`。
 
+仅管理员可调用的全站 AI 白名单接口（普通用户返回 `403`，未登录返回 `401`）：
+
+- `GET /v1/settings/decision-ai/allowed-origins`：返回 `{ "allowedOrigins": ["https://api.openai.com"], "enforced": true }`，`enforced` 表示当前环境是否校验白名单。
+- `PUT /v1/settings/decision-ai/allowed-origins`：提交 `{ "allowedOrigins": ["https://api.openai.com", "https://ai.example.com"] }` 替换完整名单，返回保存后的名单和 `enforced`。最多 100 个地址，自动规范化和去重；必须使用 HTTPS origin，可含端口，不可带路径、凭据、查询参数或片段。空数组表示禁止所有 AI 服务，不会回退到环境变量。
+
 ## 配置
 
 完整开发配置见 `.env.example`。应用会读取工作目录下的 `.env`，容器通过环境变量注入配置。
@@ -70,7 +75,7 @@ Web 从同源 `/api/v1/*` 调用，由 Next.js 服务端转发到 API 的 `/v1/*
 | `AUTH_BOOTSTRAP_ADMIN_PASSWORD` | 生产必填，至少 12 字符且不能使用默认密码；只在账号不存在时创建 |
 | `AUTH_ACCESS_TOKEN_EXPIRES_IN_SEC` | 登录 token 有效期，默认 43200 秒 |
 | `CORS_ORIGINS` | 逗号分隔 HTTP(S) origin；生产默认不允许跨域，同源 Web 不需要填写 |
-| `DECISION_AI_ALLOWED_ORIGINS` | 生产可调用的 AI 服务 HTTPS origin 白名单，默认 `https://api.openai.com`，不填写 `/v1` 等路径 |
+| `DECISION_AI_ALLOWED_ORIGINS` | 页面尚未保存白名单时使用的生产 AI 服务 HTTPS origin 名单，默认 `https://api.openai.com`，不填写 `/v1` 等路径；页面保存后以数据库为准 |
 | `OPENAI_TIMEOUT_MS` / `OPENAI_MAX_TOKENS` | AI 请求超时和输出长度限制 |
 | `DECISION_AI_SYSTEM_PROMPT_FILE` | 可选的系统提示词文件路径，容器内需可读 |
 | `REDIS_ENABLED` / `REDIS_URL` | 分享缓存配置，生产 Compose 已启用内网 Redis |
@@ -79,7 +84,7 @@ Web 从同源 `/api/v1/*` 调用，由 Next.js 服务端转发到 API 的 `/v1/*
 
 生产默认防护：业务请求按已验证且未过期的登录令牌用户 ID 每分钟 300 次；无令牌或无效令牌按实际连接 IP 每分钟 300 次，不信任客户端转发的 IP。登录使用独立连接 IP 额度（每分钟 60 次），同时按用户名（不区分大小写）每分钟 10 次。注册使用另一个独立连接 IP 额度，每分钟最多 5 次尝试，超限返回 `429` 和 `Retry-After` 响应头。匿名查询不会占用登录或注册额度；`GET/HEAD /v1/health` 不参与业务限流。请求体最大 1 MiB。限流使用单实例内存，重启后重置；经 Web 代理的访客仍会共享连接 IP 及注册额度，公网入口仍应配置流量限制。
 
-用户填写的 AI 地址在生产环境必须命中管理员白名单，重定向不会自动跟随。个人 API Key 保存在服务器 SQLite 中；卷和完整备份必须限制访问权限。
+管理员可从 Web 右上角头像菜单的「AI 服务白名单」维护全站名单，配置复用 SQLite `app_meta` 保存，无需单独迁移或重启。未保存时沿用环境变量，保存后优先读取数据库，重启也保留；开发环境不强制校验白名单。用户填写的 AI 地址在生产环境必须命中当前名单，保存个人配置和实际调用都会检查，因此删除地址会阻止已有配置的后续调用。重定向不会自动跟随。个人 API Key 保存在服务器 SQLite 中；卷和完整备份必须限制访问权限。
 
 ## 用户与数据 CLI
 

@@ -42,7 +42,7 @@ async function issueToken(store: SqliteWatchlistStore, username: string): Promis
   );
 }
 
-async function createApp(store: SqliteWatchlistStore) {
+async function createApp(store: SqliteWatchlistStore, allowedOrigins?: string[]) {
   const app = Fastify({ logger: false });
 
   const requireAuth = createRequireAuth({
@@ -59,6 +59,7 @@ async function createApp(store: SqliteWatchlistStore) {
   registerSettingsRoutes(app, {
     store,
     requireAuth,
+    allowedOrigins,
   });
 
   const adminToken = await issueToken(store, "admin");
@@ -82,6 +83,109 @@ afterEach(() => {
 });
 
 describe("settings routes", () => {
+  test("only authenticated administrators can read or replace the AI allowlist", async () => {
+    const store = new SqliteWatchlistStore(createTempCtx().dbPath);
+    const user = await store.createUser({ username: "alice", password: "alice-password-123", role: "user" });
+    const app = await createApp(store, ["https://api.openai.com"]);
+    const staleAdminToken = signAccessToken({ sub: user.id, username: user.username, role: "admin" }, TEST_JWT_SECRET, 3600);
+    try {
+      for (const method of ["GET", "PUT"] as const) {
+        for (const [authorization, status] of [["Bearer", 401], [`Bearer ${staleAdminToken}`, 403]] as const) {
+          const response = await app.inject({
+            method,
+            url: "/v1/settings/decision-ai/allowed-origins",
+            headers: { authorization },
+            ...(method === "PUT" ? { payload: { allowedOrigins: [], role: "admin" } } : {}),
+          });
+          expect(response.statusCode).toBe(status);
+        }
+      }
+      expect(store.getDecisionAiAllowedOrigins()).toBeUndefined();
+    } finally {
+      await app.close();
+    }
+  });
+
+  test("normalizes and persists the allowlist and applies additions and removals immediately", async () => {
+    const ctx = createTempCtx();
+    const store = new SqliteWatchlistStore(ctx.dbPath);
+    await store.createUser({ username: "alice", password: "alice-password-123", role: "user" });
+    const app = await createApp(store, ["https://api.openai.com"]);
+    const authorization = `Bearer ${await issueToken(store, "alice")}`;
+    const saveConfig = () => app.inject({
+      method: "PATCH", url: "/v1/settings/decision-ai", headers: { authorization },
+      payload: { baseUrl: "https://compat.example.com/v1", model: "test", mode: "chat_completions", apiKey: "test-key" },
+    });
+    try {
+      const initial = await app.inject({ url: "/v1/settings/decision-ai/allowed-origins" });
+      expect(initial.json()).toEqual({ allowedOrigins: ["https://api.openai.com"], enforced: true });
+      expect((await saveConfig()).statusCode).toBe(400);
+
+      const saved = await app.inject({
+        method: "PUT", url: "/v1/settings/decision-ai/allowed-origins",
+        payload: { allowedOrigins: [" https://Compat.Example.com:443/ ", "https://compat.example.com", "https://api.openai.com:8443"] },
+      });
+      expect(saved.statusCode).toBe(200);
+      expect(saved.json()).toEqual({ allowedOrigins: ["https://compat.example.com", "https://api.openai.com:8443"], enforced: true });
+      expect((await saveConfig()).statusCode).toBe(200);
+      expect(new SqliteWatchlistStore(ctx.dbPath).getDecisionAiAllowedOrigins()).toEqual(saved.json().allowedOrigins);
+
+      const cleared = await app.inject({
+        method: "PUT", url: "/v1/settings/decision-ai/allowed-origins", payload: { allowedOrigins: [] },
+      });
+      expect(cleared.json()).toEqual({ allowedOrigins: [], enforced: true });
+      expect((await saveConfig()).statusCode).toBe(400);
+      const fallbackAttempt = await app.inject({
+        method: "PATCH", url: "/v1/settings/decision-ai", headers: { authorization },
+        payload: { baseUrl: "https://api.openai.com/v1", model: "test", mode: "chat_completions" },
+      });
+      expect(fallbackAttempt.statusCode).toBe(400);
+      expect(new SqliteWatchlistStore(ctx.dbPath).getDecisionAiAllowedOrigins()).toEqual([]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  test("rejects invalid allowlist updates without replacing the current list", async () => {
+    const store = new SqliteWatchlistStore(createTempCtx().dbPath);
+    store.setDecisionAiAllowedOrigins(["https://compat.example.com"]);
+    const app = await createApp(store, ["https://api.openai.com"]);
+    try {
+      for (const allowedOrigins of [
+        undefined, null, "https://api.openai.com", [42], [""], ["not-a-url"],
+        ["http://api.openai.com"], ["https://api.openai.com/v1"],
+        ["https://user:password@api.openai.com"], ["https://api.openai.com?x=1"],
+        ["https://api.openai.com#fragment"], ["x".repeat(501)],
+        Array.from({ length: 101 }, () => "https://api.openai.com"),
+      ]) {
+        const response = await app.inject({
+          method: "PUT", url: "/v1/settings/decision-ai/allowed-origins", payload: { allowedOrigins },
+        });
+        expect(response.statusCode).toBe(400);
+        expect(store.getDecisionAiAllowedOrigins()).toEqual(["https://compat.example.com"]);
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
+  test("keeps development localhost available even with a saved allowlist", async () => {
+    const store = new SqliteWatchlistStore(createTempCtx().dbPath);
+    store.setDecisionAiAllowedOrigins([]);
+    const app = await createApp(store);
+    try {
+      const read = await app.inject({ url: "/v1/settings/decision-ai/allowed-origins" });
+      expect(read.json()).toEqual({ allowedOrigins: [], enforced: false });
+      const saved = await app.inject({
+        method: "PATCH", url: "/v1/settings/decision-ai",
+        payload: { baseUrl: "http://127.0.0.1:8000/v1", model: "test", mode: "chat_completions", apiKey: "test-key" },
+      });
+      expect(saved.statusCode).toBe(200);
+    } finally {
+      await app.close();
+    }
+  });
+
   test("returns null when decision ai config is not set", async () => {
     const ctx = createTempCtx();
     const store = new SqliteWatchlistStore(ctx.dbPath);

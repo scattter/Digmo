@@ -21,6 +21,7 @@ import { PortfolioDetailView } from "@/components/dashboard/views/portfolio-deta
 
 import { CreatePortfolioDialog } from "@/components/dashboard/dialogs/create-portfolio-dialog";
 import { DecisionAiConfigDialog } from "@/components/dashboard/dialogs/decision-ai-config-dialog";
+import { DecisionAiOriginsDialog } from "@/components/dashboard/dialogs/decision-ai-origins-dialog";
 import { FlatAddFundDialog } from "@/components/dashboard/dialogs/flat-add-fund-dialog";
 import { ImportPortfolioDialog } from "@/components/dashboard/dialogs/import-portfolio-dialog";
 import { SharePortfolioDialog } from "@/components/dashboard/dialogs/share-portfolio-dialog";
@@ -70,6 +71,7 @@ export default function FundDashboard() {
   const [isImportPortfolioDialogOpen, setIsImportPortfolioDialogOpen] = useState(false);
   const [isSharePortfolioDialogOpen, setIsSharePortfolioDialogOpen] = useState(false);
   const [isDecisionAiConfigDialogOpen, setIsDecisionAiConfigDialogOpen] = useState(false);
+  const [isDecisionAiOriginsDialogOpen, setIsDecisionAiOriginsDialogOpen] = useState(false);
   const [isDecisionAiConfigSaving, setIsDecisionAiConfigSaving] = useState(false);
   const [decisionAiConfig, setDecisionAiConfig] = useState<UserDecisionAiConfigSummary | null>(null);
 
@@ -474,6 +476,7 @@ export default function FundDashboard() {
       <TopNavLayout
         username={currentUser.username}
         onOpenDecisionAiConfig={() => setIsDecisionAiConfigDialogOpen(true)}
+        onOpenDecisionAiOrigins={currentUser.role === "admin" ? () => setIsDecisionAiOriginsDialogOpen(true) : undefined}
         onLogout={handleLogout}
         onRefresh={handleTopNavRefresh}
         isRefreshing={dashboard.isLoading}
@@ -530,6 +533,10 @@ export default function FundDashboard() {
           config={decisionAiConfig}
           isBusy={isDecisionAiConfigSaving}
         />
+
+        {currentUser.role === "admin" ? (
+          <DecisionAiOriginsDialog open={isDecisionAiOriginsDialogOpen} onOpenChange={setIsDecisionAiOriginsDialogOpen} />
+        ) : null}
 
         <FlatAddFundDialog
           open={isFlatAddFundDialogOpen}
